@@ -1,0 +1,111 @@
+# CampusVerse root ignore rules
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Local dependency folders
+node_modules/
+frontend/node_modules/
+backend/.venv/
+backend/venv/
+backend/env/
+.venv/
+venv/
+env/
+
+# Frontend build/cache output
+dist/
+build/
+.output/
+.vinxi/
+.nitro/
+.tanstack/
+frontend/dist/
+frontend/build/
+frontend/.output/
+frontend/.vinxi/
+frontend/.nitro/
+frontend/.tanstack/
+frontend/.wrangler/
+frontend/.dev.vars
+
+# Python cache/test/build output
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+*.egg-info/
+backend/__pycache__/
+backend/app/**/__pycache__/
+
+# Logs and local runtime files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.dev-logs/
+celerybeat-schedule
+celerybeat.pid
+dump.rdb
+
+# Local databases and generated backups
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+backend/backups/
+backups/
+
+# Uploaded/generated user files
+uploads/
+backend/uploads/
+backend/app/uploads/
+backend/static/uploads/
+frontend/public/uploads/
+
+# Codex/local scratch output
+.agents/
+.codex/
+outputs/
+work/
+
+# OS/editor local files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Misc generated reports
+coverage/
+reports/
+tmp/
+temp/
