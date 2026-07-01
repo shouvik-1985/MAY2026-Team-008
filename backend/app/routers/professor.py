@@ -2,9 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 from math import ceil
 from pathlib import Path
 import re
-import shutil
 from typing import Annotated
-from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -31,7 +29,8 @@ from app.schemas import (
     StudentBlockUpdate,
     StudyResourceCreate,
 )
-from app.storage import STUDY_RESOURCE_UPLOAD_DIR, ensure_upload_dirs
+from app.resource_files import public_resource_url, resource_file_url
+from app.storage import STUDY_RESOURCE_UPLOAD_DIR
 
 router = APIRouter(prefix="/professor", tags=["professor"])
 LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
@@ -318,7 +317,7 @@ def _resource_payload(db: Session, item: StudyResource) -> dict:
         "subject": item.subject,
         "resourceType": item.resource_type,
         "tag": item.tag,
-        "url": item.url or "",
+        "url": public_resource_url(item),
         "professorName": professor.full_name if professor else "Campus faculty",
         "createdAt": item.created_at.isoformat(),
         "createdDate": item.created_at.date().isoformat(),
@@ -576,13 +575,9 @@ def upload_resource(
     if len(subject_name) < 2:
         raise HTTPException(status_code=422, detail="Subject name is required")
 
-    ensure_upload_dirs()
     original_name = Path(file.filename).name
     safe_name = _safe_filename(original_name)
-    stored_name = f"{_now().strftime('%Y%m%d%H%M%S')}_{uuid4().hex[:10]}_{safe_name}"
-    target_path = STUDY_RESOURCE_UPLOAD_DIR / stored_name
-    with target_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    file_bytes = file.file.read()
 
     title = Path(original_name).stem.strip() or safe_name
     item = StudyResource(
@@ -590,10 +585,16 @@ def upload_resource(
         title=title[:180],
         subject=subject_name[:120],
         resource_type=_resource_type_from_file(original_name, file.content_type),
-        url=f"/uploads/study_resources/{stored_name}",
+        url=None,
+        filename=original_name[:255],
+        content_type=(file.content_type or "application/octet-stream")[:120],
+        file_size=len(file_bytes),
+        file_data=file_bytes,
         tag="new",
     )
     db.add(item)
+    db.flush()
+    item.url = resource_file_url(item.id)
     db.commit()
     db.refresh(item)
     return {"ok": True, "id": item.id, "resource": _resource_payload(db, item)}

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_current_user
 from app.db import get_db
 from app.models import Role, StudentAttendance, StudentTodo, StudyResource, User
+from app.resource_files import public_resource_url
 from app.schemas import StudentDashboard, StudentTodoCreate, StudentTodoUpdate
 
 router = APIRouter(prefix="/student", tags=["student"])
@@ -193,7 +194,7 @@ def _resource_rows(db: Session) -> list[dict]:
                 "subject": resource.subject,
                 "type": resource.resource_type,
                 "tag": resource.tag,
-                "url": resource.url or "",
+                "url": public_resource_url(resource),
                 "professorName": professor.full_name if professor else "Campus faculty",
                 "createdAt": resource.created_at.isoformat(),
                 "createdDate": resource.created_at.date().isoformat(),
