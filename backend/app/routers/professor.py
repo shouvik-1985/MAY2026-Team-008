@@ -5,6 +5,7 @@ import re
 import shutil
 from typing import Annotated
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import desc
@@ -33,6 +34,7 @@ from app.schemas import (
 from app.storage import STUDY_RESOURCE_UPLOAD_DIR, ensure_upload_dirs
 
 router = APIRouter(prefix="/professor", tags=["professor"])
+LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 
 PROFESSOR_NAV = [
@@ -52,7 +54,7 @@ def _now() -> datetime:
 
 
 def _today() -> date:
-    return _now().date()
+    return datetime.now(LOCAL_TIMEZONE).date()
 
 
 def _require_professor(user: User) -> None:

@@ -264,6 +264,54 @@
   .cv-cursor, .cv-cursor-ring { display: none; }
 }
 
+.cv-low-performance {
+  scroll-behavior: auto !important;
+}
+
+.cv-low-performance body.cv-cursor-enabled,
+body.cv-low-performance.cv-cursor-enabled,
+.cv-low-performance body.cv-cursor-enabled *,
+body.cv-low-performance.cv-cursor-enabled * {
+  cursor: auto !important;
+}
+
+.cv-low-performance .cv-cursor,
+.cv-low-performance .cv-cursor-ring {
+  display: none !important;
+}
+
+.cv-low-performance .glass,
+.cv-low-performance .glass-strong {
+  backdrop-filter: blur(10px) saturate(125%) !important;
+}
+
+.cv-low-performance [class*="backdrop-blur"] {
+  backdrop-filter: blur(10px) saturate(125%) !important;
+}
+
+.cv-low-performance .glow-purple,
+.cv-low-performance .glow-cyan {
+  box-shadow: 0 0 24px oklch(0.65 0.28 305 / 0.25) !important;
+}
+
+.cv-low-performance .float-slow,
+.cv-low-performance .pulse-glow,
+.cv-low-performance .breathe,
+.cv-low-performance .text-aurora {
+  animation-duration: 18s !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Hide scrollbar but keep scroll */
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }

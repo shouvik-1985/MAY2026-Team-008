@@ -23,7 +23,15 @@ export type StudentDashboard = {
   };
   metrics: { label: string; value: string; hint: string; tone: string }[];
   cgpa_trend: { term: string; cgpa: number }[];
-  attendance_weekly: { day: string; attendance: number }[];
+  attendance_weekly: {
+    day: string;
+    label?: string;
+    date?: string;
+    attendance: number;
+    status?: string;
+    marked?: boolean;
+    isToday?: boolean;
+  }[];
   attendance_timeline?: {
     date: string;
     label: string;

@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc
@@ -11,6 +12,7 @@ from app.models import Role, StudentAttendance, StudentTodo, StudyResource, User
 from app.schemas import StudentDashboard, StudentTodoCreate, StudentTodoUpdate
 
 router = APIRouter(prefix="/student", tags=["student"])
+LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 
 STUDENT_NAV = [
@@ -53,6 +55,10 @@ def _attendance_percentage(records: list[StudentAttendance], fallback: float) ->
     return round((present / len(records)) * 100, 2)
 
 
+def _today() -> date:
+    return datetime.now(LOCAL_TIMEZONE).date()
+
+
 def _normalize_due_at(value: datetime | None) -> datetime | None:
     if value is None:
         return None
@@ -83,17 +89,40 @@ def _todo_rows(db: Session, student_id: int) -> list[dict]:
     return [_todo_out(row) for row in rows]
 
 
-def _weekly_attendance(records: list[StudentAttendance], fallback: list[int]) -> list[int]:
-    if not records:
-        return fallback
+def _weekly_attendance(records: list[StudentAttendance], fallback: list[int]) -> list[dict]:
+    today = _today()
+    days = [today - timedelta(days=offset) for offset in range(6, -1, -1)]
 
-    today = datetime.now(timezone.utc).date()
+    if not records:
+        return [
+            {
+                "date": day.isoformat(),
+                "day": day.strftime("%a"),
+                "label": day.strftime("%d %b"),
+                "attendance": value,
+                "status": "demo",
+                "marked": True,
+                "isToday": day == today,
+            }
+            for day, value in zip(days, fallback)
+        ]
+
     by_day = {record.attendance_date: record.status for record in records}
-    values: list[int] = []
-    for offset in range(6, -1, -1):
-        status = by_day.get(today - timedelta(days=offset))
-        values.append(100 if status == "present" else 0 if status == "absent" else 0)
-    return values
+    rows: list[dict] = []
+    for day in days:
+        status = by_day.get(day)
+        rows.append(
+            {
+                "date": day.isoformat(),
+                "day": day.strftime("%a"),
+                "label": day.strftime("%d %b"),
+                "attendance": 100 if status == "present" else 0,
+                "status": status or "unmarked",
+                "marked": status is not None,
+                "isToday": day == today,
+            }
+        )
+    return rows
 
 
 def _attendance_timeline(records: list[StudentAttendance]) -> list[dict]:
@@ -185,7 +214,7 @@ def _student_dataset(db: Session, user: User) -> dict:
     student_code = profile.student_code if profile else f"CV-2026-{1000 + user.id:04d}"
     department = profile.department if profile else "Computer Science & AI"
     fallback_weekly_values = [max(72, min(100, int(attendance + delta + seed))) for delta in [-10, -4, 3, -2, 0, 7, -5]]
-    weekly_values = _weekly_attendance(attendance_records, fallback_weekly_values)
+    weekly_attendance = _weekly_attendance(attendance_records, fallback_weekly_values)
     attendance_timeline = _attendance_timeline(attendance_records)
     monthly_attendance = _monthly_attendance(attendance_records)
     fee_base = 78000 + (semester * 1200)
@@ -213,10 +242,7 @@ def _student_dataset(db: Session, user: User) -> dict:
             {"term": f"Sem {idx}", "cgpa": round(max(6.5, cgpa - ((semester - idx) * 0.18)), 2)}
             for idx in range(1, min(semester, 6) + 1)
         ],
-        "attendance_weekly": [
-            {"day": day, "attendance": value}
-            for day, value in zip(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], weekly_values)
-        ],
+        "attendance_weekly": weekly_attendance,
         "attendance_timeline": attendance_timeline,
         "attendance_by_subject": [
             {
