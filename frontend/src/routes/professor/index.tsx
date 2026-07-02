@@ -1022,6 +1022,7 @@ function ResourceHistoryRow({
   onDelete: () => void;
 }) {
   const href = resolveResourceUrl(item.url);
+  const downloadHref = href ? `${href}${href.includes("?") ? "&" : "?"}download=true` : "";
   return (
     <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1066,7 +1067,7 @@ function ResourceHistoryRow({
             Open
           </a>
           <a
-            href={href || undefined}
+            href={downloadHref || undefined}
             download
             aria-disabled={!href}
             className={`glass rounded-full px-3 py-2 text-xs inline-flex items-center gap-1.5 transition hover:border-white/25 ${

@@ -20,11 +20,13 @@ def _column_sql(sql_type: str) -> str:
     if engine.dialect.name == "sqlite":
         return {
             "bool": "BOOLEAN NOT NULL DEFAULT 0",
+            "blob": "BLOB",
             "timestamp": "TIMESTAMP",
             "student_address": "VARCHAR(255) NOT NULL DEFAULT 'Campus Residence'",
         }[sql_type]
     return {
         "bool": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "blob": "BYTEA",
         "timestamp": "TIMESTAMP WITH TIME ZONE",
         "student_address": "VARCHAR(255) NOT NULL DEFAULT 'Campus Residence'",
     }[sql_type]
@@ -49,6 +51,17 @@ def ensure_database_shape() -> None:
     if "student_profiles" in tables:
         profile_columns = {column["name"] for column in inspector.get_columns("student_profiles")}
 
+    resource_columns = set()
+    if "study_resources" in tables:
+        resource_columns = {column["name"] for column in inspector.get_columns("study_resources")}
+
+    resource_additions = {
+        "filename": "VARCHAR(255)",
+        "content_type": "VARCHAR(120)",
+        "file_size": "INTEGER",
+        "file_data": _column_sql("blob"),
+    }
+
     with engine.begin() as connection:
         for name, definition in user_additions.items():
             if name not in user_columns:
@@ -58,6 +71,11 @@ def ensure_database_shape() -> None:
             connection.execute(
                 text(f"ALTER TABLE student_profiles ADD COLUMN address {_column_sql('student_address')}")
             )
+
+        if "study_resources" in tables:
+            for name, definition in resource_additions.items():
+                if name not in resource_columns:
+                    connection.execute(text(f"ALTER TABLE study_resources ADD COLUMN {name} {definition}"))
 
 
 def get_db() -> Generator[Session, None, None]:

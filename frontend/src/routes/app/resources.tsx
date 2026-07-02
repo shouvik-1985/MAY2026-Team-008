@@ -257,8 +257,9 @@ function IconAction({
   }`;
 
   if (href !== undefined) {
+    const actionHref = download && href ? `${href}${href.includes("?") ? "&" : "?"}download=true` : href;
     return (
-      <a href={href || undefined} target="_blank" rel="noreferrer" download={download} className={className}>
+      <a href={actionHref || undefined} target="_blank" rel="noreferrer" download={download} className={className}>
         <Icon className="size-3.5" /> {label}
       </a>
     );
