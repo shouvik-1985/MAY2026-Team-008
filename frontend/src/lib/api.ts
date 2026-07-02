@@ -259,6 +259,65 @@ export type ProfessorDashboard = {
   nav_modules: { label: string; path: string; feature: string }[];
 };
 
+export type AdminDashboard = {
+  admin: {
+    name: string;
+    email: string;
+    role: string;
+    avatar: string;
+    navModules: { label: string; path: string; feature: string }[];
+  };
+  metrics: { label: string; value: string; hint: string; tone: string }[];
+  ratio_overview: { label: string; count: number; share: number; accent: string }[];
+  attendance_overview: {
+    date: string;
+    label: string;
+    present: number;
+    absent: number;
+    marked: number;
+    attendance: number;
+  }[];
+  students: {
+    id: number;
+    name: string;
+    email: string;
+    studentCode: string;
+    address: string;
+    department: string;
+    semester: number;
+    cgpa: number;
+    attendance: number;
+    attendanceMarked: number;
+    presentCount: number;
+    absentCount: number;
+    status: string;
+    isBlocked: boolean;
+    blockReason: string;
+    blockedAt: string;
+    avatar: string;
+    createdAt: string;
+  }[];
+  professors: {
+    id: number;
+    name: string;
+    email: string;
+    address: string;
+    department: string;
+    designation: string;
+    expertiseField: string;
+    highestEducation: string;
+    licenseDocumentName: string;
+    verificationStatus: string;
+    status: string;
+    isBlocked: boolean;
+    blockReason: string;
+    blockedAt: string;
+    avatar: string;
+    createdAt: string;
+    studentsManaged: number;
+  }[];
+};
+
 export type ConnectRole = "student" | "professor";
 export type ConnectStatus = "none" | "sent" | "received" | "friend" | "blocked" | "blocked_by_them";
 
@@ -425,6 +484,36 @@ export function deleteStudentTodo(todoId: number) {
 
 export function getProfessorDashboard() {
   return request<ProfessorDashboard>("/professor/dashboard");
+}
+
+export function getAdminDashboard() {
+  return request<AdminDashboard>("/admin/dashboard");
+}
+
+export function updateAdminStudentBlock(studentId: number, payload: { blocked: boolean; reason?: string }) {
+  return request<{ ok: boolean; id: number; is_blocked: boolean }>(`/admin/students/${studentId}/block`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminProfessorBlock(professorId: number, payload: { blocked: boolean; reason?: string }) {
+  return request<{ ok: boolean; id: number; is_blocked: boolean }>(`/admin/professors/${professorId}/block`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdminStudent(studentId: number) {
+  return request<{ ok: boolean; id: number }>(`/admin/students/${studentId}`, {
+    method: "DELETE",
+  });
+}
+
+export function deleteAdminProfessor(professorId: number) {
+  return request<{ ok: boolean; id: number }>(`/admin/professors/${professorId}`, {
+    method: "DELETE",
+  });
 }
 
 export function updateStudentAcademics(

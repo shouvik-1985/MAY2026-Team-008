@@ -4,6 +4,7 @@ import { useState } from "react";
 import { GraduationCap, Users, Shield, HandCoins, ArrowRight } from "lucide-react";
 import { CinematicBackdrop } from "@/components/app/cinematic";
 import { ROLES, type RoleId } from "@/lib/campus-data";
+import { resolveRoleHome } from "@/lib/role-home";
 import { setStoredRole } from "@/lib/use-role";
 
 export const Route = createFileRoute("/role")({
@@ -25,7 +26,7 @@ function RolePage() {
   function pick(id: RoleId) {
     setPicked(id);
     setStoredRole(id);
-    setTimeout(() => navigate({ to: "/app" }), 850);
+    setTimeout(() => navigate({ to: resolveRoleHome(id) }), 850);
   }
 
   return (

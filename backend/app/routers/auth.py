@@ -81,16 +81,16 @@ def _enqueue(task, *args) -> None:
         return
 
 
-def _ensure_student_can_enter(user: User) -> None:
-    if user.role == Role.student and user.is_blocked:
+def _ensure_user_can_enter(user: User) -> None:
+    if user.role != Role.admin and user.is_blocked:
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
-            detail=user.block_reason or "Your student account is blocked by a professor.",
+            detail=user.block_reason or "Your account is blocked. Please contact campus administration.",
         )
 
 
 def _token_response(user: User) -> TokenResponse:
-    _ensure_student_can_enter(user)
+    _ensure_user_can_enter(user)
     settings = get_settings()
     token, jwt_id, expires_at = create_access_token(subject=str(user.id), role=user.role.value)
     cache_token(jwt_id, user.id, settings.access_token_minutes * 60)
@@ -132,7 +132,7 @@ def login(payload: LoginRequest, db: Annotated[Session, Depends(get_db)]) -> Tok
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    _ensure_student_can_enter(user)
+    _ensure_user_can_enter(user)
     _enqueue(audit_login, user.id, "password")
     return _token_response(user)
 
@@ -197,7 +197,7 @@ def google_login(
         db.commit()
         db.refresh(user)
 
-    _ensure_student_can_enter(user)
+    _ensure_user_can_enter(user)
     _enqueue(audit_login, user.id, "google")
     return _token_response(user)
 

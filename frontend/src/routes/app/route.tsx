@@ -4,6 +4,7 @@ import { Shell } from "@/components/app/Shell";
 import { CinematicBackdrop } from "@/components/app/cinematic";
 import { getStoredUser, hasAuthSession } from "@/lib/auth";
 import { useLowPerformanceMode } from "@/lib/performance";
+import { resolveRoleHome } from "@/lib/role-home";
 
 export const Route = createFileRoute("/app")({
   beforeLoad: () => {
@@ -11,8 +12,8 @@ export const Route = createFileRoute("/app")({
       throw redirect({ to: "/login" });
     }
     const user = typeof window !== "undefined" ? getStoredUser() : null;
-    if (user?.role === "faculty") {
-      throw redirect({ to: "/professor" });
+    if (user?.role && user.role !== "student") {
+      throw redirect({ to: resolveRoleHome(user.role) });
     }
   },
   component: AppLayout,

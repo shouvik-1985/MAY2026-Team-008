@@ -134,18 +134,8 @@ export function SectionHeading({
 }
 
 export function PageTransition({ children }: { children: ReactNode }) {
-  const lowPerformance = useLowPerformanceMode();
-
-  return (
-    <motion.div
-      initial={lowPerformance ? { opacity: 0 } : { opacity: 0, y: 18, filter: "blur(10px)" }}
-      animate={lowPerformance ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
-      exit={lowPerformance ? { opacity: 0 } : { opacity: 0, y: -10, filter: "blur(8px)" }}
-      transition={{ duration: lowPerformance ? 0.16 : 0.5, ease: [0.16, 1, 0.3, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
+  useLowPerformanceMode();
+  return <>{children}</>;
 }
 
 export function Counter({
@@ -184,3 +174,5 @@ export function Counter({
     </span>
   );
 }
+
+

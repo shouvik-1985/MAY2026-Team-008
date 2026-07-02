@@ -130,6 +130,15 @@ class ProfessorDashboard(BaseModel):
     nav_modules: list[dict]
 
 
+class AdminDashboard(BaseModel):
+    admin: dict
+    metrics: list[dict]
+    ratio_overview: list[dict]
+    attendance_overview: list[dict]
+    students: list[dict]
+    professors: list[dict]
+
+
 class StudentAcademicUpdate(BaseModel):
     cgpa: float = Field(ge=0, le=10)
     attendance: float = Field(ge=0, le=100)
