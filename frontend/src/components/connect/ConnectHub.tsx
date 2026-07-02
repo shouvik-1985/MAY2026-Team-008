@@ -133,7 +133,8 @@ export function ConnectHub({
   }, []);
 
   useEffect(() => {
-    if (!selected || selected.status !== "friend" || panelMode !== "chat") {
+    const selectedPersonId = selected?.id ?? null;
+    if (selectedPersonId === null || selected?.status !== "friend" || panelMode !== "chat") {
       setMessages([]);
       return;
     }
@@ -143,7 +144,7 @@ export function ConnectHub({
     async function loadMessages(silent = false) {
       if (!silent) setChatLoading(true);
       try {
-        const data = await getConnectMessages(selected.id);
+        const data = await getConnectMessages(selectedPersonId!);
         if (mounted) {
           setMessages(data.messages);
           setError(null);
@@ -164,7 +165,7 @@ export function ConnectHub({
       mounted = false;
       window.clearInterval(timer);
     };
-  }, [selected?.id, selected?.status, panelMode]);
+  }, [panelMode, selected?.id, selected?.status]);
 
   useEffect(() => {
     if (panelMode !== "chat") return;
@@ -229,11 +230,12 @@ export function ConnectHub({
   }
 
   async function sendMessage() {
-    if (!selected || !canChat || busyAction === "send-message") return;
+    const receiverId = selected?.id;
+    if (!receiverId || !canChat || busyAction === "send-message") return;
     if (!draft.trim() && files.length === 0) return;
 
     const payload = new FormData();
-    payload.append("receiver_id", String(selected.id));
+    payload.append("receiver_id", String(receiverId));
     payload.append("body", draft.trim());
     files.forEach((item) => payload.append("files", item.file));
 

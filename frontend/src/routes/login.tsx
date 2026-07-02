@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { getStudentDashboard, googleLogin, loginAccount, registerAccount } from "@/lib/api";
 import { setAuthSession, type AuthResponse } from "@/lib/auth";
+import { resolveRoleHome } from "@/lib/role-home";
 import { clearStoredDashboard, setStoredDashboard } from "@/lib/student-session";
 import { setStoredRole } from "@/lib/use-role";
 
@@ -160,8 +161,8 @@ function LoginPage() {
     clearStoredDashboard();
     setAuthSession(auth);
     setStoredRole(auth.user.role);
-    if (auth.user.role === "faculty") {
-      navigate({ to: "/professor", replace: true });
+    if (auth.user.role !== "student") {
+      navigate({ to: resolveRoleHome(auth.user.role), replace: true });
       return;
     }
     try {

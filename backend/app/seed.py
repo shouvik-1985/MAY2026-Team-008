@@ -5,6 +5,24 @@ from app.models import AuthProvider, Role, StudentProfile, User
 
 
 def seed_demo_data(db: Session) -> None:
+    admin = db.query(User).filter(User.email == "admin@gmail.com").first()
+    if admin:
+        if not admin.hashed_password or not admin.hashed_password.startswith("pbkdf2_sha256$"):
+            admin.hashed_password = hash_password("admin#123")
+            admin.auth_provider = AuthProvider.password
+        admin.role = Role.admin
+        admin.full_name = admin.full_name or "Campus Admin"
+    else:
+        db.add(
+            User(
+                email="admin@gmail.com",
+                full_name="Campus Admin",
+                role=Role.admin,
+                auth_provider=AuthProvider.password,
+                hashed_password=hash_password("admin#123"),
+            )
+        )
+
     existing = db.query(User).filter(User.email == "student@campusverse.edu").first()
     if existing:
         if not existing.hashed_password or not existing.hashed_password.startswith("pbkdf2_sha256$"):

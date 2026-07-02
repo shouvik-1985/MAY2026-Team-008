@@ -13,9 +13,11 @@ import { Route as RoleRouteImport } from './routes/role'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProfessorRouteRouteImport } from './routes/professor/route'
 import { Route as AppRouteRouteImport } from './routes/app/route'
+import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfessorIndexRouteImport } from './routes/professor/index'
 import { Route as AppIndexRouteImport } from './routes/app/index'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AppSettingsRouteImport } from './routes/app/settings'
 import { Route as AppScholarshipsRouteImport } from './routes/app/scholarships'
 import { Route as AppResourcesRouteImport } from './routes/app/resources'
@@ -51,6 +53,11 @@ const AppRouteRoute = AppRouteRouteImport.update({
   path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRouteRoute = AdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -65,6 +72,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRouteRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRouteRoute,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
@@ -139,6 +151,7 @@ const AppAiRoute = AppAiRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/app': typeof AppRouteRouteWithChildren
   '/professor': typeof ProfessorRouteRouteWithChildren
   '/login': typeof LoginRoute
@@ -157,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/app/resources': typeof AppResourcesRoute
   '/app/scholarships': typeof AppScholarshipsRoute
   '/app/settings': typeof AppSettingsRoute
+  '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/professor/': typeof ProfessorIndexRoute
 }
@@ -178,12 +192,14 @@ export interface FileRoutesByTo {
   '/app/resources': typeof AppResourcesRoute
   '/app/scholarships': typeof AppScholarshipsRoute
   '/app/settings': typeof AppSettingsRoute
+  '/admin': typeof AdminIndexRoute
   '/app': typeof AppIndexRoute
   '/professor': typeof ProfessorIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/app': typeof AppRouteRouteWithChildren
   '/professor': typeof ProfessorRouteRouteWithChildren
   '/login': typeof LoginRoute
@@ -202,6 +218,7 @@ export interface FileRoutesById {
   '/app/resources': typeof AppResourcesRoute
   '/app/scholarships': typeof AppScholarshipsRoute
   '/app/settings': typeof AppSettingsRoute
+  '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/professor/': typeof ProfessorIndexRoute
 }
@@ -209,6 +226,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/app'
     | '/professor'
     | '/login'
@@ -227,6 +245,7 @@ export interface FileRouteTypes {
     | '/app/resources'
     | '/app/scholarships'
     | '/app/settings'
+    | '/admin/'
     | '/app/'
     | '/professor/'
   fileRoutesByTo: FileRoutesByTo
@@ -248,11 +267,13 @@ export interface FileRouteTypes {
     | '/app/resources'
     | '/app/scholarships'
     | '/app/settings'
+    | '/admin'
     | '/app'
     | '/professor'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/app'
     | '/professor'
     | '/login'
@@ -271,12 +292,14 @@ export interface FileRouteTypes {
     | '/app/resources'
     | '/app/scholarships'
     | '/app/settings'
+    | '/admin/'
     | '/app/'
     | '/professor/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRouteRoute: typeof AdminRouteRouteWithChildren
   AppRouteRoute: typeof AppRouteRouteWithChildren
   ProfessorRouteRoute: typeof ProfessorRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
@@ -313,6 +336,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -333,6 +363,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRouteRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
     }
     '/app/settings': {
       id: '/app/settings'
@@ -435,6 +472,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteRouteChildren {
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
+  AdminRouteRouteChildren,
+)
+
 interface AppRouteRouteChildren {
   AppAiRoute: typeof AppAiRoute
   AppAnnouncementsRoute: typeof AppAnnouncementsRoute
@@ -489,6 +538,7 @@ const ProfessorRouteRouteWithChildren = ProfessorRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRouteRoute: AdminRouteRouteWithChildren,
   AppRouteRoute: AppRouteRouteWithChildren,
   ProfessorRouteRoute: ProfessorRouteRouteWithChildren,
   LoginRoute: LoginRoute,

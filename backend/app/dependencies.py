@@ -52,9 +52,9 @@ def get_current_user(
     user = db.get(User, user_id)
     if not user:
         raise credentials_error
-    if user.role == Role.student and user.is_blocked:
+    if user.role != Role.admin and user.is_blocked:
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
-            detail=user.block_reason or "Your student account is blocked by a professor.",
+            detail=user.block_reason or "Your account is blocked. Please contact campus administration.",
         )
     return user

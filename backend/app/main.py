@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
 from app.db import Base, SessionLocal, engine, ensure_database_shape
-from app.routers import auth, connect, professor, student
+from app.routers import admin, auth, connect, professor, student
 from app.seed import seed_demo_data
 from app.storage import UPLOAD_ROOT, ensure_upload_dirs
 
@@ -47,6 +47,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(connect.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 app.include_router(professor.router, prefix="/api")
 app.include_router(student.router, prefix="/api")
 ensure_upload_dirs()
