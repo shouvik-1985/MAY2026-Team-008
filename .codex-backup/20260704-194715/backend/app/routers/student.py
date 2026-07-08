@@ -4,32 +4,13 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
-from app.attendance_flow import (
-    campus_setting_payload,
-    checkin_payload,
-    distance_meters,
-    get_campus_attendance_setting,
-    get_today_checkin,
-    now_utc,
-    today_local,
-)
-from app.biometric_flow import clear_face_template, has_face_template, save_face_template, verify_face_template
-from app.complaint_flow import complaint_payload
 from app.dependencies import get_current_user
 from app.db import get_db
-from app.intake_flow import resolve_student_semester
-from app.models import Role, StudentAttendance, StudentBiometricCheckIn, StudentComplaint, StudentTodo, StudyResource, User
+from app.models import Role, StudentAttendance, StudentTodo, StudyResource, User
 from app.resource_files import public_resource_url
-from app.schemas import (
-    CampusAttendanceSettingsOut,
-    StudentBiometricVerify,
-    StudentDashboard,
-    StudentRadiusCheck,
-    StudentTodoCreate,
-    StudentTodoUpdate,
-)
+from app.schemas import StudentDashboard, StudentTodoCreate, StudentTodoUpdate
 
 router = APIRouter(prefix="/student", tags=["student"])
 LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
@@ -202,15 +183,10 @@ def _monthly_attendance(records: list[StudentAttendance]) -> list[dict]:
 
 
 def _resource_rows(db: Session) -> list[dict]:
-    rows = (
-        db.query(StudyResource, User.full_name)
-        .outerjoin(User, StudyResource.created_by_id == User.id)
-        .order_by(desc(StudyResource.created_at))
-        .limit(120)
-        .all()
-    )
+    rows = db.query(StudyResource).order_by(desc(StudyResource.created_at)).limit(120).all()
     items: list[dict] = []
-    for resource, professor_name in rows:
+    for resource in rows:
+        professor = db.get(User, resource.created_by_id) if resource.created_by_id else None
         items.append(
             {
                 "id": resource.id,
@@ -219,7 +195,7 @@ def _resource_rows(db: Session) -> list[dict]:
                 "type": resource.resource_type,
                 "tag": resource.tag,
                 "url": public_resource_url(resource),
-                "professorName": professor_name or "Campus faculty",
+                "professorName": professor.full_name if professor else "Campus faculty",
                 "createdAt": resource.created_at.isoformat(),
                 "createdDate": resource.created_at.date().isoformat(),
                 "time": resource.created_at.strftime("%d %b %Y, %I:%M %p"),
@@ -228,45 +204,20 @@ def _resource_rows(db: Session) -> list[dict]:
     return items
 
 
-def _complaint_rows(db: Session, user: User, semester_duration_months: int) -> list[dict]:
-    complaints = (
-        db.query(StudentComplaint)
-        .options(
-            selectinload(StudentComplaint.attachments),
-            selectinload(StudentComplaint.student).selectinload(User.student_profile),
-        )
-        .filter(StudentComplaint.student_id == user.id)
-        .order_by(desc(StudentComplaint.submitted_at))
-        .limit(12)
-        .all()
-    )
-    return [
-        complaint_payload(
-            complaint,
-            student=user,
-            profile=user.student_profile,
-            semester_duration_months=semester_duration_months,
-        )
-        for complaint in complaints
-    ]
-
-
 def _student_dataset(db: Session, user: User) -> dict:
     profile = user.student_profile
-    setting = get_campus_attendance_setting(db)
     seed = user.id % 7
     cgpa = profile.cgpa if profile else round(8.1 + (seed * 0.13), 1)
     fallback_attendance = profile.attendance if profile else float(84 + seed)
     attendance_records = _attendance_records(db, user.id)
     attendance = _attendance_percentage(attendance_records, fallback_attendance)
-    semester = resolve_student_semester(profile, user, setting.semester_duration_months)
+    semester = profile.semester if profile else 1 + (user.id % 8)
     student_code = profile.student_code if profile else f"CV-2026-{1000 + user.id:04d}"
     department = profile.department if profile else "Computer Science & AI"
     fallback_weekly_values = [max(72, min(100, int(attendance + delta + seed))) for delta in [-10, -4, 3, -2, 0, 7, -5]]
     weekly_attendance = _weekly_attendance(attendance_records, fallback_weekly_values)
     attendance_timeline = _attendance_timeline(attendance_records)
     monthly_attendance = _monthly_attendance(attendance_records)
-    complaint_rows = _complaint_rows(db, user, setting.semester_duration_months)
     fee_base = 78000 + (semester * 1200)
     due_amount = fee_base if semester % 2 == 0 else 0
     first_name = user.full_name.split()[0] if user.full_name else "Student"
@@ -281,10 +232,6 @@ def _student_dataset(db: Session, user: User) -> dict:
             "cgpa": cgpa,
             "attendance": attendance,
             "avatar": _avatar(user.full_name),
-            "biometricEnrolled": has_face_template(profile),
-            "biometricEnrolledAt": profile.biometric_enrolled_at.isoformat()
-            if profile and profile.biometric_enrolled_at
-            else None,
         },
         "metrics": [
             {"label": "CGPA", "value": f"{cgpa:.1f}", "hint": "Updated from your student profile", "tone": "cyan"},
@@ -334,25 +281,7 @@ def _student_dataset(db: Session, user: User) -> dict:
             {"title": "Campus event registration", "module": "Events", "due": "Jul 18", "risk": "low"},
         ],
         "request_timeline": [
-            *(
-                [
-                    {
-                        "title": complaint_rows[0]["title"],
-                        "kind": "Complaint",
-                        "stage": complaint_rows[0]["statusLabel"],
-                        "updated": complaint_rows[0]["created"],
-                    }
-                ]
-                if complaint_rows
-                else [
-                    {
-                        "title": f"{first_name}'s latest complaint",
-                        "kind": "Complaint",
-                        "stage": "Waiting",
-                        "updated": "No complaint yet",
-                    }
-                ]
-            ),
+            {"title": f"{first_name}'s latest complaint", "kind": "Complaint", "stage": "In Progress", "updated": "Today"},
             {"title": "Bonafide Certificate", "kind": "Certificate", "stage": "Ready", "updated": "Yesterday"},
             {"title": f"Sem {semester} Fee Receipt", "kind": "Fees", "stage": "Pending" if due_amount else "Cleared", "updated": "2 days ago"},
         ],
@@ -392,7 +321,10 @@ def _student_dataset(db: Session, user: User) -> dict:
             {"id": user.id * 10 + 4, "title": "Semester Portfolio Review", "subject": department.split()[0], "due": "completed", "progress": 100, "status": "graded", "grade": "A" if cgpa >= 8.8 else "B+"},
         ],
         "resource_items": _resource_rows(db),
-        "complaint_items": complaint_rows,
+        "complaint_items": [
+            {"id": f"CV-{2200 + user.id}", "title": f"{first_name}'s latest service request", "category": "Student Services", "stage": 2 + (seed % 3), "created": "Today"},
+            {"id": f"CV-{2210 + user.id}", "title": "Library resource access", "category": "Library", "stage": 4, "created": "5 days ago"},
+        ],
         "certificate_items": [
             {"id": user.id * 10 + 1, "name": "Bonafide Certificate", "desc": f"Enrollment proof for {first_name}.", "eta": "24 hours", "status": "available"},
             {"id": user.id * 10 + 2, "name": "Transcript", "desc": "Verified academic record.", "eta": "3 days", "status": "available"},
@@ -448,167 +380,6 @@ def _student_dataset(db: Session, user: User) -> dict:
 def student_features(current_user: Annotated[User, Depends(get_current_user)]) -> dict:
     _require_student(current_user)
     return {"features": STUDENT_NAV}
-
-
-@router.get("/attendance/settings", response_model=CampusAttendanceSettingsOut)
-def attendance_settings(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[Session, Depends(get_db)],
-) -> CampusAttendanceSettingsOut:
-    _require_student(current_user)
-    setting = get_campus_attendance_setting(db)
-    db.commit()
-    return CampusAttendanceSettingsOut(**campus_setting_payload(setting))
-
-
-@router.post("/attendance/radius-check")
-def check_attendance_radius(
-    payload: StudentRadiusCheck,
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[Session, Depends(get_db)],
-) -> dict:
-    _require_student(current_user)
-    setting = get_campus_attendance_setting(db)
-    if setting.latitude is None or setting.longitude is None:
-        db.commit()
-        return {
-            "ok": True,
-            "withinRadius": False,
-            "campusConfigured": False,
-            "radiusMeters": setting.radius_meters,
-            "distanceMeters": None,
-            "biometricEnrolled": has_face_template(current_user.student_profile),
-            "checkIn": None,
-            "message": "Campus center is not configured by admin yet",
-        }
-
-    distance = distance_meters(setting.latitude, setting.longitude, payload.latitude, payload.longitude)
-    within_radius = distance <= setting.radius_meters
-    checkin = get_today_checkin(db, current_user.id)
-    if checkin is None:
-        checkin = StudentBiometricCheckIn(
-            student_id=current_user.id,
-            checkin_date=today_local(),
-            status="radius_detected" if within_radius else "outside_radius",
-        )
-        db.add(checkin)
-
-    checkin.latitude = payload.latitude
-    checkin.longitude = payload.longitude
-    checkin.distance_meters = distance
-    checkin.within_radius = within_radius
-    checkin.detected_at = now_utc()
-    if not checkin.biometric_verified:
-        checkin.status = "radius_detected" if within_radius else "outside_radius"
-    db.commit()
-    db.refresh(checkin)
-    return {
-        "ok": True,
-        "withinRadius": within_radius,
-        "campusConfigured": True,
-        "radiusMeters": setting.radius_meters,
-        "distanceMeters": round(distance, 1),
-        "biometricEnrolled": has_face_template(current_user.student_profile),
-        "checkIn": checkin_payload(checkin),
-        "message": "You are within the college radius" if within_radius else "Outside college radius",
-    }
-
-
-@router.post("/attendance/biometric-verify")
-def verify_biometric_attendance(
-    payload: StudentBiometricVerify,
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[Session, Depends(get_db)],
-) -> dict:
-    _require_student(current_user)
-    setting = get_campus_attendance_setting(db)
-    checkin = get_today_checkin(db, current_user.id)
-    profile = current_user.student_profile
-
-    if payload.latitude is not None and payload.longitude is not None:
-        if setting.latitude is None or setting.longitude is None:
-            raise HTTPException(status_code=409, detail="Campus center is not configured by admin yet")
-        distance = distance_meters(setting.latitude, setting.longitude, payload.latitude, payload.longitude)
-        within_radius = distance <= setting.radius_meters
-        if checkin is None:
-            checkin = StudentBiometricCheckIn(
-                student_id=current_user.id,
-                checkin_date=today_local(),
-                status="radius_detected" if within_radius else "outside_radius",
-            )
-            db.add(checkin)
-        checkin.latitude = payload.latitude
-        checkin.longitude = payload.longitude
-        checkin.distance_meters = distance
-        checkin.within_radius = within_radius
-
-    if checkin is None or not checkin.within_radius:
-        raise HTTPException(status_code=409, detail="Enter the configured college radius before biometric verification")
-    if profile is None:
-        raise HTTPException(status_code=409, detail="Student profile is missing for biometric verification")
-    if not payload.face_template:
-        raise HTTPException(status_code=422, detail="Live face scan data is required for biometric verification")
-
-    verification_mode = "matched"
-    match_score = 1.0
-    if has_face_template(profile):
-        verification = verify_face_template(profile, payload.face_template)
-        match_score = verification["score"]
-        if not verification["matched"]:
-            checkin.warning_flag = True
-            checkin.status = "biometric_mismatch"
-            db.commit()
-            raise HTTPException(
-                status_code=401,
-                detail="Face recognition did not match this student account. Please use the enrolled face and try again.",
-            )
-    else:
-        save_face_template(profile, payload.face_template, now_utc())
-        verification_mode = "enrolled"
-
-    checkin.biometric_verified = True
-    checkin.warning_flag = False
-    checkin.status = "biometric_verified"
-    checkin.verified_at = now_utc()
-    db.commit()
-    db.refresh(checkin)
-    return {
-        "ok": True,
-        "message": "Face enrolled and biometric attendance verified"
-        if verification_mode == "enrolled"
-        else "Face recognized and biometric attendance verified",
-        "verificationMode": verification_mode,
-        "matchScore": match_score,
-        "biometricEnrolled": True,
-        "checkIn": checkin_payload(checkin),
-    }
-
-
-@router.post("/attendance/biometric-reset")
-def reset_biometric_template(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[Session, Depends(get_db)],
-) -> dict:
-    _require_student(current_user)
-    profile = current_user.student_profile
-    if profile is None:
-        raise HTTPException(status_code=404, detail="Student profile is missing")
-
-    clear_face_template(profile)
-    checkin = get_today_checkin(db, current_user.id)
-    if checkin and not checkin.professor_confirmed:
-        checkin.biometric_verified = False
-        checkin.verified_at = None
-        checkin.warning_flag = False
-        checkin.status = "radius_detected" if checkin.within_radius else "outside_radius"
-
-    db.commit()
-    return {
-        "ok": True,
-        "message": "Face template cleared. Re-enroll from the biometric scanner.",
-        "biometricEnrolled": False,
-        "checkIn": checkin_payload(checkin),
-    }
 
 
 @router.get("/dashboard", response_model=StudentDashboard)

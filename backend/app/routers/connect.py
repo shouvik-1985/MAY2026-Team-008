@@ -11,8 +11,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
+from app.attendance_flow import get_campus_attendance_setting
 from app.db import get_db
 from app.dependencies import get_current_user
+from app.intake_flow import resolve_student_semester
 from app.models import (
     ConnectAttachment,
     ConnectMessage,
@@ -119,10 +121,11 @@ def _require_friendship(db: Session, current_user: User, target_id: int) -> Conn
     return relationship
 
 
-def _person_profile(user: User) -> dict:
+def _person_profile(db: Session, user: User) -> dict:
     if user.role == Role.student:
         profile = user.student_profile
-        semester = profile.semester if profile else 1
+        setting = get_campus_attendance_setting(db)
+        semester = resolve_student_semester(profile, user, setting.semester_duration_months)
         department = profile.department if profile else "Computer Science & AI"
         student_code = profile.student_code if profile else f"CV-2026-{1000 + user.id}"
         cgpa = profile.cgpa if profile else 0
@@ -161,7 +164,7 @@ def _person_profile(user: User) -> dict:
 
 def _person_out(db: Session, user: User, viewer_id: int) -> dict:
     relationship = _relationship(db, viewer_id, user.id)
-    profile = _person_profile(user)
+    profile = _person_profile(db, user)
     return {
         "id": user.id,
         "name": user.full_name,

@@ -231,6 +231,31 @@ function Dashboard() {
     }
     return dashboard.attendance_timeline ?? [];
   }, [attendanceGraphMode, dashboard.attendance_monthly, dashboard.attendance_timeline]);
+  const attendancePreviewTrend = useMemo(() => {
+    if (attendanceGraphMode === "months") {
+      const source = dashboard.attendance_monthly.length
+        ? dashboard.attendance_monthly
+        : FALLBACK_DASHBOARD.attendance_monthly;
+      return source.map((item) => ({
+        ...item,
+        label: item.label ?? item.month,
+        status: `${item.present ?? 0} present / ${item.absent ?? 0} absent`,
+      }));
+    }
+    const source = dashboard.attendance_weekly.length
+      ? dashboard.attendance_weekly
+      : FALLBACK_DASHBOARD.attendance_weekly;
+    return source.map((item) => ({
+      label: item.label ?? item.day,
+      attendance: item.attendance,
+      status:
+        item.status ??
+        (item.marked === false ? "unmarked" : item.attendance >= 75 ? "present" : "absent"),
+    }));
+  }, [attendanceGraphMode, dashboard.attendance_monthly, dashboard.attendance_weekly]);
+  const attendanceTrendPreviewing =
+    apiState === "loading" && attendanceTrend.length === 0 && attendancePreviewTrend.length > 0;
+  const displayAttendanceTrend = attendanceTrend.length ? attendanceTrend : attendancePreviewTrend;
 
   function syncTodos(nextTodos: StudentTodo[]) {
     setDashboard((current) => {
@@ -355,6 +380,7 @@ function Dashboard() {
                   stroke="oklch(0.82 0.18 200)"
                   strokeWidth={3}
                   fill="url(#cgpaFill)"
+                  isAnimationActive={false}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -399,34 +425,44 @@ function Dashboard() {
             </div>
           </div>
           <div className="mt-3 h-72">
-            {attendanceTrend.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={attendanceTrend} margin={{ left: 0, right: 10, top: 10, bottom: 0 }}>
-                  <CartesianGrid stroke="oklch(1 0 0 / 0.08)" vertical={false} />
-                  <XAxis
-                    dataKey="label"
-                    stroke="oklch(1 0 0 / 0.35)"
-                    tickLine={false}
-                    axisLine={false}
-                    interval={0}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis domain={[0, 100]} stroke="oklch(1 0 0 / 0.35)" tickLine={false} axisLine={false} />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    labelStyle={{ color: "white" }}
-                    formatter={(value) => [`${value}%`, "Attendance"]}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="attendance"
-                    stroke="oklch(0.85 0.12 60)"
-                    strokeWidth={3}
-                    dot={{ r: 4, fill: "oklch(0.85 0.12 60)" }}
-                    activeDot={{ r: 6, fill: "oklch(0.85 0.12 60)" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+            {displayAttendanceTrend.length ? (
+              <div className="relative h-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={displayAttendanceTrend} margin={{ left: 0, right: 10, top: 10, bottom: 0 }}>
+                    <CartesianGrid stroke="oklch(1 0 0 / 0.08)" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke="oklch(1 0 0 / 0.35)"
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis domain={[0, 100]} stroke="oklch(1 0 0 / 0.35)" tickLine={false} axisLine={false} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      labelStyle={{ color: "white" }}
+                      formatter={(value) => [`${value}%`, "Attendance"]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="attendance"
+                      stroke="oklch(0.85 0.12 60)"
+                      strokeWidth={3}
+                      dot={{ r: 4, fill: "oklch(0.85 0.12 60)" }}
+                      activeDot={{ r: 6, fill: "oklch(0.85 0.12 60)" }}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+                {attendanceTrendPreviewing ? (
+                  <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-start px-2">
+                    <div className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-white/45">
+                      Syncing live attendance...
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             ) : (
               <div className="flex h-full items-center justify-center rounded-2xl border border-white/10 bg-white/[0.025] text-sm text-white/45">
                 No attendance records marked yet.
@@ -565,7 +601,7 @@ function TodoPlannerCard({
 
   return (
     <GlassCard className="flex min-h-[390px] flex-col">
-      <PanelHeader icon={ListTodo} eyebrow="Personal planner" title="ToDo list" />
+      <PanelHeader icon={ListTodo} eyebrow="Personal planner" title="Todo list" />
       <form onSubmit={onAdd} className="mt-5 space-y-3">
         <input
           value={title}

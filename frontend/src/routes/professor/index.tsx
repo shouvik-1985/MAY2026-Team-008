@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -12,6 +13,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import {
+  AlertTriangle,
   Ban,
   BarChart3,
   BookOpen,
@@ -36,9 +38,11 @@ import {
   XCircle,
 } from "lucide-react";
 import {
+  confirmProfessorAttendance,
   createProfessorAnnouncement,
   createProfessorResource,
   deleteProfessorResource,
+  finalizeProfessorAttendance,
   getProfessorDashboard,
   markProfessorAttendance,
   resolveResourceUrl,
@@ -117,6 +121,10 @@ function ProfessorDashboardPage() {
         .includes(query),
     );
   }, [students, studentQuery]);
+  const verifiedAttendanceStudents = useMemo(
+    () => students.filter((student) => student.biometricVerified && !student.professorConfirmed),
+    [students],
+  );
 
   const filteredProfessorResources = useMemo(() => {
     const query = resourceSearch.trim().toLowerCase();
@@ -146,15 +154,17 @@ function ProfessorDashboardPage() {
     const today = dashboard?.attendance_today.date;
     if (!today) return map;
     for (const item of dashboard?.attendance_history ?? []) {
-      if (item.date === today && !map.has(item.studentId)) {
+      if (item.date === today && item.status !== "warning" && !map.has(item.studentId)) {
         map.set(item.studentId, item.status);
       }
     }
     return map;
   }, [dashboard]);
 
-  async function refresh() {
-    setLoading(true);
+  const refresh = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     try {
       const data = await getProfessorDashboard();
       setDashboard(data);
@@ -162,16 +172,56 @@ function ProfessorDashboardPage() {
         loadReview(data.review_queue[0]);
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Professor dashboard failed to load");
+      if (!options?.silent) {
+        setStatus(error instanceof Error ? error.message : "Professor dashboard failed to load");
+      }
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
-  }
+  }, [reviewStudentId]);
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (activeSection !== "academics" || academicTab !== "attendance") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const silentRefresh = async () => {
+      if (cancelled) return;
+      await refresh({ silent: true });
+    };
+
+    const intervalId = window.setInterval(() => {
+      void silentRefresh();
+    }, 4000);
+
+    const onFocus = () => {
+      void silentRefresh();
+    };
+
+    const onVisible = () => {
+      if (!document.hidden) {
+        void silentRefresh();
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [activeSection, academicTab, refresh]);
 
   useEffect(() => {
     const ticker = setInterval(() => setNow(new Date()), 30_000);
@@ -234,7 +284,10 @@ function ProfessorDashboardPage() {
       if (!current) return current;
       const today = current.attendance_today.date;
       const existingToday = current.attendance_history.find(
-        (item) => item.studentId === student.id && item.date === today,
+        (item) => item.studentId === student.id && item.date === today && item.status !== "warning",
+      );
+      const historyWithoutStudentWarnings = current.attendance_history.filter(
+        (item) => !(item.studentId === student.id && item.date === today && item.status === "warning"),
       );
       const previousStatus = existingToday?.status;
       const markedBy = current.professor.name || "Professor";
@@ -264,6 +317,9 @@ function ProfessorDashboardPage() {
           presentCount,
           absentCount,
           status: item.isBlocked ? "blocked" : attendance >= 75 ? "safe" : "watch",
+          professorConfirmed: attendanceStatus === "present",
+          attendanceWarning: false,
+          biometricStatus: attendanceStatus === "present" ? "present_confirmed" : "absent_marked",
         };
       });
 
@@ -293,6 +349,11 @@ function ProfessorDashboardPage() {
         marked: previousStatus
           ? current.attendance_today.marked
           : current.attendance_today.marked + 1,
+        warnings: Math.max(0, (current.attendance_today.warnings ?? 0) - (student.attendanceWarning ? 1 : 0)),
+        pendingConfirmation: Math.max(
+          0,
+          (current.attendance_today.pendingConfirmation ?? 0) - (attendanceStatus === "present" && student.biometricVerified ? 1 : 0),
+        ),
         liveAt: markedAt,
       };
       const nextTodayWithRatios = {
@@ -316,7 +377,7 @@ function ProfessorDashboardPage() {
       );
 
       const nextHistory = existingToday
-        ? current.attendance_history.map((item) =>
+        ? historyWithoutStudentWarnings.map((item) =>
             item.id === existingToday.id
               ? { ...item, status: attendanceStatus, markedAt, markedBy }
               : item,
@@ -332,7 +393,7 @@ function ProfessorDashboardPage() {
               markedBy,
               markedAt,
             },
-            ...current.attendance_history,
+            ...historyWithoutStudentWarnings,
           ];
 
       return {
@@ -378,19 +439,45 @@ function ProfessorDashboardPage() {
     updateLocalAttendance(student, attendanceStatus);
     setAttendanceStatus(`${student.name} marked ${attendanceStatus}`);
     try {
-      const result = await markProfessorAttendance({ student_id: student.id, status: attendanceStatus });
+      const result =
+        attendanceStatus === "present" && student.biometricVerified
+          ? await confirmProfessorAttendance({ student_id: student.id, present: true })
+          : await markProfessorAttendance({ student_id: student.id, status: attendanceStatus });
       setDashboard((current) => {
         if (!current) return current;
         return {
           ...current,
           students: current.students.map((item) =>
-            item.id === student.id ? { ...item, attendance: result.attendance } : item,
+            item.id === student.id
+              ? {
+                  ...item,
+                  attendance: result.attendance,
+                  biometricCheckIn: "checkIn" in result ? result.checkIn : item.biometricCheckIn,
+                  professorConfirmed: attendanceStatus === "present",
+                  attendanceWarning: false,
+                  biometricStatus: attendanceStatus === "present" ? "present_confirmed" : "absent_marked",
+                }
+              : item,
           ),
         };
       });
     } catch (error) {
       await refresh();
       setAttendanceStatus(error instanceof Error ? error.message : "Attendance update failed");
+    }
+  }
+
+  async function finalizeAttendance() {
+    setSaving(true);
+    setAttendanceStatus(null);
+    try {
+      const result = await finalizeProfessorAttendance();
+      setAttendanceStatus(result.message);
+      await refresh();
+    } catch (error) {
+      setAttendanceStatus(error instanceof Error ? error.message : "Could not finalize attendance");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -617,7 +704,7 @@ function ProfessorDashboardPage() {
                 </motion.div>
               )}
 
-              <div className="grid md:grid-cols-[1fr_auto] gap-3 items-center">
+              <div className="grid gap-3 items-center lg:grid-cols-[1fr_auto_auto]">
                 <div className="glass rounded-2xl px-4 py-3 text-sm text-white/60">
                   <span className="inline-flex items-center gap-2">
                     <CalendarClock className="size-4 text-cyan-200" />
@@ -625,8 +712,21 @@ function ProfessorDashboardPage() {
                   </span>
                   <span className="ml-3 text-white/35">
                     {attendanceToday?.present ?? 0} present, {attendanceToday?.absent ?? 0} absent, {attendanceToday?.unmarked ?? 0} unmarked
+                    <span className="ml-2 text-cyan-100/70">
+                      {(attendanceToday?.biometricVerified ?? 0)} biometric verified
+                    </span>
                   </span>
                 </div>
+                <button
+                  onClick={finalizeAttendance}
+                  disabled={saving}
+                  className="glass rounded-full px-4 py-3 text-xs uppercase tracking-[0.2em] text-amber-100 hover:text-white disabled:cursor-wait disabled:opacity-60"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <AlertTriangle className="size-4" />
+                    Finalize absent
+                  </span>
+                </button>
                 <button
                   onClick={() => setShowAttendanceHistory((value) => !value)}
                   className="glass rounded-full px-4 py-3 text-xs uppercase tracking-[0.2em] text-white/65 hover:text-white"
@@ -641,10 +741,12 @@ function ProfessorDashboardPage() {
               <div className="grid xl:grid-cols-[0.8fr_1.2fr] gap-4">
                 <div className="glass rounded-3xl p-5">
                   <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Today ratio</div>
-                  <div className="mt-5 grid grid-cols-3 gap-3">
+                  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
                     <MiniStat label="Present" value={String(attendanceToday?.present ?? 0)} tone="text-emerald-200" />
                     <MiniStat label="Absent" value={String(attendanceToday?.absent ?? 0)} tone="text-rose-100" />
                     <MiniStat label="Unmarked" value={String(attendanceToday?.unmarked ?? 0)} tone="text-white/65" />
+                    <MiniStat label="Verified" value={String(attendanceToday?.biometricVerified ?? 0)} tone="text-cyan-200" />
+                    <MiniStat label="Warnings" value={String(attendanceToday?.warnings ?? 0)} tone="text-amber-100" />
                   </div>
                   <div className="mt-5 text-xs text-white/45">
                     Attendance is locked to the current date and updates student dashboard percentages immediately.
@@ -656,18 +758,58 @@ function ProfessorDashboardPage() {
                 </div>
               </div>
 
+              <div className="glass rounded-3xl p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Biometric verified queue</div>
+                    <div className="mt-1 font-display text-xl font-semibold">Students waiting for professor tick</div>
+                  </div>
+                  <div className="rounded-full bg-cyan-300/10 px-4 py-2 text-xs text-cyan-100">
+                    {verifiedAttendanceStudents.length} verified
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {verifiedAttendanceStudents.map((student) => (
+                    <div key={student.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="font-medium text-white">{student.name}</div>
+                          <div className="mt-1 text-xs text-white/45">
+                            {student.studentCode} / {student.radiusDistance != null ? `${student.radiusDistance}m from center` : "Inside radius"}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => markAttendance(student, "present")}
+                          disabled={saving || student.isBlocked}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/30 bg-emerald-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-wait disabled:opacity-60"
+                        >
+                          <CheckCircle2 className="size-4" />
+                          Confirm present
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {verifiedAttendanceStudents.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-sm text-white/45 lg:col-span-2">
+                      No biometric verified students yet. After a student scans, they will appear here automatically.
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="text-white/40 text-[10px] uppercase tracking-[0.25em]">
                     <tr>
-                      <th className="py-3 pr-4">Student</th>
-                      <th className="py-3 pr-4">Today</th>
+                      <th className="py-3 pr-4">Verified student</th>
+                      <th className="py-3 pr-4">Radius</th>
+                      <th className="py-3 pr-4">Biometric</th>
                       <th className="py-3 pr-4">Overall</th>
-                      <th className="py-3 pr-4">Mark attendance</th>
+                      <th className="py-3 pr-4">Professor action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {students.map((student) => {
+                    {verifiedAttendanceStudents.map((student) => {
                       const todayStatus = todayStatusByStudent.get(student.id);
                       return (
                         <tr key={student.id} className="border-t border-white/10">
@@ -675,18 +817,11 @@ function ProfessorDashboardPage() {
                             <div className="font-medium">{student.name}</div>
                             <div className="text-xs text-white/40">{student.studentCode}</div>
                           </td>
+                          <td className="py-4 pr-4 text-white/60">
+                            {student.radiusDistance != null ? `${student.radiusDistance}m from center` : "Inside radius"}
+                          </td>
                           <td className="py-4 pr-4">
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs capitalize ${
-                                todayStatus === "present"
-                                  ? "bg-emerald-400/10 text-emerald-200"
-                                  : todayStatus === "absent"
-                                    ? "bg-rose-500/10 text-rose-100"
-                                    : "bg-white/10 text-white/45"
-                              }`}
-                            >
-                              {todayStatus ?? "unmarked"}
-                            </span>
+                            <BiometricPill student={student} />
                           </td>
                           <td className="py-4 pr-4 text-white/60">
                             {student.attendance.toFixed(0)}% / {student.attendanceMarked} days
@@ -710,6 +845,13 @@ function ProfessorDashboardPage() {
                         </tr>
                       );
                     })}
+                    {verifiedAttendanceStudents.length === 0 && (
+                      <tr className="border-t border-white/10">
+                        <td colSpan={5} className="py-6 text-sm text-white/45">
+                          No biometric verified students are waiting right now. Students will appear here only after entering the campus radius and finishing biometric verification. Everyone else will be handled by final absent marking for today.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1209,7 +1351,7 @@ function AttendanceHistoryOverlay({
 }) {
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState(todayDate ?? "");
-  const [statusFilter, setStatusFilter] = useState<"all" | AttendanceStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | AttendanceStatus | "warning">("all");
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -1237,6 +1379,7 @@ function AttendanceHistoryOverlay({
 
   const presentCount = filteredItems.filter((item) => item.status === "present").length;
   const absentCount = filteredItems.filter((item) => item.status === "absent").length;
+  const warningCount = filteredItems.filter((item) => item.status === "warning").length;
 
   return (
     <motion.div
@@ -1265,7 +1408,7 @@ function AttendanceHistoryOverlay({
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_180px_260px]">
+          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_180px_240px]">
             <label className="glass rounded-2xl px-4 py-3 flex items-center gap-3">
               <Search className="size-4 text-white/45" />
               <input
@@ -1281,26 +1424,39 @@ function AttendanceHistoryOverlay({
               onChange={(event) => setDateFilter(event.target.value)}
               className="glass rounded-2xl px-4 py-3 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-white/30"
             />
-            <div className="glass rounded-2xl p-1 grid grid-cols-3">
-              {(["all", "present", "absent"] as const).map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setStatusFilter(status)}
-                  className={`rounded-xl px-3 py-2 text-[10px] uppercase tracking-[0.18em] transition ${
-                    statusFilter === status ? "bg-white/15 text-white" : "text-white/45 hover:text-white"
-                  }`}
+            <label className="glass rounded-2xl px-4 py-3">
+              <div className="mb-2 text-[10px] uppercase tracking-[0.22em] text-white/35">Status filter</div>
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as "all" | AttendanceStatus | "warning")
+                  }
+                  className="w-full appearance-none bg-transparent pr-10 text-sm text-white focus:outline-none"
                 >
-                  {status}
-                </button>
-              ))}
-            </div>
+                  <option value="all" className="bg-[#101010] text-white">
+                    All statuses
+                  </option>
+                  <option value="present" className="bg-[#101010] text-white">
+                    Present only
+                  </option>
+                  <option value="absent" className="bg-[#101010] text-white">
+                    Absent only
+                  </option>
+                  <option value="warning" className="bg-[#101010] text-white">
+                    Warning only
+                  </option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-0 top-1/2 size-4 -translate-y-1/2 text-white/45" />
+              </div>
+            </label>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
             <MiniStat label="Records" value={String(filteredItems.length)} tone="text-cyan-200" />
             <MiniStat label="Present" value={String(presentCount)} tone="text-emerald-200" />
             <MiniStat label="Absent" value={String(absentCount)} tone="text-rose-100" />
+            <MiniStat label="Warnings" value={String(warningCount)} tone="text-amber-100" />
           </div>
         </div>
 
@@ -1327,10 +1483,15 @@ function AttendanceHistoryOverlay({
                         className={`rounded-full px-3 py-1 text-xs capitalize ${
                           item.status === "present"
                             ? "bg-emerald-400/10 text-emerald-200"
-                            : "bg-rose-500/10 text-rose-100"
+                            : item.status === "absent"
+                              ? "bg-rose-500/10 text-rose-100"
+                              : "bg-amber-400/10 text-amber-100"
                         }`}
                       >
-                        {item.status}
+                        <span className="inline-flex items-center gap-1.5">
+                          {item.status === "warning" && <AlertTriangle className="size-3.5" />}
+                          {item.status === "warning" ? "Needs tick" : item.status}
+                        </span>
                       </span>
                     </td>
                     <td className="px-5 py-4 text-white/60">{formatDateOnly(item.date)}</td>
@@ -1354,10 +1515,15 @@ function AttendanceHistoryOverlay({
                     className={`rounded-full px-3 py-1 text-xs capitalize ${
                       item.status === "present"
                         ? "bg-emerald-400/10 text-emerald-200"
-                        : "bg-rose-500/10 text-rose-100"
+                        : item.status === "absent"
+                          ? "bg-rose-500/10 text-rose-100"
+                          : "bg-amber-400/10 text-amber-100"
                     }`}
                   >
-                    {item.status}
+                    <span className="inline-flex items-center gap-1.5">
+                      {item.status === "warning" && <AlertTriangle className="size-3.5" />}
+                      {item.status === "warning" ? "Needs tick" : item.status}
+                    </span>
                   </span>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/55">
@@ -1388,6 +1554,37 @@ function StatusPill({ student }: { student: ProfessorStudent }) {
     return <span className="rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-100">Watch</span>;
   }
   return <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">Safe</span>;
+}
+
+function BiometricPill({ student }: { student: ProfessorStudent }) {
+  if (student.attendanceWarning) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-100">
+        <AlertTriangle className="size-3.5" />
+        Needs tick
+      </span>
+    );
+  }
+  if (student.professorConfirmed) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
+        <CheckCircle2 className="size-3.5" />
+        Confirmed
+      </span>
+    );
+  }
+  if (student.biometricVerified) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-300/10 px-3 py-1 text-xs text-cyan-100">
+        <CheckCircle2 className="size-3.5" />
+        Verified
+      </span>
+    );
+  }
+  if (student.withinRadius) {
+    return <span className="rounded-full bg-fuchsia-300/10 px-3 py-1 text-xs text-fuchsia-100">Inside radius</span>;
+  }
+  return <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/45">Needs biometric</span>;
 }
 
 function MiniStat({ label, value, tone }: { label: string; value: string; tone: string }) {

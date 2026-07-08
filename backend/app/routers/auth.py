@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.security import create_access_token, decode_access_token, hash_password, verify_password
 from app.db import get_db
 from app.dependencies import get_current_user
+from app.intake_flow import available_slot_batch_for_intake, local_today
 from app.models import AuthProvider, ProfessorProfile, RevokedToken, Role, StudentProfile, User
 from app.schemas import GoogleLoginRequest, LoginRequest, RegisterRequest, TokenResponse, UserOut
 from app.services.redis_client import cache_token, revoke_token
@@ -26,8 +27,13 @@ def _has_real_google_client_id(client_id: str | None) -> bool:
     return bool(client_id and "your-google-client-id" not in client_id)
 
 
-def _ensure_student_profile(db: Session, user: User) -> None:
+def _ensure_student_profile(db: Session, user: User, slot_batch_id: int | None = None) -> None:
     if user.role != Role.student or user.student_profile:
+        if user.role == Role.student and user.student_profile:
+            if user.student_profile.enrollment_date is None:
+                user.student_profile.enrollment_date = local_today()
+            if slot_batch_id is not None and user.student_profile.slot_batch_id is None:
+                user.student_profile.slot_batch_id = slot_batch_id
         return
     seed = user.id % 7
     db.add(
@@ -35,9 +41,11 @@ def _ensure_student_profile(db: Session, user: User) -> None:
             user_id=user.id,
             student_code=_student_code(user.id),
             department="Computer Science & AI",
-            semester=1 + (user.id % 8),
+            semester=1,
             cgpa=round(8.1 + (seed * 0.13), 1),
             attendance=float(84 + seed),
+            enrollment_date=local_today(),
+            slot_batch_id=slot_batch_id,
         )
     )
 
@@ -81,16 +89,16 @@ def _enqueue(task, *args) -> None:
         return
 
 
-def _ensure_user_can_enter(user: User) -> None:
-    if user.role != Role.admin and user.is_blocked:
+def _ensure_student_can_enter(user: User) -> None:
+    if user.role == Role.student and user.is_blocked:
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
-            detail=user.block_reason or "Your account is blocked. Please contact campus administration.",
+            detail=user.block_reason or "Your student account is blocked by a professor.",
         )
 
 
 def _token_response(user: User) -> TokenResponse:
-    _ensure_user_can_enter(user)
+    _ensure_student_can_enter(user)
     settings = get_settings()
     token, jwt_id, expires_at = create_access_token(subject=str(user.id), role=user.role.value)
     cache_token(jwt_id, user.id, settings.access_token_minutes * 60)
@@ -106,6 +114,7 @@ def register(payload: RegisterRequest, db: Annotated[Session, Depends(get_db)]) 
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+    intake_batch = available_slot_batch_for_intake(db) if payload.role == Role.student else None
 
     user = User(
         email=payload.email,
@@ -116,7 +125,7 @@ def register(payload: RegisterRequest, db: Annotated[Session, Depends(get_db)]) 
     )
     db.add(user)
     db.flush()
-    _ensure_student_profile(db, user)
+    _ensure_student_profile(db, user, intake_batch.id if intake_batch else None)
     _ensure_professor_profile(db, user, payload)
     db.commit()
     db.refresh(user)
@@ -132,7 +141,7 @@ def login(payload: LoginRequest, db: Annotated[Session, Depends(get_db)]) -> Tok
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    _ensure_user_can_enter(user)
+    _ensure_student_can_enter(user)
     _enqueue(audit_login, user.id, "password")
     return _token_response(user)
 
@@ -175,6 +184,7 @@ def google_login(
 
     user = db.query(User).filter(User.email == email).first()
     if not user:
+        intake_batch = available_slot_batch_for_intake(db)
         user = User(
             email=email,
             full_name=full_name,
@@ -184,7 +194,7 @@ def google_login(
         )
         db.add(user)
         db.flush()
-        _ensure_student_profile(db, user)
+        _ensure_student_profile(db, user, intake_batch.id if intake_batch else None)
         db.commit()
         db.refresh(user)
         _enqueue(send_welcome_email, user.email, user.full_name)
@@ -197,7 +207,7 @@ def google_login(
         db.commit()
         db.refresh(user)
 
-    _ensure_user_can_enter(user)
+    _ensure_student_can_enter(user)
     _enqueue(audit_login, user.id, "google")
     return _token_response(user)
 

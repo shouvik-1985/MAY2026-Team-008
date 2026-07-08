@@ -130,15 +130,6 @@ class ProfessorDashboard(BaseModel):
     nav_modules: list[dict]
 
 
-class AdminDashboard(BaseModel):
-    admin: dict
-    metrics: list[dict]
-    ratio_overview: list[dict]
-    attendance_overview: list[dict]
-    students: list[dict]
-    professors: list[dict]
-
-
 class StudentAcademicUpdate(BaseModel):
     cgpa: float = Field(ge=0, le=10)
     attendance: float = Field(ge=0, le=100)
@@ -160,6 +151,82 @@ class StudentAttendanceMark(BaseModel):
         if normalized not in {"present", "absent"}:
             raise ValueError("Attendance status must be present or absent")
         return normalized
+
+
+class CampusAttendanceSettingsOut(BaseModel):
+    campus_name: str
+    latitude: float | None
+    longitude: float | None
+    radius_meters: int
+    semester_duration_months: int = 6
+    campus_configured: bool
+    updated_at: str | None = None
+    active_slot_batch: dict | None = None
+    slot_batches: list[dict] = []
+
+
+class CampusAttendanceSettingsUpdate(BaseModel):
+    radius_meters: int = Field(ge=25, le=2000)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    campus_name: str | None = Field(default=None, max_length=120)
+
+
+class SemesterDurationUpdate(BaseModel):
+    semester_duration_months: int = Field(ge=1, le=24)
+
+
+class SlotBatchCreate(BaseModel):
+    batch_name: str = Field(min_length=2, max_length=120)
+    total_slots: int = Field(ge=1, le=5000)
+    open_for_intake: bool = True
+
+    @field_validator("batch_name")
+    @classmethod
+    def clean_batch_name(cls, value: str) -> str:
+        return value.strip()
+
+
+class SlotBatchUpdate(BaseModel):
+    batch_name: str | None = Field(default=None, min_length=2, max_length=120)
+    total_slots: int | None = Field(default=None, ge=1, le=5000)
+    open_for_intake: bool | None = None
+
+    @field_validator("batch_name")
+    @classmethod
+    def clean_optional_batch_name(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else value
+
+
+class AdminDashboard(BaseModel):
+    admin: dict
+    metrics: list[dict]
+    account_ratio: dict
+    ratio_overview: list[dict] | None = None
+    attendance_overview: list[dict]
+    students: list[dict]
+    professors: list[dict]
+
+
+class StudentRadiusCheck(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class StudentBiometricVerify(BaseModel):
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    method: str = Field(default="face-recognition", max_length=40)
+    face_template: list[float] | None = None
+
+
+class AdminComplaintStatusUpdate(BaseModel):
+    status: Literal["acknowledged", "in_progress", "resolved"]
+
+
+class ProfessorAttendanceConfirm(BaseModel):
+    student_id: int
+    present: bool = True
 
 
 class AnnouncementCreate(BaseModel):
