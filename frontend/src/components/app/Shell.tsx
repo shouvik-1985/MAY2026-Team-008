@@ -26,6 +26,7 @@ import {
   Sparkles,
   Mic,
   Users,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { clearStoredRole } from "@/lib/use-role";
 import { clearAuthSession, getStoredUser } from "@/lib/auth";
@@ -50,6 +51,7 @@ const NAV: NavItem[] = [
   { to: "/app/marketplace", label: "Marketplace", icon: ShoppingBag },
   { to: "/app/events", label: "Events", icon: Calendar },
   { to: "/app/connect", label: "Connect", icon: Users },
+  { to: "/app/placement", label: "Placement", icon: BriefcaseBusiness },
   { to: "/app/profile", label: "Profile", icon: User },
   { to: "/app/settings", label: "Settings", icon: Settings },
 ];

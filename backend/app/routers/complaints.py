@@ -64,6 +64,8 @@ def list_student_complaints(
                 student=current_user,
                 profile=current_user.student_profile,
                 semester_duration_months=setting.semester_duration_months,
+                semester_duration_unit=setting.semester_duration_unit,
+                semester_duration_days=setting.semester_duration_days,
             )
             for complaint in complaints
         ],
@@ -131,6 +133,8 @@ async def create_student_complaint(
             student=current_user,
             profile=current_user.student_profile,
             semester_duration_months=setting.semester_duration_months,
+            semester_duration_unit=setting.semester_duration_unit,
+            semester_duration_days=setting.semester_duration_days,
         ),
     }
 
@@ -154,7 +158,12 @@ def list_admin_complaints(
     return {
         "ok": True,
         "complaints": [
-            complaint_payload(complaint, semester_duration_months=setting.semester_duration_months)
+            complaint_payload(
+                complaint,
+                semester_duration_months=setting.semester_duration_months,
+                semester_duration_unit=setting.semester_duration_unit,
+                semester_duration_days=setting.semester_duration_days,
+            )
             for complaint in complaints
         ],
     }
@@ -207,7 +216,12 @@ def update_admin_complaint_status(
     )
     return {
         "ok": True,
-        "complaint": complaint_payload(refreshed, semester_duration_months=setting.semester_duration_months),
+        "complaint": complaint_payload(
+            refreshed,
+            semester_duration_months=setting.semester_duration_months,
+            semester_duration_unit=setting.semester_duration_unit,
+            semester_duration_days=setting.semester_duration_days,
+        ),
     }
 
 

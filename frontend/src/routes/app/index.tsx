@@ -3,11 +3,9 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useState, type ComponentType, type FormEvent } from "react";
 import {
   AlertCircle,
-  ArrowUpRight,
   BarChart3,
   CalendarClock,
   CheckCircle2,
-  FileText,
   GraduationCap,
   LineChart as LineIcon,
   ListTodo,
@@ -162,6 +160,7 @@ const FALLBACK_DASHBOARD: StudentDashboard = {
     { label: "Assignments", path: "/app/assignments", feature: "Submission and grading" },
     { label: "Complaints", path: "/app/complaints", feature: "Live request tracking" },
     { label: "Fees", path: "/app/fees", feature: "Payment verification" },
+    { label: "Placement", path: "/app/placement", feature: "Internship and job readiness" },
   ],
   student_todos: [],
 };
@@ -522,27 +521,6 @@ function Dashboard() {
                   {item.kind} / {item.stage} / {item.updated}
                 </div>
               </div>
-            ))}
-          </div>
-        </GlassCard>
-
-        <GlassCard className="xl:col-span-2">
-          <PanelHeader icon={FileText} eyebrow="Student modules" title="Feature tabs from milestone scope" />
-          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {dashboard.nav_modules.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className="group rounded-2xl border border-white/8 bg-white/[0.03] p-4 transition hover:border-white/20 hover:bg-white/[0.06]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{item.label}</div>
-                    <div className="mt-1 text-xs text-white/45">{item.feature}</div>
-                  </div>
-                  <ArrowUpRight className="size-4 shrink-0 text-white/35 transition group-hover:text-white" />
-                </div>
-              </Link>
             ))}
           </div>
         </GlassCard>

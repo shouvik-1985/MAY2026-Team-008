@@ -87,6 +87,8 @@ function AdminDeskPage() {
   const [longitude, setLongitude] = useState("");
   const [campusName, setCampusName] = useState("CampusVerse College");
   const [semesterDurationMonths, setSemesterDurationMonths] = useState(6);
+  const [semesterDurationUnit, setSemesterDurationUnit] = useState<"months" | "days">("months");
+  const [semesterDurationDays, setSemesterDurationDays] = useState(180);
   const [slotBatchName, setSlotBatchName] = useState("");
   const [slotCount, setSlotCount] = useState(60);
   const [openNewBatch, setOpenNewBatch] = useState(true);
@@ -118,6 +120,8 @@ function AdminDeskPage() {
     setLongitude(managementData.longitude?.toString() ?? "");
     setCampusName(managementData.campus_name);
     setSemesterDurationMonths(managementData.semester_duration_months ?? 6);
+    setSemesterDurationUnit(managementData.semester_duration_unit ?? "months");
+    setSemesterDurationDays(managementData.semester_duration_days ?? 180);
     setSelectedStudentId((current) => current ?? dashboardData.students[0]?.id ?? null);
     setSelectedProfessorId((current) => current ?? dashboardData.professors[0]?.id ?? null);
     setSelectedComplaintId((current) => current ?? complaintsData.complaints[0]?.id ?? null);
@@ -270,7 +274,9 @@ function AdminDeskPage() {
     setStatus(null);
     try {
       const managementData = await updateAdminSemesterDuration({
+        semester_duration_unit: semesterDurationUnit,
         semester_duration_months: semesterDurationMonths,
+        semester_duration_days: semesterDurationDays,
       });
       setSettings(managementData);
       await refreshData("Semester duration updated");
@@ -432,6 +438,12 @@ function AdminDeskPage() {
   const totalSlotCapacity = slotBatches.reduce((sum, batch) => sum + batch.total_slots, 0);
   const totalSlotFilled = slotBatches.reduce((sum, batch) => sum + batch.filled_slots, 0);
   const totalSlotLeft = slotBatches.reduce((sum, batch) => sum + batch.slots_left, 0);
+  const semesterDurationLabel =
+    semesterDurationUnit === "days"
+      ? `${semesterDurationDays} ${semesterDurationDays === 1 ? "day" : "days"}`
+      : `${semesterDurationMonths} ${semesterDurationMonths === 1 ? "month" : "months"}`;
+  const semesterDurationInputValue =
+    semesterDurationUnit === "days" ? semesterDurationDays : semesterDurationMonths;
 
   return (
     <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
@@ -893,7 +905,7 @@ function AdminDeskPage() {
               />
               <MetricCard label="Slot capacity" value={String(totalSlotCapacity)} hint={`${totalSlotFilled} filled across all released batches`} />
               <MetricCard label="Slots left" value={String(totalSlotLeft)} hint="Remaining seats for future student onboarding" />
-              <MetricCard label="Semester duration" value={`${semesterDurationMonths} months`} hint="Students auto-advance after this duration" />
+              <MetricCard label="Semester duration" value={semesterDurationLabel} hint="Students auto-advance after this duration" />
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[0.96fr_1.04fr]">
@@ -909,19 +921,45 @@ function AdminDeskPage() {
                       <div>
                         <div className="text-[10px] uppercase tracking-[0.28em] text-white/40">Semester duration</div>
                         <div className="mt-2 text-sm text-white/58">
-                          After this many months, a student automatically moves to the next semester.
+                          After this duration, a student automatically moves to the next semester.
                         </div>
+                      </div>
+                    </div>
+                    <div className="grid gap-4">
+                      <div className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] p-1 text-xs uppercase tracking-[0.18em] text-white/45">
+                        {(["months", "days"] as const).map((unit) => (
+                          <button
+                            key={unit}
+                            type="button"
+                            onClick={() => setSemesterDurationUnit(unit)}
+                            className={`rounded-full px-4 py-2 transition ${
+                              semesterDurationUnit === unit ? "bg-white/12 text-white" : "hover:text-white"
+                            }`}
+                          >
+                            {unit}
+                          </button>
+                        ))}
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
                       <label className="grid gap-2">
-                        <span className="text-[10px] uppercase tracking-[0.28em] text-white/40">Duration in months</span>
+                        <span className="text-[10px] uppercase tracking-[0.28em] text-white/40">
+                          Duration in {semesterDurationUnit}
+                        </span>
                         <input
                           type="number"
                           min={1}
-                          max={24}
-                          value={semesterDurationMonths}
-                          onChange={(event) => setSemesterDurationMonths(Number(event.target.value))}
+                          max={semesterDurationUnit === "days" ? 730 : 24}
+                          value={semesterDurationInputValue}
+                          onChange={(event) => {
+                            const maxDuration = semesterDurationUnit === "days" ? 730 : 24;
+                            const nextValue = Math.min(maxDuration, Math.max(1, Number(event.target.value) || 1));
+                            if (semesterDurationUnit === "days") {
+                              setSemesterDurationDays(nextValue);
+                            } else {
+                              setSemesterDurationMonths(nextValue);
+                            }
+                          }}
                           className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
                         />
                       </label>

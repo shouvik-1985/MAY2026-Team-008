@@ -15,6 +15,7 @@ import { type ComponentType, type ReactNode, useEffect, useState } from "react";
 import { CinematicBackdrop } from "@/components/app/cinematic";
 import { logoutAccount } from "@/lib/api";
 import { clearAuthSession, getStoredUser, hasAuthSession } from "@/lib/auth";
+import { resolveRoleHome } from "@/lib/role-home";
 import { clearStoredDashboard } from "@/lib/student-session";
 import { clearStoredRole } from "@/lib/use-role";
 
@@ -24,11 +25,8 @@ export const Route = createFileRoute("/admin")({
       throw redirect({ to: "/login" });
     }
     const user = typeof window !== "undefined" ? getStoredUser() : null;
-    if (user?.role === "faculty") {
-      throw redirect({ to: "/professor" });
-    }
     if (user && user.role !== "admin") {
-      throw redirect({ to: "/app" });
+      throw redirect({ to: resolveRoleHome(user.role) });
     }
   },
   component: AdminLayout,

@@ -67,11 +67,19 @@ def complaint_payload(
     student: User | None = None,
     profile: StudentProfile | None = None,
     semester_duration_months: int = 6,
+    semester_duration_unit: str = "months",
+    semester_duration_days: int | None = None,
 ) -> dict:
     student_user = student or complaint.student
     resolved_profile = profile or (student_user.student_profile if student_user else None)
     semester = (
-        resolve_student_semester(resolved_profile, student_user, semester_duration_months)
+        resolve_student_semester(
+            resolved_profile,
+            student_user,
+            semester_duration_months,
+            semester_duration_unit,
+            semester_duration_days,
+        )
         if student_user
         else None
     )
@@ -98,4 +106,3 @@ def complaint_payload(
         "semester": semester,
         "attachments": [complaint_attachment_payload(attachment) for attachment in complaint.attachments],
     }
-

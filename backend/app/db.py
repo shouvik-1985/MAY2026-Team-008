@@ -26,6 +26,8 @@ def _column_sql(sql_type: str) -> str:
             "text": "TEXT",
             "student_address": "VARCHAR(255) NOT NULL DEFAULT 'Campus Residence'",
             "semester_duration": "INTEGER NOT NULL DEFAULT 6",
+            "semester_duration_days": "INTEGER NOT NULL DEFAULT 180",
+            "semester_duration_unit": "VARCHAR(10) NOT NULL DEFAULT 'months'",
         }[sql_type]
     return {
         "bool": "BOOLEAN NOT NULL DEFAULT FALSE",
@@ -35,6 +37,8 @@ def _column_sql(sql_type: str) -> str:
         "text": "TEXT",
         "student_address": "VARCHAR(255) NOT NULL DEFAULT 'Campus Residence'",
         "semester_duration": "INTEGER NOT NULL DEFAULT 6",
+        "semester_duration_days": "INTEGER NOT NULL DEFAULT 180",
+        "semester_duration_unit": "VARCHAR(10) NOT NULL DEFAULT 'months'",
     }[sql_type]
 
 
@@ -77,6 +81,9 @@ def ensure_database_shape() -> None:
     }
 
     with engine.begin() as connection:
+        if engine.dialect.name == "postgresql":
+            connection.execute(text("ALTER TYPE role ADD VALUE IF NOT EXISTS 'placement'"))
+
         for name, definition in user_additions.items():
             if name not in user_columns:
                 connection.execute(text(f"ALTER TABLE users ADD COLUMN {name} {definition}"))
@@ -104,6 +111,18 @@ def ensure_database_shape() -> None:
             connection.execute(
                 text(
                     f"ALTER TABLE campus_attendance_settings ADD COLUMN semester_duration_months {_column_sql('semester_duration')}"
+                )
+            )
+        if "campus_attendance_settings" in tables and "semester_duration_unit" not in campus_setting_columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE campus_attendance_settings ADD COLUMN semester_duration_unit {_column_sql('semester_duration_unit')}"
+                )
+            )
+        if "campus_attendance_settings" in tables and "semester_duration_days" not in campus_setting_columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE campus_attendance_settings ADD COLUMN semester_duration_days {_column_sql('semester_duration_days')}"
                 )
             )
 

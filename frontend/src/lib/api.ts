@@ -208,6 +208,76 @@ export type StudentTodo = {
   updatedAt: string;
 };
 
+export type PlacementApplication = {
+  id: number;
+  studentId: number;
+  studentName: string;
+  studentEmail: string;
+  semester: number;
+  cgpa: number;
+  skills: string;
+  linkedinProfile: string;
+  githubProfile: string;
+  phoneNumber: string;
+  resumeFilename: string;
+  resumeContentType: string;
+  resumeFileSize: number;
+  resumeUrl: string;
+  status: "submitted" | "selected" | string;
+  selectionMessage: string | null;
+  selectedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PlacementNotification = {
+  id: number;
+  applicationId: number | null;
+  title: string;
+  body: string;
+  channel: string;
+  read: boolean;
+  createdAt: string;
+};
+
+export type PlacementStudentPortal = {
+  student: {
+    id: number;
+    name: string;
+    email: string;
+    studentCode: string;
+    department: string;
+    semester: number;
+    cgpa: number;
+  };
+  criteria: {
+    minimumSemester: number;
+    minimumCgpa: number;
+  };
+  eligible: boolean;
+  application: PlacementApplication | null;
+  notifications: PlacementNotification[];
+  jobs: unknown[];
+};
+
+export type PlacementManagerDashboard = {
+  manager: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  criteria: {
+    minimumSemester: number;
+    minimumCgpa: number;
+  };
+  metrics: {
+    eligibleStudents: number;
+    selectedStudents: number;
+    pendingStudents: number;
+  };
+  applications: PlacementApplication[];
+};
+
 export type ComplaintStatus = "submitted" | "acknowledged" | "in_progress" | "resolved";
 
 export type ComplaintAttachment = {
@@ -259,6 +329,8 @@ export type CampusAttendanceSettings = {
   longitude: number | null;
   radius_meters: number;
   semester_duration_months: number;
+  semester_duration_unit: "months" | "days";
+  semester_duration_days: number;
   campus_configured: boolean;
   updated_at: string | null;
   active_slot_batch: IntakeSlotBatch | null;
@@ -643,6 +715,36 @@ export function getStudentDashboard() {
   return request<StudentDashboard>("/student/dashboard");
 }
 
+export function getPlacementStudentPortal() {
+  return request<PlacementStudentPortal>("/placement/student");
+}
+
+export function submitPlacementApplication(payload: FormData) {
+  return request<{ ok: boolean; application: PlacementApplication; message: string }>(
+    "/placement/student/application",
+    {
+      method: "POST",
+      body: payload,
+    },
+  );
+}
+
+export function getPlacementManagerDashboard() {
+  return request<PlacementManagerDashboard>("/placement/manager/dashboard");
+}
+
+export function selectPlacementApplication(applicationId: number, payload: { opportunity_title?: string }) {
+  return request<{
+    ok: boolean;
+    application: PlacementApplication;
+    notification: string;
+    emailQueued: boolean;
+  }>(`/placement/manager/applications/${applicationId}/select`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getStudentComplaints() {
   return request<{ ok: boolean; complaints: ComplaintItem[] }>("/complaints/me");
 }
@@ -735,7 +837,11 @@ export function updateAdminAttendanceRadius(payload: {
   });
 }
 
-export function updateAdminSemesterDuration(payload: { semester_duration_months: number }) {
+export function updateAdminSemesterDuration(payload: {
+  semester_duration_months?: number;
+  semester_duration_unit?: "months" | "days";
+  semester_duration_days?: number;
+}) {
   return request<CampusAttendanceSettings>("/admin/management/semester-duration", {
     method: "PATCH",
     body: JSON.stringify(payload),

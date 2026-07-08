@@ -12,16 +12,19 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RoleRouteImport } from './routes/role'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProfessorRouteRouteImport } from './routes/professor/route'
+import { Route as PlacementRouteRouteImport } from './routes/placement/route'
 import { Route as AppRouteRouteImport } from './routes/app/route'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfessorIndexRouteImport } from './routes/professor/index'
+import { Route as PlacementIndexRouteImport } from './routes/placement/index'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AppSettingsRouteImport } from './routes/app/settings'
 import { Route as AppScholarshipsRouteImport } from './routes/app/scholarships'
 import { Route as AppResourcesRouteImport } from './routes/app/resources'
 import { Route as AppProfileRouteImport } from './routes/app/profile'
+import { Route as AppPlacementRouteImport } from './routes/app/placement'
 import { Route as AppMarketplaceRouteImport } from './routes/app/marketplace'
 import { Route as AppFeesRouteImport } from './routes/app/fees'
 import { Route as AppEventsRouteImport } from './routes/app/events'
@@ -48,6 +51,11 @@ const ProfessorRouteRoute = ProfessorRouteRouteImport.update({
   path: '/professor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlacementRouteRoute = PlacementRouteRouteImport.update({
+  id: '/placement',
+  path: '/placement',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/app',
   path: '/app',
@@ -67,6 +75,11 @@ const ProfessorIndexRoute = ProfessorIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ProfessorRouteRoute,
+} as any)
+const PlacementIndexRoute = PlacementIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PlacementRouteRoute,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
@@ -96,6 +109,11 @@ const AppResourcesRoute = AppResourcesRouteImport.update({
 const AppProfileRoute = AppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppPlacementRoute = AppPlacementRouteImport.update({
+  id: '/placement',
+  path: '/placement',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppMarketplaceRoute = AppMarketplaceRouteImport.update({
@@ -153,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/app': typeof AppRouteRouteWithChildren
+  '/placement': typeof PlacementRouteRouteWithChildren
   '/professor': typeof ProfessorRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/role': typeof RoleRoute
@@ -166,12 +185,14 @@ export interface FileRoutesByFullPath {
   '/app/events': typeof AppEventsRoute
   '/app/fees': typeof AppFeesRoute
   '/app/marketplace': typeof AppMarketplaceRoute
+  '/app/placement': typeof AppPlacementRoute
   '/app/profile': typeof AppProfileRoute
   '/app/resources': typeof AppResourcesRoute
   '/app/scholarships': typeof AppScholarshipsRoute
   '/app/settings': typeof AppSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
+  '/placement/': typeof PlacementIndexRoute
   '/professor/': typeof ProfessorIndexRoute
 }
 export interface FileRoutesByTo {
@@ -188,12 +209,14 @@ export interface FileRoutesByTo {
   '/app/events': typeof AppEventsRoute
   '/app/fees': typeof AppFeesRoute
   '/app/marketplace': typeof AppMarketplaceRoute
+  '/app/placement': typeof AppPlacementRoute
   '/app/profile': typeof AppProfileRoute
   '/app/resources': typeof AppResourcesRoute
   '/app/scholarships': typeof AppScholarshipsRoute
   '/app/settings': typeof AppSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/app': typeof AppIndexRoute
+  '/placement': typeof PlacementIndexRoute
   '/professor': typeof ProfessorIndexRoute
 }
 export interface FileRoutesById {
@@ -201,6 +224,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/app': typeof AppRouteRouteWithChildren
+  '/placement': typeof PlacementRouteRouteWithChildren
   '/professor': typeof ProfessorRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/role': typeof RoleRoute
@@ -214,12 +238,14 @@ export interface FileRoutesById {
   '/app/events': typeof AppEventsRoute
   '/app/fees': typeof AppFeesRoute
   '/app/marketplace': typeof AppMarketplaceRoute
+  '/app/placement': typeof AppPlacementRoute
   '/app/profile': typeof AppProfileRoute
   '/app/resources': typeof AppResourcesRoute
   '/app/scholarships': typeof AppScholarshipsRoute
   '/app/settings': typeof AppSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
+  '/placement/': typeof PlacementIndexRoute
   '/professor/': typeof ProfessorIndexRoute
 }
 export interface FileRouteTypes {
@@ -228,6 +254,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/app'
+    | '/placement'
     | '/professor'
     | '/login'
     | '/role'
@@ -241,12 +268,14 @@ export interface FileRouteTypes {
     | '/app/events'
     | '/app/fees'
     | '/app/marketplace'
+    | '/app/placement'
     | '/app/profile'
     | '/app/resources'
     | '/app/scholarships'
     | '/app/settings'
     | '/admin/'
     | '/app/'
+    | '/placement/'
     | '/professor/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -263,18 +292,21 @@ export interface FileRouteTypes {
     | '/app/events'
     | '/app/fees'
     | '/app/marketplace'
+    | '/app/placement'
     | '/app/profile'
     | '/app/resources'
     | '/app/scholarships'
     | '/app/settings'
     | '/admin'
     | '/app'
+    | '/placement'
     | '/professor'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/app'
+    | '/placement'
     | '/professor'
     | '/login'
     | '/role'
@@ -288,12 +320,14 @@ export interface FileRouteTypes {
     | '/app/events'
     | '/app/fees'
     | '/app/marketplace'
+    | '/app/placement'
     | '/app/profile'
     | '/app/resources'
     | '/app/scholarships'
     | '/app/settings'
     | '/admin/'
     | '/app/'
+    | '/placement/'
     | '/professor/'
   fileRoutesById: FileRoutesById
 }
@@ -301,6 +335,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   AppRouteRoute: typeof AppRouteRouteWithChildren
+  PlacementRouteRoute: typeof PlacementRouteRouteWithChildren
   ProfessorRouteRoute: typeof ProfessorRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
   RoleRoute: typeof RoleRoute
@@ -327,6 +362,13 @@ declare module '@tanstack/react-router' {
       path: '/professor'
       fullPath: '/professor'
       preLoaderRoute: typeof ProfessorRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/placement': {
+      id: '/placement'
+      path: '/placement'
+      fullPath: '/placement'
+      preLoaderRoute: typeof PlacementRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app': {
@@ -356,6 +398,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/professor/'
       preLoaderRoute: typeof ProfessorIndexRouteImport
       parentRoute: typeof ProfessorRouteRoute
+    }
+    '/placement/': {
+      id: '/placement/'
+      path: '/'
+      fullPath: '/placement/'
+      preLoaderRoute: typeof PlacementIndexRouteImport
+      parentRoute: typeof PlacementRouteRoute
     }
     '/app/': {
       id: '/app/'
@@ -397,6 +446,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/app/profile'
       preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/placement': {
+      id: '/app/placement'
+      path: '/placement'
+      fullPath: '/app/placement'
+      preLoaderRoute: typeof AppPlacementRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/app/marketplace': {
@@ -495,6 +551,7 @@ interface AppRouteRouteChildren {
   AppEventsRoute: typeof AppEventsRoute
   AppFeesRoute: typeof AppFeesRoute
   AppMarketplaceRoute: typeof AppMarketplaceRoute
+  AppPlacementRoute: typeof AppPlacementRoute
   AppProfileRoute: typeof AppProfileRoute
   AppResourcesRoute: typeof AppResourcesRoute
   AppScholarshipsRoute: typeof AppScholarshipsRoute
@@ -513,6 +570,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppEventsRoute: AppEventsRoute,
   AppFeesRoute: AppFeesRoute,
   AppMarketplaceRoute: AppMarketplaceRoute,
+  AppPlacementRoute: AppPlacementRoute,
   AppProfileRoute: AppProfileRoute,
   AppResourcesRoute: AppResourcesRoute,
   AppScholarshipsRoute: AppScholarshipsRoute,
@@ -522,6 +580,18 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
   AppRouteRouteChildren,
+)
+
+interface PlacementRouteRouteChildren {
+  PlacementIndexRoute: typeof PlacementIndexRoute
+}
+
+const PlacementRouteRouteChildren: PlacementRouteRouteChildren = {
+  PlacementIndexRoute: PlacementIndexRoute,
+}
+
+const PlacementRouteRouteWithChildren = PlacementRouteRoute._addFileChildren(
+  PlacementRouteRouteChildren,
 )
 
 interface ProfessorRouteRouteChildren {
@@ -540,6 +610,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
   AppRouteRoute: AppRouteRouteWithChildren,
+  PlacementRouteRoute: PlacementRouteRouteWithChildren,
   ProfessorRouteRoute: ProfessorRouteRouteWithChildren,
   LoginRoute: LoginRoute,
   RoleRoute: RoleRoute,

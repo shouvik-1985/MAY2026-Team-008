@@ -24,6 +24,7 @@ class Role(str, Enum):
     faculty = "faculty"
     admin = "admin"
     scholarship = "scholarship"
+    placement = "placement"
 
 
 class AuthProvider(str, Enum):
@@ -124,6 +125,8 @@ class CampusAttendanceSetting(Base):
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     radius_meters: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     semester_duration_months: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
+    semester_duration_unit: Mapped[str] = mapped_column(String(10), default="months", nullable=False)
+    semester_duration_days: Mapped[int] = mapped_column(Integer, default=180, nullable=False)
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -221,6 +224,59 @@ class StudentComplaintAttachment(Base):
     )
 
     complaint: Mapped[StudentComplaint] = relationship(back_populates="attachments")
+
+
+class PlacementApplication(Base):
+    __tablename__ = "placement_applications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    student_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    student_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    cgpa: Mapped[float] = mapped_column(Float, nullable=False)
+    skills: Mapped[str] = mapped_column(Text, nullable=False)
+    linkedin_profile: Mapped[str] = mapped_column(String(500), nullable=False)
+    github_profile: Mapped[str] = mapped_column(String(500), nullable=False)
+    phone_number: Mapped[str] = mapped_column(String(40), nullable=False)
+    resume_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    resume_content_type: Mapped[str] = mapped_column(String(120), default="application/octet-stream", nullable=False)
+    resume_file_size: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    resume_file_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="submitted", nullable=False, index=True)
+    selection_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    selected_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    selected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    student: Mapped[User] = relationship(foreign_keys=[student_id])
+    selected_by: Mapped[User | None] = relationship(foreign_keys=[selected_by_id])
+
+
+class PlacementNotification(Base):
+    __tablename__ = "placement_notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("placement_applications.id"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(180), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    channel: Mapped[str] = mapped_column(String(40), default="placement", nullable=False)
+    read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+
+    student: Mapped[User] = relationship(foreign_keys=[student_id])
+    application: Mapped[PlacementApplication | None] = relationship(foreign_keys=[application_id])
 
 
 class ProfessorProfile(Base):
