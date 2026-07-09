@@ -1,6 +1,13 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ComponentType, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import {
   LayoutDashboard,
   Megaphone,
@@ -31,6 +38,12 @@ import { clearStoredRole } from "@/lib/use-role";
 import { clearAuthSession, getStoredUser } from "@/lib/auth";
 import { logoutAccount } from "@/lib/api";
 import { clearStoredDashboard, useStudentDashboard } from "@/lib/student-session";
+import {
+  getStoredStudentProfile,
+  initialsFromName,
+  studentProfileEventName,
+  type EditableStudentProfile,
+} from "@/lib/student-profile";
 
 type NavItem = {
   to: string;
@@ -177,15 +190,12 @@ export function Shell({ children }: { children: ReactNode }) {
       <div
         className={`min-h-screen transition-[padding] duration-300 ${collapsed ? "md:pl-[100px]" : "md:pl-[280px]"}`}
       >
-        <TopBar
-          onSearch={() => setOpenSearch(true)}
-          onNotif={() => setOpenNotif(true)}
-        />
+        <TopBar onSearch={() => setOpenSearch(true)} onNotif={() => setOpenNotif(true)} />
         <main className="px-5 md:px-10 py-6 pb-32 max-w-[1400px] mx-auto">{children}</main>
       </div>
 
       {/* Floating Action */}
-      <Fab open={openFab} setOpen={setOpenFab} />
+      {!pathname.startsWith("/app/profile") && <Fab open={openFab} setOpen={setOpenFab} />}
 
       {/* Notifications drawer */}
       <NotifDrawer open={openNotif} onClose={() => setOpenNotif(false)} />
@@ -200,24 +210,32 @@ function TopBar({ onSearch, onNotif }: { onSearch: () => void; onNotif: () => vo
   const [dark, setDark] = useState(true);
   const [time, setTime] = useState(() => new Date());
   const [authUser, setAuthUser] = useState(() => getStoredUser());
+  const [studentProfile, setStudentProfile] = useState<EditableStudentProfile | null>(() =>
+    getStoredStudentProfile(),
+  );
   const { dashboard } = useStudentDashboard();
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
   useEffect(() => setAuthUser(getStoredUser()), []);
+  useEffect(() => {
+    const onProfileUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<EditableStudentProfile>).detail;
+      setStudentProfile(detail ?? getStoredStudentProfile());
+    };
+    window.addEventListener(studentProfileEventName(), onProfileUpdate);
+    return () => window.removeEventListener(studentProfileEventName(), onProfileUpdate);
+  }, []);
   const hour = time.getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const displayName = dashboard?.user.name ?? authUser?.full_name ?? "Student";
+  const displayName =
+    studentProfile?.name.trim() || dashboard?.user.name || authUser?.full_name || "Student";
   const semester = dashboard?.user.semester;
-  const avatar = dashboard?.user.avatar ?? (
-    displayName
-      .split(" ")
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase() || "CV"
-  );
+  const avatar =
+    (studentProfile?.name.trim()
+      ? initialsFromName(studentProfile.name)
+      : dashboard?.user.avatar) ?? initialsFromName(displayName);
 
   return (
     <div className="sticky top-0 z-30 px-5 md:px-10 pt-4 pb-3 backdrop-blur-xl bg-[#050505]/60">
@@ -241,7 +259,9 @@ function TopBar({ onSearch, onNotif }: { onSearch: () => void; onNotif: () => vo
         >
           <Search className="size-4" />
           <span className="flex-1 text-left">Search assignments, faculty, events...</span>
-          <kbd className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-white/10">Ctrl K</kbd>
+          <kbd className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-white/10">
+            Ctrl K
+          </kbd>
         </button>
         <div className="hidden lg:flex items-center gap-2 text-xs text-white/45 px-3">
           <span className="size-1.5 rounded-full bg-emerald-400 pulse-glow" />
@@ -282,7 +302,10 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([
-    { role: "ai" as const, text: "Hi, I am your CampusVerse student assistant. Ask me about attendance, CGPA, fees, or deadlines." },
+    {
+      role: "ai" as const,
+      text: "Hi, I am your CampusVerse student assistant. Ask me about attendance, CGPA, fees, or deadlines.",
+    },
   ]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prompts = dashboard?.ai_context.suggested_prompts ?? [
@@ -307,7 +330,10 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
     setInput("");
     setTyping(true);
     setTimeout(() => {
-      setMessages((current) => [...current, { role: "ai", text: simulateAiBubble(text, dashboard) }]);
+      setMessages((current) => [
+        ...current,
+        { role: "ai", text: simulateAiBubble(text, dashboard) },
+      ]);
       setTyping(false);
     }, 750);
   }
@@ -324,12 +350,17 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
           >
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
               <div className="flex items-center gap-3">
-                <span className="size-10 rounded-2xl flex items-center justify-center" style={{ background: "var(--grad-aurora)" }}>
+                <span
+                  className="size-10 rounded-2xl flex items-center justify-center"
+                  style={{ background: "var(--grad-aurora)" }}
+                >
                   <Sparkles className="size-4" />
                 </span>
                 <div>
                   <div className="font-display text-lg leading-none">Student AI Assistant</div>
-                  <div className="mt-1 text-[10px] uppercase tracking-[0.24em] text-white/40">Frontend preview</div>
+                  <div className="mt-1 text-[10px] uppercase tracking-[0.24em] text-white/40">
+                    Frontend preview
+                  </div>
                 </div>
               </div>
               <button
@@ -344,7 +375,10 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
 
             <div ref={scrollRef} className="max-h-[380px] overflow-y-auto px-4 py-4 space-y-3">
               {messages.map((message, index) => (
-                <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={`${message.role}-${index}`}
+                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                >
                   <div
                     className={`max-w-[82%] rounded-3xl px-4 py-2.5 text-sm ${
                       message.role === "user" ? "bg-white text-black" : "glass text-white"
@@ -391,7 +425,11 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
                   placeholder="Ask your student assistant..."
                   className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-white/35"
                 />
-                <button type="submit" className="size-9 rounded-xl text-white" style={{ background: "var(--grad-aurora)" }}>
+                <button
+                  type="submit"
+                  className="size-9 rounded-xl text-white"
+                  style={{ background: "var(--grad-aurora)" }}
+                >
                   <Send className="mx-auto size-4" />
                 </button>
               </div>
@@ -423,8 +461,12 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
   );
 }
 
-function simulateAiBubble(query: string, dashboard: ReturnType<typeof useStudentDashboard>["dashboard"]) {
-  if (!dashboard) return "Your student profile is still syncing. I will have richer answers after backend AI is connected.";
+function simulateAiBubble(
+  query: string,
+  dashboard: ReturnType<typeof useStudentDashboard>["dashboard"],
+) {
+  if (!dashboard)
+    return "Your student profile is still syncing. I will have richer answers after backend AI is connected.";
   const lower = query.toLowerCase();
   const attendance = Math.round(dashboard.user.attendance);
   if (lower.includes("attendance")) {
@@ -444,7 +486,10 @@ function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   const groups = dashboard
     ? Object.values(
         dashboard.announcements.reduce<
-          Record<string, { group: string; items: { id: number; title: string; body: string; time: string }[] }>
+          Record<
+            string,
+            { group: string; items: { id: number; title: string; body: string; time: string }[] }
+          >
         >((acc, item) => {
           acc[item.category] ??= { group: item.category, items: [] };
           acc[item.category].items.push({
@@ -459,7 +504,14 @@ function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
     : [
         {
           group: "Syncing",
-          items: [{ id: 0, title: "Notifications syncing", body: "Backend data is loading.", time: "now" }],
+          items: [
+            {
+              id: 0,
+              title: "Notifications syncing",
+              body: "Backend data is loading.",
+              time: "now",
+            },
+          ],
         },
       ];
   return (

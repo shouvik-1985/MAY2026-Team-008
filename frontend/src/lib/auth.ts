@@ -3,6 +3,7 @@ import type { RoleId } from "./campus-data";
 const TOKEN_KEY = "cv-access-token";
 const USER_KEY = "cv-auth-user";
 const DASHBOARD_KEY = "cv-student-dashboard";
+const PROFILE_KEY = "cv-student-profile";
 const ATTENDANCE_SESSION_PREFIX = "cv-attendance-";
 
 export type AuthUser = {
@@ -64,4 +65,5 @@ export function clearAuthSession() {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
   window.localStorage.removeItem(DASHBOARD_KEY);
+  window.localStorage.removeItem(PROFILE_KEY);
 }
