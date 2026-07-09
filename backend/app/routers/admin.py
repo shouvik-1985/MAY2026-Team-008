@@ -1,218 +1,351 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
+from statistics import mean
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.attendance_flow import campus_setting_payload, get_campus_attendance_setting, now_utc
 from app.db import get_db
 from app.dependencies import get_current_user
+from app.intake_flow import resolve_student_semester, slot_batches_payload
 from app.models import (
     Announcement,
     AssignmentReview,
+    CampusAttendanceSetting,
     ConnectAttachment,
     ConnectMessage,
     ConnectMessageHidden,
     ConnectRelationship,
+    IntakeSlotBatch,
     ProfessorProfile,
     RevokedToken,
     Role,
     StudentAttendance,
+    StudentBiometricCheckIn,
+    StudentComplaint,
+    StudentComplaintAttachment,
     StudentProfile,
     StudentTodo,
     StudyResource,
     User,
 )
-from app.schemas import AdminDashboard
+from app.schemas import (
+    AdminDashboard,
+    CampusAttendanceSettingsOut,
+    CampusAttendanceSettingsUpdate,
+    SemesterDurationUpdate,
+    SlotBatchCreate,
+    SlotBatchUpdate,
+    StudentBlockUpdate,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-ADMIN_NAV = [
-    {"label": "Dashboard", "path": "/admin", "feature": "Campus ratio and attendance analytics"},
-    {"label": "Students", "path": "/admin", "feature": "Search, review, block, unblock, and delete students"},
-    {"label": "Professors", "path": "/admin", "feature": "Search, review, block, unblock, and delete professors"},
-]
+LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 
 def _require_admin(user: User) -> None:
     if user.role != Role.admin:
-        raise HTTPException(status_code=403, detail="Admin dashboard is available to admin users only")
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
+        raise HTTPException(status_code=403, detail="Admin management is available to admin users only")
 
 
 def _avatar(name: str) -> str:
-    return "".join(part[0] for part in name.split()[:2]).upper() or "AD"
+    return "".join(part[0] for part in name.split()[:2]).upper() or "CA"
+
+
+def _today() -> date:
+    return datetime.now(LOCAL_TIMEZONE).date()
 
 
 def _student_code(user_id: int) -> str:
     return f"CV-2026-{1000 + user_id:04d}"
 
 
-def _ensure_student_profile(db: Session, user: User) -> StudentProfile:
-    if user.student_profile:
-        if not user.student_profile.address:
-            user.student_profile.address = "Campus Residence"
-        return user.student_profile
-
-    seed = user.id % 7
-    profile = StudentProfile(
-        user_id=user.id,
-        student_code=_student_code(user.id),
-        address="Campus Residence",
-        department="Computer Science & AI",
-        semester=1 + (user.id % 8),
-        cgpa=round(8.1 + (seed * 0.13), 1),
-        attendance=float(84 + seed),
-    )
-    db.add(profile)
-    db.flush()
-    return profile
-
-
-def _attendance_breakdown(db: Session, student_id: int) -> tuple[int, int, int]:
-    records = db.query(StudentAttendance.status).filter(StudentAttendance.student_id == student_id).all()
-    present = sum(1 for (status,) in records if status == "present")
-    absent = sum(1 for (status,) in records if status == "absent")
-    return len(records), present, absent
-
-
-def _attendance_percentage(db: Session, student_id: int, fallback: float) -> float:
-    total, present, _absent = _attendance_breakdown(db, student_id)
-    if total == 0:
-        return round(fallback, 2)
-    return round((present / total) * 100, 2)
+def _attendance_counts(db: Session) -> dict[int, dict[str, int]]:
+    counts: dict[int, dict[str, int]] = {}
+    records = db.query(StudentAttendance.student_id, StudentAttendance.status).all()
+    for student_id, status in records:
+        bucket = counts.setdefault(student_id, {"present": 0, "absent": 0, "total": 0})
+        bucket["total"] += 1
+        if status == "present":
+            bucket["present"] += 1
+        elif status == "absent":
+            bucket["absent"] += 1
+    return counts
 
 
 def _student_rows(db: Session) -> list[dict]:
-    students = db.query(User).filter(User.role == Role.student).order_by(User.full_name.asc()).all()
+    students = db.query(User).filter(User.role == Role.student).order_by(User.created_at.desc()).all()
+    setting = get_campus_attendance_setting(db)
+    slot_batches = {
+        batch.id: batch.batch_name
+        for batch in db.query(IntakeSlotBatch).all()
+    }
+    profiles = {
+        profile.user_id: profile
+        for profile in db.query(StudentProfile).all()
+    }
+    attendance_counts = _attendance_counts(db)
     rows: list[dict] = []
     for student in students:
-        profile = _ensure_student_profile(db, student)
-        total_marked, present_count, absent_count = _attendance_breakdown(db, student.id)
-        attendance = _attendance_percentage(db, student.id, profile.attendance)
-        if total_marked:
-            profile.attendance = attendance
+        profile = profiles.get(student.id)
+        semester = resolve_student_semester(profile, student, setting.semester_duration_months)
+        counts = attendance_counts.get(student.id, {"present": 0, "absent": 0, "total": 0})
+        attendance = (
+            round((counts["present"] / counts["total"]) * 100, 1)
+            if counts["total"]
+            else round(profile.attendance if profile else 0, 1)
+        )
         rows.append(
             {
                 "id": student.id,
                 "name": student.full_name,
                 "email": student.email,
-                "studentCode": profile.student_code,
-                "address": profile.address,
-                "department": profile.department,
-                "semester": profile.semester,
-                "cgpa": profile.cgpa,
+                "studentCode": profile.student_code if profile else _student_code(student.id),
+                "address": profile.address if profile else "Campus Residence",
+                "department": profile.department if profile else "Computer Science & AI",
+                "semester": semester,
+                "cgpa": round(profile.cgpa if profile else 0, 2),
                 "attendance": attendance,
-                "attendanceMarked": total_marked,
-                "presentCount": present_count,
-                "absentCount": absent_count,
-                "status": "blocked" if student.is_blocked else "safe" if attendance >= 75 else "watch",
+                "attendanceMarked": counts["total"],
+                "presentCount": counts["present"],
+                "absentCount": counts["absent"],
+                "status": "blocked" if student.is_blocked else "active" if attendance >= 75 else "watch",
                 "isBlocked": student.is_blocked,
-                "blockReason": student.block_reason or "",
-                "blockedAt": student.blocked_at.isoformat() if student.blocked_at else "",
+                "blockReason": student.block_reason or "Active account",
+                "blockedAt": student.blocked_at.astimezone(LOCAL_TIMEZONE).isoformat() if student.blocked_at else "",
+                "createdAt": student.created_at.astimezone(LOCAL_TIMEZONE).isoformat() if student.created_at else "",
+                "lastSeenAt": student.last_seen_at.astimezone(LOCAL_TIMEZONE).isoformat() if student.last_seen_at else "",
                 "avatar": _avatar(student.full_name),
-                "createdAt": student.created_at.isoformat(),
+                "authProvider": student.auth_provider.value,
+                "slotBatchName": slot_batches.get(profile.slot_batch_id) if profile and profile.slot_batch_id else "",
+                "enrollmentDate": profile.enrollment_date.isoformat() if profile and profile.enrollment_date else "",
             }
         )
     return rows
 
 
 def _professor_rows(db: Session) -> list[dict]:
-    professors = db.query(User).filter(User.role == Role.faculty).order_by(User.full_name.asc()).all()
-    student_count = db.query(User).filter(User.role == Role.student).count()
+    professors = db.query(User).filter(User.role == Role.faculty).order_by(User.created_at.desc()).all()
+    students_managed = db.query(User).filter(User.role == Role.student).count()
+    profiles = {
+        profile.user_id: profile
+        for profile in db.query(ProfessorProfile).all()
+    }
     rows: list[dict] = []
     for professor in professors:
-        profile = professor.professor_profile
+        profile = profiles.get(professor.id)
         rows.append(
             {
                 "id": professor.id,
                 "name": professor.full_name,
                 "email": professor.email,
-                "address": profile.address if profile else "Campus Faculty Residence",
+                "address": profile.address if profile else "Campus Residence",
                 "department": profile.department if profile else "Computer Science & AI",
                 "designation": profile.designation if profile else "Professor",
-                "expertiseField": profile.expertise_field if profile else "Academic Operations",
-                "highestEducation": profile.highest_education if profile else "Verified Faculty",
-                "licenseDocumentName": profile.license_document_name if profile else "Not submitted",
+                "gender": profile.gender if profile else "",
+                "expertiseField": profile.expertise_field if profile else "Academic operations",
+                "highestEducation": profile.highest_education if profile else "N/A",
                 "verificationStatus": profile.verification_status if profile else "pending",
+                "licenseDocumentName": profile.license_document_name if profile else "Not submitted",
+                "studentsManaged": students_managed,
                 "status": "blocked" if professor.is_blocked else "active",
-                "isBlocked": professor.is_blocked,
-                "blockReason": professor.block_reason or "",
-                "blockedAt": professor.blocked_at.isoformat() if professor.blocked_at else "",
+                "blockReason": professor.block_reason or "Active account",
+                "blockedAt": professor.blocked_at.astimezone(LOCAL_TIMEZONE).isoformat() if professor.blocked_at else "",
+                "createdAt": professor.created_at.astimezone(LOCAL_TIMEZONE).isoformat() if professor.created_at else "",
+                "lastSeenAt": professor.last_seen_at.astimezone(LOCAL_TIMEZONE).isoformat() if professor.last_seen_at else "",
                 "avatar": _avatar(professor.full_name),
-                "createdAt": professor.created_at.isoformat(),
-                "studentsManaged": student_count,
+                "authProvider": professor.auth_provider.value,
+                "isBlocked": professor.is_blocked,
             }
         )
     return rows
 
 
+def _attendance_overview(db: Session, total_students: int) -> list[dict]:
+    end = _today()
+    start = end - timedelta(days=4)
+    records = (
+        db.query(StudentAttendance)
+        .filter(StudentAttendance.attendance_date >= start)
+        .order_by(StudentAttendance.attendance_date.asc())
+        .all()
+    )
+    by_day: dict[date, dict[str, int]] = {}
+    for record in records:
+        bucket = by_day.setdefault(record.attendance_date, {"present": 0, "absent": 0})
+        if record.status == "present":
+            bucket["present"] += 1
+        elif record.status == "absent":
+            bucket["absent"] += 1
+
+    rows: list[dict] = []
+    for offset in range(5):
+        current_day = start + timedelta(days=offset)
+        bucket = by_day.get(current_day, {"present": 0, "absent": 0})
+        marked = bucket["present"] + bucket["absent"]
+        attendance = round((bucket["present"] / marked) * 100, 1) if marked else 0.0
+        rows.append(
+            {
+                "date": current_day.isoformat(),
+                "label": current_day.strftime("%d %b").upper(),
+                "present": bucket["present"],
+                "absent": bucket["absent"],
+                "total": total_students,
+                "attendance": attendance,
+            }
+        )
+    return rows
+
+
+def _metric_rows(students: list[dict], professors: list[dict], attendance: list[dict]) -> list[dict]:
+    verified_professors = len([item for item in professors if item["verificationStatus"] == "verified"])
+    blocked_students = len([item for item in students if item["isBlocked"]])
+    blocked_professors = len([item for item in professors if item["isBlocked"]])
+    avg_student_cgpa = round(mean([item["cgpa"] for item in students]), 2) if students else 0.0
+    avg_attendance = round(mean([item["attendance"] for item in students]), 1) if students else 0.0
+    return [
+        {
+            "label": "Enrolled student accounts",
+            "value": str(len(students)),
+            "hint": "Live registered student count",
+        },
+        {
+            "label": "Verified faculty accounts",
+            "value": str(verified_professors),
+            "hint": f"{len(professors)} total professor accounts",
+        },
+        {
+            "label": "Campus-wide student attendance",
+            "value": f"{avg_attendance:.0f}%",
+            "hint": "Average attendance across student records",
+        },
+        {
+            "label": f"{blocked_students} students, {blocked_professors} professors blocked",
+            "value": str(blocked_students + blocked_professors),
+            "hint": "Current restricted accounts",
+        },
+        {
+            "label": "Active student average",
+            "value": f"{avg_student_cgpa:.2f}",
+            "hint": "Average CGPA across student profiles",
+        },
+    ]
+
+
 def _ratio_overview(student_count: int, professor_count: int) -> list[dict]:
     admin_count = 1
-    total = max(student_count + professor_count + admin_count, 1)
+    total_accounts = max(student_count + professor_count + admin_count, 1)
     return [
         {
             "label": "Students",
             "count": student_count,
-            "share": round((student_count / total) * 100, 1),
+            "share": round((student_count / total_accounts) * 100, 1),
             "accent": "oklch(0.82 0.18 200)",
         },
         {
             "label": "Professors",
             "count": professor_count,
-            "share": round((professor_count / total) * 100, 1),
+            "share": round((professor_count / total_accounts) * 100, 1),
             "accent": "oklch(0.72 0.27 350)",
         },
     ]
 
 
-def _attendance_overview(students: list[dict]) -> list[dict]:
-    today = datetime.now(timezone.utc).date()
-    rows: list[dict] = []
-    for offset in range(5, -1, -1):
-        day = today - timedelta(days=offset)
-        attenuation = 5 - min(offset, 5)
-        marked = max(len(students) - (offset * 2), 0)
-        present = 0
-        absent = 0
-        if marked and students:
-            average = sum(student["attendance"] for student in students) / len(students)
-            present_ratio = max(0.55, min(0.96, (average / 100) - (offset * 0.015) + (attenuation * 0.01)))
-            present = min(marked, int(round(marked * present_ratio)))
-            absent = max(marked - present, 0)
-        rows.append(
-            {
-                "date": day.isoformat(),
-                "label": day.strftime("%d %b"),
-                "present": present,
-                "absent": absent,
-                "marked": marked,
-                "attendance": round((present / marked) * 100, 1) if marked else 0,
-            }
-        )
-    return rows
+def _management_out(db: Session, setting: CampusAttendanceSetting) -> CampusAttendanceSettingsOut:
+    slot_batches, active_slot_batch = slot_batches_payload(db)
+    payload = campus_setting_payload(setting)
+    payload["slot_batches"] = slot_batches
+    payload["active_slot_batch"] = active_slot_batch
+    return CampusAttendanceSettingsOut(**payload)
 
 
-def _admin_metrics(students: list[dict], professors: list[dict]) -> list[dict]:
-    blocked_students = sum(1 for student in students if student["isBlocked"])
-    blocked_professors = sum(1 for professor in professors if professor["isBlocked"])
-    average_attendance = round(sum(student["attendance"] for student in students) / len(students), 1) if students else 0
-    average_cgpa = round(sum(student["cgpa"] for student in students) / len(students), 2) if students else 0
-    return [
-        {"label": "Students", "value": str(len(students)), "hint": "Enrolled student accounts", "tone": "cyan"},
-        {"label": "Professors", "value": str(len(professors)), "hint": "Verified faculty accounts", "tone": "pink"},
-        {"label": "Attendance Avg", "value": f"{average_attendance:.1f}%", "hint": "Campus-wide student attendance", "tone": "green"},
-        {
-            "label": "Account Watchlist",
-            "value": str(blocked_students + blocked_professors),
-            "hint": f"{blocked_students} students, {blocked_professors} professors blocked",
-            "tone": "amber",
-        },
-        {"label": "Average CGPA", "value": f"{average_cgpa:.2f}", "hint": "Active student academic average", "tone": "violet"},
+def _require_manageable_user(actor: User, target: User | None) -> User:
+    if not target:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if target.role == Role.admin:
+        raise HTTPException(status_code=400, detail="Admin accounts cannot be changed here")
+    if target.id == actor.id:
+        raise HTTPException(status_code=400, detail="You cannot modify your own admin account here")
+    return target
+
+
+def _apply_block_state(target: User, actor: User, blocked: bool, reason: str | None) -> None:
+    target.is_blocked = blocked
+    target.block_reason = (reason or "Blocked by admin").strip() if blocked else None
+    target.blocked_at = now_utc() if blocked else None
+    target.blocked_by_id = actor.id if blocked else None
+
+
+def _delete_connect_data(db: Session, user_id: int) -> None:
+    message_ids = [
+        row[0]
+        for row in db.query(ConnectMessage.id)
+        .filter(or_(ConnectMessage.sender_id == user_id, ConnectMessage.receiver_id == user_id))
+        .all()
     ]
+    if message_ids:
+        db.query(ConnectAttachment).filter(ConnectAttachment.message_id.in_(message_ids)).delete(synchronize_session=False)
+        db.query(ConnectMessageHidden).filter(ConnectMessageHidden.message_id.in_(message_ids)).delete(synchronize_session=False)
+    db.query(ConnectMessageHidden).filter(ConnectMessageHidden.user_id == user_id).delete(synchronize_session=False)
+    db.query(ConnectMessage).filter(
+        or_(ConnectMessage.sender_id == user_id, ConnectMessage.receiver_id == user_id)
+    ).delete(synchronize_session=False)
+    db.query(ConnectRelationship).filter(
+        or_(
+            ConnectRelationship.user_low_id == user_id,
+            ConnectRelationship.user_high_id == user_id,
+            ConnectRelationship.requester_id == user_id,
+            ConnectRelationship.receiver_id == user_id,
+            ConnectRelationship.blocked_by_id == user_id,
+        )
+    ).delete(synchronize_session=False)
+
+
+def _delete_user_records(db: Session, target: User) -> None:
+    db.query(User).filter(User.blocked_by_id == target.id).update(
+        {"blocked_by_id": None},
+        synchronize_session=False,
+    )
+    db.query(CampusAttendanceSetting).filter(CampusAttendanceSetting.updated_by_id == target.id).update(
+        {"updated_by_id": None},
+        synchronize_session=False,
+    )
+    db.query(RevokedToken).filter(RevokedToken.user_id == target.id).delete(synchronize_session=False)
+    _delete_connect_data(db, target.id)
+
+    if target.role == Role.student:
+        complaint_ids = [
+            row[0]
+            for row in db.query(StudentComplaint.id).filter(StudentComplaint.student_id == target.id).all()
+        ]
+        if complaint_ids:
+            db.query(StudentComplaintAttachment).filter(
+                StudentComplaintAttachment.complaint_id.in_(complaint_ids)
+            ).delete(synchronize_session=False)
+        db.query(StudentComplaint).filter(StudentComplaint.student_id == target.id).delete(synchronize_session=False)
+        db.query(AssignmentReview).filter(AssignmentReview.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentTodo).filter(StudentTodo.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentAttendance).filter(StudentAttendance.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentBiometricCheckIn).filter(StudentBiometricCheckIn.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentProfile).filter(StudentProfile.user_id == target.id).delete(synchronize_session=False)
+    elif target.role == Role.faculty:
+        db.query(StudentAttendance).filter(StudentAttendance.marked_by_id == target.id).update(
+            {"marked_by_id": None},
+            synchronize_session=False,
+        )
+        db.query(StudentBiometricCheckIn).filter(StudentBiometricCheckIn.confirmed_by_id == target.id).update(
+            {"confirmed_by_id": None},
+            synchronize_session=False,
+        )
+        db.query(AssignmentReview).filter(AssignmentReview.reviewed_by_id == target.id).delete(synchronize_session=False)
+        db.query(StudyResource).filter(StudyResource.created_by_id == target.id).delete(synchronize_session=False)
+        db.query(Announcement).filter(Announcement.created_by_id == target.id).delete(synchronize_session=False)
+        db.query(ProfessorProfile).filter(ProfessorProfile.user_id == target.id).delete(synchronize_session=False)
+
+    db.delete(target)
 
 
 @router.get("/dashboard", response_model=AdminDashboard)
@@ -223,140 +356,253 @@ def dashboard(
     _require_admin(current_user)
     students = _student_rows(db)
     professors = _professor_rows(db)
-    db.commit()
+    attendance = _attendance_overview(db, len(students))
+    total_accounts = max(len(students) + len(professors), 1)
+    student_share = round((len(students) / total_accounts) * 100, 1)
+    professor_share = round((len(professors) / total_accounts) * 100, 1)
     return AdminDashboard(
         admin={
             "name": current_user.full_name,
             "email": current_user.email,
-            "role": "Administrator",
             "avatar": _avatar(current_user.full_name),
-            "navModules": ADMIN_NAV,
         },
-        metrics=_admin_metrics(students, professors),
+        metrics=_metric_rows(students, professors, attendance),
+        account_ratio={
+            "students": len(students),
+            "professors": len(professors),
+            "studentShare": student_share,
+            "professorShare": professor_share,
+        },
         ratio_overview=_ratio_overview(len(students), len(professors)),
-        attendance_overview=_attendance_overview(students),
+        attendance_overview=attendance,
         students=students,
         professors=professors,
     )
 
 
-@router.post("/students/{student_id}/block")
-def update_student_block(
-    student_id: int,
-    payload: dict,
+@router.get("/management", response_model=CampusAttendanceSettingsOut)
+def management(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> CampusAttendanceSettingsOut:
+    _require_admin(current_user)
+    setting = get_campus_attendance_setting(db)
+    db.commit()
+    return _management_out(db, setting)
+
+
+@router.patch("/management/attendance-radius", response_model=CampusAttendanceSettingsOut)
+def update_attendance_radius(
+    payload: CampusAttendanceSettingsUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> CampusAttendanceSettingsOut:
+    _require_admin(current_user)
+    setting = get_campus_attendance_setting(db)
+    setting.radius_meters = payload.radius_meters
+    if payload.latitude is not None:
+        setting.latitude = payload.latitude
+    if payload.longitude is not None:
+        setting.longitude = payload.longitude
+    if payload.campus_name and payload.campus_name.strip():
+        setting.campus_name = payload.campus_name.strip()
+    setting.updated_by_id = current_user.id
+    setting.updated_at = now_utc()
+    db.commit()
+    db.refresh(setting)
+    return _management_out(db, setting)
+
+
+@router.patch("/management/semester-duration", response_model=CampusAttendanceSettingsOut)
+def update_semester_duration(
+    payload: SemesterDurationUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> CampusAttendanceSettingsOut:
+    _require_admin(current_user)
+    setting = get_campus_attendance_setting(db)
+    setting.semester_duration_months = payload.semester_duration_months
+    setting.updated_by_id = current_user.id
+    setting.updated_at = now_utc()
+    db.commit()
+    db.refresh(setting)
+    return _management_out(db, setting)
+
+
+@router.post("/management/slot-batches", response_model=CampusAttendanceSettingsOut)
+def create_slot_batch(
+    payload: SlotBatchCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> CampusAttendanceSettingsOut:
+    _require_admin(current_user)
+    existing = db.query(IntakeSlotBatch).filter(IntakeSlotBatch.batch_name == payload.batch_name).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="That batch name already exists")
+
+    batch = IntakeSlotBatch(
+        batch_name=payload.batch_name,
+        total_slots=payload.total_slots,
+        open_for_intake=payload.open_for_intake,
+        created_by_id=current_user.id,
+    )
+    if payload.open_for_intake:
+        for row in db.query(IntakeSlotBatch).all():
+            row.open_for_intake = False
+    db.add(batch)
+    setting = get_campus_attendance_setting(db)
+    setting.updated_by_id = current_user.id
+    setting.updated_at = now_utc()
+    db.commit()
+    db.refresh(setting)
+    return _management_out(db, setting)
+
+
+@router.patch("/management/slot-batches/{batch_id}", response_model=CampusAttendanceSettingsOut)
+def update_slot_batch(
+    batch_id: int,
+    payload: SlotBatchUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> CampusAttendanceSettingsOut:
+    _require_admin(current_user)
+    batch = db.get(IntakeSlotBatch, batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Slot batch not found")
+
+    if payload.batch_name:
+        duplicate = (
+            db.query(IntakeSlotBatch)
+            .filter(IntakeSlotBatch.batch_name == payload.batch_name, IntakeSlotBatch.id != batch_id)
+            .first()
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="That batch name already exists")
+        batch.batch_name = payload.batch_name
+
+    if payload.total_slots is not None:
+        filled_slots = len(
+            db.query(StudentProfile.id).filter(StudentProfile.slot_batch_id == batch.id).all()
+        )
+        if payload.total_slots < filled_slots:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Total slots cannot be lower than the {filled_slots} students already filled",
+            )
+        batch.total_slots = payload.total_slots
+
+    if payload.open_for_intake is not None:
+        if payload.open_for_intake:
+            for row in db.query(IntakeSlotBatch).all():
+                row.open_for_intake = row.id == batch.id
+        else:
+            batch.open_for_intake = False
+
+    setting = get_campus_attendance_setting(db)
+    setting.updated_by_id = current_user.id
+    setting.updated_at = now_utc()
+    db.commit()
+    db.refresh(setting)
+    return _management_out(db, setting)
+
+
+@router.post("/users/{user_id}/block")
+def update_user_block_state(
+    user_id: int,
+    payload: StudentBlockUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     _require_admin(current_user)
-    student = db.get(User, student_id)
-    if not student or student.role != Role.student:
-        raise HTTPException(status_code=404, detail="Student not found")
-
-    blocked = bool(payload.get("blocked"))
-    student.is_blocked = blocked
-    if blocked:
-        student.block_reason = str(payload.get("reason") or "Blocked by admin").strip()
-        student.blocked_at = _now()
-        student.blocked_by_id = current_user.id
-    else:
-        student.block_reason = None
-        student.blocked_at = None
-        student.blocked_by_id = None
-
+    target = _require_manageable_user(current_user, db.get(User, user_id))
+    _apply_block_state(target, current_user, payload.blocked, payload.reason)
     db.commit()
-    return {"ok": True, "id": student.id, "is_blocked": student.is_blocked}
+    return {
+        "ok": True,
+        "user_id": target.id,
+        "role": target.role.value,
+        "is_blocked": target.is_blocked,
+        "message": f"{target.full_name} {'blocked' if target.is_blocked else 'unblocked'}",
+    }
+
+
+@router.post("/students/{student_id}/block")
+def update_student_block_state_legacy(
+    student_id: int,
+    payload: StudentBlockUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    target = _require_manageable_user(current_user, db.get(User, student_id))
+    if target.role != Role.student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    _apply_block_state(target, current_user, payload.blocked, payload.reason)
+    db.commit()
+    return {"ok": True, "id": target.id, "is_blocked": target.is_blocked}
 
 
 @router.post("/professors/{professor_id}/block")
-def update_professor_block(
+def update_professor_block_state_legacy(
     professor_id: int,
-    payload: dict,
+    payload: StudentBlockUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     _require_admin(current_user)
-    professor = db.get(User, professor_id)
-    if not professor or professor.role != Role.faculty:
+    target = _require_manageable_user(current_user, db.get(User, professor_id))
+    if target.role != Role.faculty:
         raise HTTPException(status_code=404, detail="Professor not found")
-
-    blocked = bool(payload.get("blocked"))
-    professor.is_blocked = blocked
-    if blocked:
-        professor.block_reason = str(payload.get("reason") or "Blocked by admin").strip()
-        professor.blocked_at = _now()
-        professor.blocked_by_id = current_user.id
-    else:
-        professor.block_reason = None
-        professor.blocked_at = None
-        professor.blocked_by_id = None
-
+    _apply_block_state(target, current_user, payload.blocked, payload.reason)
     db.commit()
-    return {"ok": True, "id": professor.id, "is_blocked": professor.is_blocked}
+    return {"ok": True, "id": target.id, "is_blocked": target.is_blocked}
 
 
-def _delete_user_dependencies(db: Session, user: User) -> None:
-    message_ids = [
-        message_id
-        for (message_id,) in db.query(ConnectMessage.id)
-        .filter((ConnectMessage.sender_id == user.id) | (ConnectMessage.receiver_id == user.id))
-        .all()
-    ]
-    if message_ids:
-        db.query(ConnectAttachment).filter(ConnectAttachment.message_id.in_(message_ids)).delete(synchronize_session=False)
-        db.query(ConnectMessageHidden).filter(ConnectMessageHidden.message_id.in_(message_ids)).delete(synchronize_session=False)
-    db.query(StudentAttendance).filter(
-        (StudentAttendance.student_id == user.id) | (StudentAttendance.marked_by_id == user.id)
-    ).delete(synchronize_session=False)
-    db.query(StudentTodo).filter(StudentTodo.student_id == user.id).delete(synchronize_session=False)
-    db.query(AssignmentReview).filter(
-        (AssignmentReview.student_id == user.id) | (AssignmentReview.reviewed_by_id == user.id)
-    ).delete(synchronize_session=False)
-    db.query(Announcement).filter(Announcement.created_by_id == user.id).delete(synchronize_session=False)
-    db.query(StudyResource).filter(StudyResource.created_by_id == user.id).delete(synchronize_session=False)
-    db.query(ConnectMessage).filter(
-        (ConnectMessage.sender_id == user.id) | (ConnectMessage.receiver_id == user.id)
-    ).delete(synchronize_session=False)
-    db.query(ConnectRelationship).filter(
-        (ConnectRelationship.user_low_id == user.id)
-        | (ConnectRelationship.user_high_id == user.id)
-        | (ConnectRelationship.requester_id == user.id)
-        | (ConnectRelationship.receiver_id == user.id)
-        | (ConnectRelationship.blocked_by_id == user.id)
-    ).delete(synchronize_session=False)
-    db.query(RevokedToken).filter(RevokedToken.user_id == user.id).delete(synchronize_session=False)
-    db.query(ProfessorProfile).filter(ProfessorProfile.user_id == user.id).delete(synchronize_session=False)
-    db.query(StudentProfile).filter(StudentProfile.user_id == user.id).delete(synchronize_session=False)
+@router.delete("/users/{user_id}")
+def delete_user_account(
+    user_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    target = _require_manageable_user(current_user, db.get(User, user_id))
+    target_name = target.full_name
+    target_role = target.role.value
+    _delete_user_records(db, target)
+    db.commit()
+    return {
+        "ok": True,
+        "user_id": user_id,
+        "role": target_role,
+        "message": f"{target_name} deleted",
+    }
 
 
 @router.delete("/students/{student_id}")
-def delete_student(
+def delete_student_account_legacy(
     student_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     _require_admin(current_user)
-    student = db.get(User, student_id)
-    if not student or student.role != Role.student:
+    target = _require_manageable_user(current_user, db.get(User, student_id))
+    if target.role != Role.student:
         raise HTTPException(status_code=404, detail="Student not found")
-
-    _delete_user_dependencies(db, student)
-    db.delete(student)
+    _delete_user_records(db, target)
     db.commit()
     return {"ok": True, "id": student_id}
 
 
 @router.delete("/professors/{professor_id}")
-def delete_professor(
+def delete_professor_account_legacy(
     professor_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     _require_admin(current_user)
-    professor = db.get(User, professor_id)
-    if not professor or professor.role != Role.faculty:
+    target = _require_manageable_user(current_user, db.get(User, professor_id))
+    if target.role != Role.faculty:
         raise HTTPException(status_code=404, detail="Professor not found")
-
-    _delete_user_dependencies(db, professor)
-    db.delete(professor)
+    _delete_user_records(db, target)
     db.commit()
     return {"ok": True, "id": professor_id}

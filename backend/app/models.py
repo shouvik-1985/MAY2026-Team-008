@@ -68,11 +68,35 @@ class StudentProfile(Base):
     student_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     address: Mapped[str] = mapped_column(String(255), default="Campus Residence", nullable=False)
     department: Mapped[str] = mapped_column(String(120), default="Computer Science & AI")
-    semester: Mapped[int] = mapped_column(Integer, default=6)
+    semester: Mapped[int] = mapped_column(Integer, default=1)
     cgpa: Mapped[float] = mapped_column(Float, default=9.2)
     attendance: Mapped[float] = mapped_column(Float, default=92.0)
+    enrollment_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    slot_batch_id: Mapped[int | None] = mapped_column(ForeignKey("intake_slot_batches.id"), nullable=True, index=True)
+    biometric_template: Mapped[str | None] = mapped_column(Text, nullable=True)
+    biometric_template_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    biometric_enrolled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="student_profile")
+
+
+class IntakeSlotBatch(Base):
+    __tablename__ = "intake_slot_batches"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    batch_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    total_slots: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    open_for_intake: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
 
 class StudentAttendance(Base):
@@ -89,6 +113,49 @@ class StudentAttendance(Base):
     marked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
+
+class CampusAttendanceSetting(Base):
+    __tablename__ = "campus_attendance_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    campus_name: Mapped[str] = mapped_column(String(120), default="CampusVerse College", nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    radius_meters: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    semester_duration_months: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class StudentBiometricCheckIn(Base):
+    __tablename__ = "student_biometric_checkins"
+    __table_args__ = (UniqueConstraint("student_id", "checkin_date", name="uq_student_biometric_checkin_day"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    checkin_date: Mapped[date] = mapped_column(
+        Date, default=lambda: datetime.now(timezone.utc).date(), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(40), default="radius_detected", nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    distance_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
+    within_radius: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    biometric_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    professor_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    warning_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    confirmed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    detected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class StudentTodo(Base):
@@ -108,6 +175,52 @@ class StudentTodo(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+class StudentComplaint(Base):
+    __tablename__ = "student_complaints"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    complaint_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(180), nullable=False)
+    category: Mapped[str] = mapped_column(String(120), default="Student Services", nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="submitted", nullable=False, index=True)
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    in_progress_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    student: Mapped[User] = relationship(foreign_keys=[student_id])
+    attachments: Mapped[list["StudentComplaintAttachment"]] = relationship(
+        back_populates="complaint",
+        cascade="all, delete-orphan",
+    )
+
+
+class StudentComplaintAttachment(Base):
+    __tablename__ = "student_complaint_attachments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    complaint_id: Mapped[int] = mapped_column(ForeignKey("student_complaints.id"), nullable=False, index=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(120), default="application/octet-stream", nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    file_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    complaint: Mapped[StudentComplaint] = relationship(back_populates="attachments")
 
 
 class ProfessorProfile(Base):
