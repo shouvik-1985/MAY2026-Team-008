@@ -20,6 +20,12 @@ import {
 } from "lucide-react";
 import { logoutAccount } from "@/lib/api";
 import { clearAuthSession, getStoredUser } from "@/lib/auth";
+import {
+  getStoredProfessorProfile,
+  professorInitialsFromName,
+  professorProfileEventName,
+  type EditableProfessorProfile,
+} from "@/lib/professor-profile";
 import { clearStoredDashboard } from "@/lib/student-session";
 import { clearStoredRole } from "@/lib/use-role";
 
@@ -40,18 +46,17 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(true);
   const [time, setTime] = useState(() => new Date());
   const [activeHash, setActiveHash] = useState(() =>
-    typeof window === "undefined" ? "dashboard" : window.location.hash.replace("#", "") || "dashboard",
+    typeof window === "undefined"
+      ? "dashboard"
+      : window.location.hash.replace("#", "") || "dashboard",
   );
   const user = getStoredUser();
+  const [profile, setProfile] = useState<EditableProfessorProfile | null>(() =>
+    getStoredProfessorProfile(),
+  );
   const navigate = useNavigate();
-  const displayName = user?.full_name ?? "Professor";
-  const avatar =
-    displayName
-      .split(" ")
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase() || "PR";
+  const displayName = profile?.name.trim() || user?.full_name || "Professor";
+  const avatar = professorInitialsFromName(displayName);
 
   useEffect(() => {
     const ticker = setInterval(() => setTime(new Date()), 30_000);
@@ -66,6 +71,19 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
     syncHash();
     window.addEventListener("hashchange", syncHash);
     return () => window.removeEventListener("hashchange", syncHash);
+  }, []);
+
+  useEffect(() => {
+    const eventName = professorProfileEventName();
+    function syncProfile(event?: Event) {
+      const detail =
+        event instanceof CustomEvent ? (event.detail as EditableProfessorProfile | null) : null;
+      setProfile(detail ?? getStoredProfessorProfile());
+    }
+
+    syncProfile();
+    window.addEventListener(eventName, syncProfile as EventListener);
+    return () => window.removeEventListener(eventName, syncProfile as EventListener);
   }, []);
 
   async function logout() {
@@ -181,7 +199,9 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
             <button className="flex-1 max-w-xl flex items-center gap-3 glass rounded-full px-4 py-2.5 text-sm text-white/50 hover:text-white hover:border-white/20 transition">
               <Search className="size-4" />
               <span className="flex-1 text-left">Search students, submissions, resources...</span>
-              <kbd className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-white/10">Ctrl K</kbd>
+              <kbd className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-white/10">
+                Ctrl K
+              </kbd>
             </button>
             <div className="hidden lg:flex items-center gap-2 text-xs text-white/45 px-3">
               <span className="size-1.5 rounded-full bg-emerald-400 pulse-glow" />

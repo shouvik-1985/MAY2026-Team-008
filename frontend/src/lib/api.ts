@@ -81,7 +81,20 @@ export type StudentDashboard = {
     semester: number;
     cgpa: number;
     attendance: number;
+    completedCredits?: number;
+    totalCredits?: number;
     avatar: string;
+    address?: string;
+    phone?: string;
+    bio?: string;
+    focus?: string;
+    skills?: string[];
+    guardianName?: string;
+    guardianPhone?: string;
+    city?: string;
+    state?: string;
+    linkedinUrl?: string;
+    githubUrl?: string;
     biometricEnrolled?: boolean;
     biometricEnrolledAt?: string | null;
   };
@@ -206,6 +219,36 @@ export type StudentTodo = {
   completed: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type StudentProfile = {
+  id: number;
+  name: string;
+  email: string;
+  studentCode: string;
+  department: string;
+  semester: number;
+  cgpa: number;
+  attendance: number;
+  completedCredits: number;
+  totalCredits: number;
+  address: string;
+  phone: string;
+  bio: string;
+  focus: string;
+  skills: string[];
+  guardianName: string;
+  guardianPhone: string;
+  city: string;
+  state: string;
+  linkedinUrl: string;
+  githubUrl: string;
+  avatar: string;
+  academicStanding: string;
+  profileCompletion: number;
+  enrollmentDate?: string | null;
+  biometricEnrolled?: boolean;
+  biometricEnrolledAt?: string | null;
 };
 
 export type ComplaintStatus = "submitted" | "acknowledged" | "in_progress" | "resolved";
@@ -641,6 +684,33 @@ export function logoutAccount() {
 
 export function getStudentDashboard() {
   return request<StudentDashboard>("/student/dashboard");
+}
+
+export function getStudentProfile() {
+  return request<StudentProfile>("/student/profile");
+}
+
+export function updateStudentProfile(payload: {
+  name: string;
+  email: string;
+  address: string;
+  phone?: string;
+  bio?: string;
+  focus?: string;
+  skills: string[];
+  guardian_name?: string;
+  guardian_phone?: string;
+  city?: string;
+  state?: string;
+  linkedin_url?: string;
+  github_url?: string;
+  completed_credits?: number;
+  total_credits?: number;
+}) {
+  return request<StudentProfile>("/student/profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getStudentComplaints() {

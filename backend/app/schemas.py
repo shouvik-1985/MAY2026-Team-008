@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Literal
+import re
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -91,6 +92,118 @@ class StudentDashboard(BaseModel):
     activity: list[dict]
     nav_modules: list[dict]
     student_todos: list[dict]
+
+
+class StudentProfileOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    studentCode: str
+    department: str
+    semester: int
+    cgpa: float
+    attendance: float
+    completedCredits: int
+    totalCredits: int
+    address: str
+    phone: str
+    bio: str
+    focus: str
+    skills: list[str]
+    guardianName: str
+    guardianPhone: str
+    city: str
+    state: str
+    linkedinUrl: str
+    githubUrl: str
+    avatar: str
+    academicStanding: str
+    profileCompletion: int
+    enrollmentDate: str | None = None
+    biometricEnrolled: bool = False
+    biometricEnrolledAt: str | None = None
+
+
+class StudentProfileUpdate(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    email: str = Field(min_length=5, max_length=255)
+    address: str = Field(min_length=2, max_length=255)
+    phone: str | None = Field(default=None, max_length=40)
+    bio: str | None = Field(default=None, max_length=600)
+    focus: str | None = Field(default=None, max_length=180)
+    skills: list[str] = Field(default_factory=list, max_length=12)
+    guardian_name: str | None = Field(default=None, max_length=120)
+    guardian_phone: str | None = Field(default=None, max_length=40)
+    city: str | None = Field(default=None, max_length=120)
+    state: str | None = Field(default=None, max_length=120)
+    linkedin_url: str | None = Field(default=None, max_length=255)
+    github_url: str | None = Field(default=None, max_length=255)
+    completed_credits: int | None = Field(default=None, ge=0, le=400)
+    total_credits: int | None = Field(default=None, ge=1, le=400)
+
+    @field_validator("email")
+    @classmethod
+    def validate_student_profile_email(cls, value: str) -> str:
+        value = value.strip().lower()
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if not re.match(email_pattern, value):
+            raise ValueError("Invalid email format")
+        return value
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        phone_pattern = r"^[0-9]{10}$"
+        if value and not re.match(phone_pattern, value):
+            raise ValueError("Phone number must be exactly 10 digits")
+        return value or None
+
+    @field_validator("linkedin_url")
+    @classmethod
+    def validate_linkedin_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if value and not (value.startswith("https://linkedin.com/") or value.startswith("https://www.linkedin.com/")):
+            raise ValueError("LinkedIn URL must start with https://linkedin.com/ or https://www.linkedin.com/")
+        return value or None
+
+    @field_validator("github_url")
+    @classmethod
+    def validate_github_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if value and not value.startswith("https://github.com/"):
+            raise ValueError("GitHub URL must start with https://github.com/")
+        return value or None
+
+    @field_validator(
+        "name",
+        "address",
+        "bio",
+        "focus",
+        "guardian_name",
+        "guardian_phone",
+        "city",
+        "state",
+    )
+    @classmethod
+    def trim_optional_text(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else value
+
+    @field_validator("skills")
+    @classmethod
+    def normalize_skills(cls, value: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for item in value:
+            skill = item.strip()
+            if skill and skill not in cleaned:
+                cleaned.append(skill)
+        return cleaned[:12]
 
 
 class StudentTodoCreate(BaseModel):
