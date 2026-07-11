@@ -60,6 +60,18 @@ def ensure_database_shape() -> None:
         "biometric_template": _column_sql("text"),
         "biometric_template_version": "VARCHAR(40)",
         "biometric_enrolled_at": _column_sql("timestamp"),
+        "phone": "VARCHAR(40)",
+        "bio": _column_sql("text"),
+        "focus_area": "VARCHAR(180)",
+        "skills_text": _column_sql("text"),
+        "guardian_name": "VARCHAR(120)",
+        "guardian_phone": "VARCHAR(40)",
+        "city": "VARCHAR(120)",
+        "state": "VARCHAR(120)",
+        "linkedin_url": "VARCHAR(255)",
+        "github_url": "VARCHAR(255)",
+        "completed_credits": "INTEGER",
+        "total_credits": "INTEGER NOT NULL DEFAULT 180",
     }
     campus_setting_columns = set()
     if "campus_attendance_settings" in tables:
