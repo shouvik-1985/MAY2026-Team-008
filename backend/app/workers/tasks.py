@@ -21,3 +21,15 @@ def audit_login(user_id: int, provider: str) -> dict:
         "event": "login",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@celery_app.task(name="campusverse.send_placement_selection_email")
+def send_placement_selection_email(email: str, full_name: str, message: str) -> dict:
+    return {
+        "email": email,
+        "full_name": full_name,
+        "subject": "CampusVerse placement selection",
+        "message": message,
+        "status": "queued",
+        "queued_at": datetime.now(timezone.utc).isoformat(),
+    }

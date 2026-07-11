@@ -21,6 +21,7 @@ from app.dependencies import get_current_user
 from app.db import get_db
 from app.intake_flow import resolve_student_semester
 from app.models import (
+    PlacementNotification,
     Role,
     StudentAttendance,
     StudentBiometricCheckIn,
@@ -58,6 +59,7 @@ STUDENT_NAV = [
     {"label": "Events", "path": "/app/events", "feature": "Registration and passes"},
     {"label": "Marketplace", "path": "/app/marketplace", "feature": "Verified student exchange"},
     {"label": "Connect", "path": "/app/connect", "feature": "Student and professor network"},
+    {"label": "Placement", "path": "/app/placement", "feature": "Internship and job readiness"},
 ]
 
 
@@ -346,7 +348,35 @@ def _resource_rows(db: Session) -> list[dict]:
     return items
 
 
-def _complaint_rows(db: Session, user: User, semester_duration_months: int) -> list[dict]:
+def _placement_notification_rows(db: Session, student_id: int) -> list[dict]:
+    notifications = (
+        db.query(PlacementNotification)
+        .filter(PlacementNotification.student_id == student_id)
+        .order_by(desc(PlacementNotification.created_at))
+        .limit(5)
+        .all()
+    )
+    return [
+        {
+            "id": 900000 + item.id,
+            "pinned": item.channel == "placement",
+            "title": item.title,
+            "category": "Placement",
+            "time": item.created_at.strftime("%d %b, %I:%M %p"),
+            "unread": not item.read,
+            "body": item.body,
+        }
+        for item in notifications
+    ]
+
+
+def _complaint_rows(
+    db: Session,
+    user: User,
+    semester_duration_months: int,
+    semester_duration_unit: str = "months",
+    semester_duration_days: int | None = None,
+) -> list[dict]:
     complaints = (
         db.query(StudentComplaint)
         .options(
@@ -364,6 +394,8 @@ def _complaint_rows(db: Session, user: User, semester_duration_months: int) -> l
             student=user,
             profile=user.student_profile,
             semester_duration_months=semester_duration_months,
+            semester_duration_unit=semester_duration_unit,
+            semester_duration_days=semester_duration_days,
         )
         for complaint in complaints
     ]
@@ -377,7 +409,13 @@ def _student_dataset(db: Session, user: User) -> dict:
     fallback_attendance = profile.attendance if profile else float(84 + seed)
     attendance_records = _attendance_records(db, user.id)
     attendance = _attendance_percentage(attendance_records, fallback_attendance)
-    semester = resolve_student_semester(profile, user, setting.semester_duration_months)
+    semester = resolve_student_semester(
+        profile,
+        user,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
     student_code = profile.student_code if profile else f"CV-2026-{1000 + user.id:04d}"
     department = profile.department if profile else "Computer Science & AI"
     profile.attendance = attendance
@@ -389,7 +427,13 @@ def _student_dataset(db: Session, user: User) -> dict:
     weekly_attendance = _weekly_attendance(attendance_records, fallback_weekly_values)
     attendance_timeline = _attendance_timeline(attendance_records)
     monthly_attendance = _monthly_attendance(attendance_records)
-    complaint_rows = _complaint_rows(db, user, setting.semester_duration_months)
+    complaint_rows = _complaint_rows(
+        db,
+        user,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
     fee_base = 78000 + (semester * 1200)
     due_amount = fee_base if semester % 2 == 0 else 0
     first_name = user.full_name.split()[0] if user.full_name else "Student"
@@ -493,6 +537,7 @@ def _student_dataset(db: Session, user: User) -> dict:
             {"title": f"Sem {semester} Fee Receipt", "kind": "Fees", "stage": "Pending" if due_amount else "Cleared", "updated": "2 days ago"},
         ],
         "announcements": [
+            *_placement_notification_rows(db, user.id),
             {
                 "id": user.id * 10 + 1,
                 "pinned": True,

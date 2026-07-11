@@ -11,6 +11,7 @@ from app.models import IntakeSlotBatch, StudentProfile, User
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
 DEFAULT_SEMESTER_DURATION_MONTHS = 6
+DEFAULT_SEMESTER_DURATION_DAYS = 180
 
 
 def local_today() -> date:
@@ -19,6 +20,14 @@ def local_today() -> date:
 
 def semester_duration_months(value: int | None) -> int:
     return max(1, value or DEFAULT_SEMESTER_DURATION_MONTHS)
+
+
+def semester_duration_days(value: int | None) -> int:
+    return max(1, value or DEFAULT_SEMESTER_DURATION_DAYS)
+
+
+def semester_duration_unit(value: str | None) -> str:
+    return "days" if value == "days" else "months"
 
 
 def student_enrollment_date(profile: StudentProfile | None, user: User) -> date:
@@ -39,12 +48,17 @@ def resolve_student_semester(
     profile: StudentProfile | None,
     user: User,
     duration_months: int,
+    duration_unit: str = "months",
+    duration_days: int | None = None,
     as_of: date | None = None,
 ) -> int:
     if not profile:
         return 1
     target_date = as_of or local_today()
     enrolled_on = student_enrollment_date(profile, user)
+    if semester_duration_unit(duration_unit) == "days":
+        elapsed_days = max(0, (target_date - enrolled_on).days)
+        return max(1, 1 + (elapsed_days // semester_duration_days(duration_days)))
     months = _elapsed_months(enrolled_on, target_date)
     return max(1, 1 + (months // semester_duration_months(duration_months)))
 
@@ -57,7 +71,13 @@ def ensure_current_student_semester(
     if not profile:
         return 1
     setting = get_campus_attendance_setting(db)
-    effective_semester = resolve_student_semester(profile, user, setting.semester_duration_months)
+    effective_semester = resolve_student_semester(
+        profile,
+        user,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
     if profile.enrollment_date is None:
         profile.enrollment_date = student_enrollment_date(profile, user)
     if profile.semester != effective_semester:
@@ -69,6 +89,8 @@ def ensure_current_student_semester(
 def sync_all_student_semesters(db: Session) -> None:
     setting = get_campus_attendance_setting(db)
     duration = setting.semester_duration_months
+    duration_unit = setting.semester_duration_unit
+    duration_days = setting.semester_duration_days
     today = local_today()
     students = (
         db.query(StudentProfile, User)
@@ -78,7 +100,14 @@ def sync_all_student_semesters(db: Session) -> None:
     for profile, user in students:
         if profile.enrollment_date is None:
             profile.enrollment_date = student_enrollment_date(profile, user)
-        profile.semester = resolve_student_semester(profile, user, duration, today)
+        profile.semester = resolve_student_semester(
+            profile,
+            user,
+            duration,
+            duration_unit=duration_unit,
+            duration_days=duration_days,
+            as_of=today,
+        )
     db.flush()
 
 

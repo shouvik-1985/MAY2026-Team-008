@@ -156,7 +156,7 @@ def _attendance_percentage(db: Session, student_id: int, fallback: float) -> flo
 
 def _student_rows(db: Session) -> list[dict]:
     students = db.query(User).filter(User.role == Role.student).order_by(User.full_name.asc()).all()
-    duration_months = get_campus_attendance_setting(db).semester_duration_months
+    setting = get_campus_attendance_setting(db)
     today = _today()
     checkins = {
         checkin.student_id: checkin
@@ -167,7 +167,13 @@ def _student_rows(db: Session) -> list[dict]:
     rows: list[dict] = []
     for student in students:
         profile = _ensure_student_profile(db, student)
-        semester = resolve_student_semester(profile, student, duration_months)
+        semester = resolve_student_semester(
+            profile,
+            student,
+            setting.semester_duration_months,
+            setting.semester_duration_unit,
+            setting.semester_duration_days,
+        )
         attendance = _attendance_percentage(db, student.id, profile.attendance)
         total_marked, present_count, absent_count = _attendance_counts(db, student.id)
         checkin = checkins.get(student.id)
