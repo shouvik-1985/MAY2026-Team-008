@@ -91,7 +91,13 @@ def _student_rows(db: Session) -> list[dict]:
     rows: list[dict] = []
     for student in students:
         profile = profiles.get(student.id)
-        semester = resolve_student_semester(profile, student, setting.semester_duration_months)
+        semester = resolve_student_semester(
+            profile,
+            student,
+            setting.semester_duration_months,
+            setting.semester_duration_unit,
+            setting.semester_duration_days,
+        )
         counts = attendance_counts.get(student.id, {"present": 0, "absent": 0, "total": 0})
         attendance = (
             round((counts["present"] / counts["total"]) * 100, 1)
@@ -421,7 +427,11 @@ def update_semester_duration(
 ) -> CampusAttendanceSettingsOut:
     _require_admin(current_user)
     setting = get_campus_attendance_setting(db)
-    setting.semester_duration_months = payload.semester_duration_months
+    setting.semester_duration_unit = payload.semester_duration_unit
+    if payload.semester_duration_months is not None:
+        setting.semester_duration_months = payload.semester_duration_months
+    if payload.semester_duration_days is not None:
+        setting.semester_duration_days = payload.semester_duration_days
     setting.updated_by_id = current_user.id
     setting.updated_at = now_utc()
     db.commit()

@@ -25,6 +25,27 @@ def _ensure_demo_admin(db: Session) -> None:
     )
 
 
+def _ensure_placement_manager(db: Session) -> None:
+    manager = db.query(User).filter(User.email == "placementpartner@gmail.com").first()
+    if manager:
+        manager.full_name = manager.full_name or "Placement Partner Manager"
+        manager.role = Role.placement
+        manager.auth_provider = AuthProvider.password
+        manager.hashed_password = hash_password("manager#123")
+        return
+
+    db.add(
+        User(
+            email="placementpartner@gmail.com",
+            full_name="Placement Partner Manager",
+            role=Role.placement,
+            auth_provider=AuthProvider.password,
+            hashed_password=hash_password("manager#123"),
+        )
+    )
+
+
 def seed_demo_data(db: Session) -> None:
     _ensure_demo_admin(db)
+    _ensure_placement_manager(db)
     db.commit()

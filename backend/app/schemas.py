@@ -272,6 +272,8 @@ class CampusAttendanceSettingsOut(BaseModel):
     longitude: float | None
     radius_meters: int
     semester_duration_months: int = 6
+    semester_duration_unit: Literal["months", "days"] = "months"
+    semester_duration_days: int = 180
     campus_configured: bool
     updated_at: str | None = None
     active_slot_batch: dict | None = None
@@ -286,7 +288,9 @@ class CampusAttendanceSettingsUpdate(BaseModel):
 
 
 class SemesterDurationUpdate(BaseModel):
-    semester_duration_months: int = Field(ge=1, le=24)
+    semester_duration_months: int | None = Field(default=None, ge=1, le=24)
+    semester_duration_unit: Literal["months", "days"] = "months"
+    semester_duration_days: int | None = Field(default=None, ge=1, le=730)
 
 
 class SlotBatchCreate(BaseModel):
@@ -377,3 +381,15 @@ class ConnectMessageEdit(BaseModel):
 
 class ConnectMessageDelete(BaseModel):
     mode: Literal["me", "everyone"] = "me"
+
+
+class PlacementSelectionRequest(BaseModel):
+    opportunity_title: str | None = Field(default=None, max_length=120)
+
+    @field_validator("opportunity_title")
+    @classmethod
+    def clean_opportunity_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None

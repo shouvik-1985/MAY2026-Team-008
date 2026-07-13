@@ -125,7 +125,13 @@ def _person_profile(db: Session, user: User) -> dict:
     if user.role == Role.student:
         profile = user.student_profile
         setting = get_campus_attendance_setting(db)
-        semester = resolve_student_semester(profile, user, setting.semester_duration_months)
+        semester = resolve_student_semester(
+            profile,
+            user,
+            setting.semester_duration_months,
+            setting.semester_duration_unit,
+            setting.semester_duration_days,
+        )
         department = profile.department if profile else "Computer Science & AI"
         student_code = profile.student_code if profile else f"CV-2026-{1000 + user.id}"
         cgpa = profile.cgpa if profile else 0

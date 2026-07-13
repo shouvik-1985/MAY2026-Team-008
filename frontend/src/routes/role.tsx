@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { GraduationCap, Users, Shield, HandCoins, ArrowRight } from "lucide-react";
+import { BriefcaseBusiness, GraduationCap, Users, Shield, HandCoins, ArrowRight } from "lucide-react";
 import { CinematicBackdrop } from "@/components/app/cinematic";
 import { ROLES, type RoleId } from "@/lib/campus-data";
 import { resolveRoleHome } from "@/lib/role-home";
@@ -17,6 +17,7 @@ const ICONS: Record<RoleId, React.ComponentType<{ className?: string }>> = {
   faculty: Users,
   admin: Shield,
   scholarship: HandCoins,
+  placement: BriefcaseBusiness,
 };
 
 function RolePage() {
@@ -49,7 +50,7 @@ function RolePage() {
           Every door inside the Verse opens differently. Pick the one that's yours.
         </p>
 
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
           {ROLES.map((r, i) => {
             const Icon = ICONS[r.id];
             const isPicked = picked === r.id;

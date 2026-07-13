@@ -28,6 +28,8 @@ def get_campus_attendance_setting(db: Session) -> CampusAttendanceSetting:
         campus_name="CampusVerse College",
         radius_meters=100,
         semester_duration_months=6,
+        semester_duration_unit="months",
+        semester_duration_days=180,
     )
     db.add(setting)
     db.flush()
@@ -41,6 +43,8 @@ def campus_setting_payload(setting: CampusAttendanceSetting) -> dict:
         "longitude": setting.longitude,
         "radius_meters": setting.radius_meters,
         "semester_duration_months": setting.semester_duration_months,
+        "semester_duration_unit": setting.semester_duration_unit,
+        "semester_duration_days": setting.semester_duration_days,
         "campus_configured": setting.latitude is not None and setting.longitude is not None,
         "updated_at": setting.updated_at.isoformat() if setting.updated_at else None,
     }
