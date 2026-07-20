@@ -20,6 +20,8 @@ from app.models import (
     ConnectMessageHidden,
     ConnectRelationship,
     IntakeSlotBatch,
+    PlacementApplication,
+    PlacementNotification,
     ProfessorProfile,
     RevokedToken,
     Role,
@@ -320,9 +322,31 @@ def _delete_user_records(db: Session, target: User) -> None:
         synchronize_session=False,
     )
     db.query(RevokedToken).filter(RevokedToken.user_id == target.id).delete(synchronize_session=False)
+    db.query(PlacementApplication).filter(PlacementApplication.selected_by_id == target.id).update(
+        {"selected_by_id": None},
+        synchronize_session=False,
+    )
     _delete_connect_data(db, target.id)
 
     if target.role == Role.student:
+        placement_application_ids = [
+            row[0]
+            for row in (
+                db.query(PlacementApplication.id)
+                .filter(PlacementApplication.student_id == target.id)
+                .all()
+            )
+        ]
+        if placement_application_ids:
+            db.query(PlacementNotification).filter(
+                PlacementNotification.application_id.in_(placement_application_ids)
+            ).delete(synchronize_session=False)
+        db.query(PlacementNotification).filter(PlacementNotification.student_id == target.id).delete(
+            synchronize_session=False
+        )
+        db.query(PlacementApplication).filter(PlacementApplication.student_id == target.id).delete(
+            synchronize_session=False
+        )
         complaint_ids = [
             row[0]
             for row in db.query(StudentComplaint.id).filter(StudentComplaint.student_id == target.id).all()
