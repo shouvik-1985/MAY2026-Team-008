@@ -3,6 +3,8 @@ import { AnimatePresence } from "framer-motion";
 import { CinematicBackdrop } from "@/components/app/cinematic";
 import { ProfessorShell } from "@/components/professor/ProfessorShell";
 import { getStoredUser, hasAuthSession } from "@/lib/auth";
+import { useLowPerformanceMode } from "@/lib/performance";
+import { resolveRoleHome } from "@/lib/role-home";
 
 export const Route = createFileRoute("/professor")({
   beforeLoad: () => {
@@ -11,7 +13,7 @@ export const Route = createFileRoute("/professor")({
     }
     const user = typeof window !== "undefined" ? getStoredUser() : null;
     if (user && user.role !== "faculty") {
-      throw redirect({ to: "/app" });
+      throw redirect({ to: resolveRoleHome(user.role) });
     }
   },
   component: ProfessorLayout,
@@ -19,11 +21,12 @@ export const Route = createFileRoute("/professor")({
 
 function ProfessorLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const lowPerformance = useLowPerformanceMode();
   return (
     <>
       <CinematicBackdrop intensity={0.65} />
       <ProfessorShell>
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode={lowPerformance ? "sync" : "wait"} initial={!lowPerformance}>
           <div key={pathname}>
             <Outlet />
           </div>

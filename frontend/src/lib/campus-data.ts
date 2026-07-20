@@ -1,5 +1,5 @@
 // Dummy data powering every page in the CampusVerse app shell.
-export type RoleId = "student" | "faculty" | "admin" | "scholarship";
+export type RoleId = "student" | "faculty" | "admin" | "scholarship" | "placement";
 
 export const ROLES: { id: RoleId; title: string; tagline: string; accent: string }[] = [
   {
@@ -25,6 +25,12 @@ export const ROLES: { id: RoleId; title: string; tagline: string; accent: string
     title: "Scholarship Partner",
     tagline: "Empower student dreams.",
     accent: "oklch(0.85 0.12 60)",
+  },
+  {
+    id: "placement",
+    title: "Placement Partner",
+    tagline: "Connect students with internships and jobs.",
+    accent: "oklch(0.82 0.18 200)",
   },
 ];
 

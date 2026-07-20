@@ -1,8 +1,11 @@
 import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence } from "framer-motion";
 import { Shell } from "@/components/app/Shell";
+import { AttendancePresenceWatcher } from "@/components/app/AttendancePresenceWatcher";
 import { CinematicBackdrop } from "@/components/app/cinematic";
 import { getStoredUser, hasAuthSession } from "@/lib/auth";
+import { useLowPerformanceMode } from "@/lib/performance";
+import { resolveRoleHome } from "@/lib/role-home";
 
 export const Route = createFileRoute("/app")({
   beforeLoad: () => {
@@ -10,8 +13,8 @@ export const Route = createFileRoute("/app")({
       throw redirect({ to: "/login" });
     }
     const user = typeof window !== "undefined" ? getStoredUser() : null;
-    if (user?.role === "faculty") {
-      throw redirect({ to: "/professor" });
+    if (user?.role && user.role !== "student") {
+      throw redirect({ to: resolveRoleHome(user.role) });
     }
   },
   component: AppLayout,
@@ -19,11 +22,13 @@ export const Route = createFileRoute("/app")({
 
 function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const lowPerformance = useLowPerformanceMode();
   return (
     <>
       <CinematicBackdrop intensity={0.7} />
+      <AttendancePresenceWatcher />
       <Shell>
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode={lowPerformance ? "sync" : "wait"} initial={!lowPerformance}>
           <div key={pathname}>
             <Outlet />
           </div>

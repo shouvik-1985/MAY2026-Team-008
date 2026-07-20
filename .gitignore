@@ -90,6 +90,7 @@ frontend/public/uploads/
 .codex/
 outputs/
 work/
+.codex-backup/
 
 # OS/editor local files
 .DS_Store

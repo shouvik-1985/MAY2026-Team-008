@@ -12,8 +12,9 @@ function AttendancePage() {
   const weekly = dashboard?.attendance_weekly ?? [];
   const timeline = dashboard?.attendance_timeline ?? [];
   const monthly = dashboard?.attendance_monthly ?? [];
-  const weeklyAverage = weekly.length
-    ? Math.round(weekly.reduce((sum, item) => sum + item.attendance, 0) / weekly.length)
+  const markedWeekly = weekly.filter((item) => item.marked ?? true);
+  const weeklyAverage = markedWeekly.length
+    ? Math.round(markedWeekly.reduce((sum, item) => sum + item.attendance, 0) / markedWeekly.length)
     : overall;
   const predicted = Math.min(100, overall + 1.4).toFixed(1);
   return (
@@ -48,27 +49,50 @@ function AttendancePage() {
             </div>
           </div>
           <div className="flex items-end gap-3 h-48">
-            {weekly.map((item, i) => (
+            {weekly.map((item, i) => {
+              const marked = item.marked ?? true;
+              const isPresent = item.status === "present" || item.attendance > 0;
+              const height = marked ? Math.max(item.attendance, 4) : 4;
+              return (
               <motion.div
-                key={i}
+                key={item.date ?? `${item.day}-${i}`}
                 initial={{ height: 0 }}
-                animate={{ height: `${item.attendance}%` }}
+                animate={{ height: `${height}%` }}
                 transition={{ delay: i * 0.06, duration: 0.7 }}
-                className="flex-1 rounded-t-xl relative"
+                className={`flex-1 rounded-t-xl relative ${marked ? "" : "opacity-35"}`}
                 style={{
-                  background:
-                    "linear-gradient(180deg, oklch(0.7 0.25 310), oklch(0.65 0.25 260 / 0.3))",
+                  background: marked
+                    ? isPresent
+                      ? "linear-gradient(180deg, oklch(0.7 0.25 310), oklch(0.65 0.25 260 / 0.3))"
+                      : "linear-gradient(180deg, oklch(0.68 0.22 20), oklch(0.48 0.18 20 / 0.28))"
+                    : "linear-gradient(180deg, oklch(1 0 0 / 0.20), oklch(1 0 0 / 0.04))",
                 }}
+                title={`${item.day}${item.label ? `, ${item.label}` : ""}: ${
+                  marked ? `${item.attendance}% ${item.status ?? ""}` : "Not marked"
+                }`}
               >
-                <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-white/50">
-                  {item.attendance}%
+                <div
+                  className={`absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] ${
+                    marked ? "text-white/50" : "text-white/28"
+                  }`}
+                >
+                  {marked ? `${item.attendance}%` : "-"}
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
           <div className="flex justify-between mt-2 text-[10px] uppercase tracking-widest text-white/40">
-            {weekly.map((item) => (
-              <span key={item.day}>{item.day}</span>
+            {weekly.map((item, index) => (
+              <span
+                key={item.date ?? `${item.day}-${index}`}
+                className={`flex min-w-0 flex-1 flex-col items-center gap-1 ${
+                  item.isToday ? "text-white/80" : ""
+                }`}
+              >
+                <span>{item.day}</span>
+                {item.label && <span className="text-[9px] normal-case tracking-normal text-white/30">{item.label}</span>}
+              </span>
             ))}
           </div>
         </GlassCard>

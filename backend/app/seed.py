@@ -1,46 +1,51 @@
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
-from app.models import AuthProvider, Role, StudentProfile, User
+from app.models import AuthProvider, Role, User
+
+
+def _ensure_demo_admin(db: Session) -> None:
+    admin = db.query(User).filter(User.email == "admin@campusverse.edu").first()
+    if admin:
+        if not admin.hashed_password or not admin.hashed_password.startswith("pbkdf2_sha256$"):
+            admin.hashed_password = hash_password("admin123")
+            admin.auth_provider = AuthProvider.password
+        if admin.role != Role.admin:
+            admin.role = Role.admin
+        return
+
+    db.add(
+        User(
+            email="admin@campusverse.edu",
+            full_name="CampusVerse Admin",
+            role=Role.admin,
+            auth_provider=AuthProvider.password,
+            hashed_password=hash_password("admin123"),
+        )
+    )
+
+
+def _ensure_placement_manager(db: Session) -> None:
+    manager = db.query(User).filter(User.email == "placementpartner@gmail.com").first()
+    if manager:
+        manager.full_name = manager.full_name or "Placement Partner Manager"
+        manager.role = Role.placement
+        manager.auth_provider = AuthProvider.password
+        manager.hashed_password = hash_password("manager#123")
+        return
+
+    db.add(
+        User(
+            email="placementpartner@gmail.com",
+            full_name="Placement Partner Manager",
+            role=Role.placement,
+            auth_provider=AuthProvider.password,
+            hashed_password=hash_password("manager#123"),
+        )
+    )
 
 
 def seed_demo_data(db: Session) -> None:
-    existing = db.query(User).filter(User.email == "student@campusverse.edu").first()
-    if existing:
-        if not existing.hashed_password or not existing.hashed_password.startswith("pbkdf2_sha256$"):
-            existing.hashed_password = hash_password("student123")
-            existing.auth_provider = AuthProvider.password
-        if existing.role == Role.student and not existing.student_profile:
-            db.add(
-                StudentProfile(
-                    user_id=existing.id,
-                    student_code="CV-2026-1187",
-                    department="Computer Science & AI",
-                    semester=6,
-                    cgpa=9.2,
-                    attendance=92.0,
-                )
-            )
-        db.commit()
-        return
-
-    user = User(
-        email="student@campusverse.edu",
-        full_name="Girish Kumar",
-        role=Role.student,
-        auth_provider=AuthProvider.password,
-        hashed_password=hash_password("student123"),
-    )
-    db.add(user)
-    db.flush()
-    db.add(
-        StudentProfile(
-            user_id=user.id,
-            student_code="CV-2026-1187",
-            department="Computer Science & AI",
-            semester=6,
-            cgpa=9.2,
-            attendance=92.0,
-        )
-    )
+    _ensure_demo_admin(db)
+    _ensure_placement_manager(db)
     db.commit()

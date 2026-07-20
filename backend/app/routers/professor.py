@@ -2,21 +2,23 @@ from datetime import date, datetime, timedelta, timezone
 from math import ceil
 from pathlib import Path
 import re
-import shutil
 from typing import Annotated
-from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from app.attendance_flow import checkin_payload, get_campus_attendance_setting, get_today_checkin, today_local
 from app.db import get_db
 from app.dependencies import get_current_user
+from app.intake_flow import local_today, resolve_student_semester
 from app.models import (
     Announcement,
     AssignmentReview,
     Role,
     StudentAttendance,
+    StudentBiometricCheckIn,
     StudentProfile,
     StudyResource,
     User,
@@ -25,14 +27,17 @@ from app.schemas import (
     AnnouncementCreate,
     AssignmentReviewCreate,
     ProfessorDashboard,
+    ProfessorAttendanceConfirm,
     StudentAcademicUpdate,
     StudentAttendanceMark,
     StudentBlockUpdate,
     StudyResourceCreate,
 )
-from app.storage import STUDY_RESOURCE_UPLOAD_DIR, ensure_upload_dirs
+from app.resource_files import public_resource_url, resource_file_url
+from app.storage import STUDY_RESOURCE_UPLOAD_DIR
 
 router = APIRouter(prefix="/professor", tags=["professor"])
+LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 
 PROFESSOR_NAV = [
@@ -52,7 +57,7 @@ def _now() -> datetime:
 
 
 def _today() -> date:
-    return _now().date()
+    return datetime.now(LOCAL_TIMEZONE).date()
 
 
 def _require_professor(user: User) -> None:
@@ -114,6 +119,8 @@ def _ensure_student_profile(db: Session, user: User) -> StudentProfile:
     if user.student_profile:
         if not user.student_profile.address:
             user.student_profile.address = "Campus Residence"
+        if user.student_profile.enrollment_date is None:
+            user.student_profile.enrollment_date = local_today()
         return user.student_profile
 
     seed = user.id % 7
@@ -122,9 +129,10 @@ def _ensure_student_profile(db: Session, user: User) -> StudentProfile:
         student_code=_student_code(user.id),
         address="Campus Residence",
         department="Computer Science & AI",
-        semester=1 + (user.id % 8),
+        semester=1,
         cgpa=round(8.1 + (seed * 0.13), 1),
         attendance=float(84 + seed),
+        enrollment_date=local_today(),
     )
     db.add(profile)
     db.flush()
@@ -148,11 +156,27 @@ def _attendance_percentage(db: Session, student_id: int, fallback: float) -> flo
 
 def _student_rows(db: Session) -> list[dict]:
     students = db.query(User).filter(User.role == Role.student).order_by(User.full_name.asc()).all()
+    setting = get_campus_attendance_setting(db)
+    today = _today()
+    checkins = {
+        checkin.student_id: checkin
+        for checkin in db.query(StudentBiometricCheckIn)
+        .filter(StudentBiometricCheckIn.checkin_date == today)
+        .all()
+    }
     rows: list[dict] = []
     for student in students:
         profile = _ensure_student_profile(db, student)
+        semester = resolve_student_semester(
+            profile,
+            student,
+            setting.semester_duration_months,
+            setting.semester_duration_unit,
+            setting.semester_duration_days,
+        )
         attendance = _attendance_percentage(db, student.id, profile.attendance)
         total_marked, present_count, absent_count = _attendance_counts(db, student.id)
+        checkin = checkins.get(student.id)
         if total_marked:
             profile.attendance = attendance
         rows.append(
@@ -163,7 +187,7 @@ def _student_rows(db: Session) -> list[dict]:
                 "studentCode": profile.student_code,
                 "address": profile.address,
                 "department": profile.department,
-                "semester": profile.semester,
+                "semester": semester,
                 "cgpa": profile.cgpa,
                 "attendance": attendance,
                 "attendanceMarked": total_marked,
@@ -174,6 +198,14 @@ def _student_rows(db: Session) -> list[dict]:
                 "blockReason": student.block_reason or "",
                 "blockedAt": student.blocked_at.isoformat() if student.blocked_at else "",
                 "avatar": _avatar(student.full_name),
+                "biometricCheckIn": checkin_payload(checkin),
+                "biometricVerified": bool(checkin and checkin.biometric_verified),
+                "withinRadius": bool(checkin and checkin.within_radius),
+                "professorConfirmed": bool(checkin and checkin.professor_confirmed),
+                "attendanceWarning": bool(checkin and checkin.warning_flag),
+                "biometricStatus": checkin.status if checkin else "not_checked_in",
+                "biometricVerifiedAt": checkin.verified_at.isoformat() if checkin and checkin.verified_at else "",
+                "radiusDistance": round(checkin.distance_meters, 1) if checkin and checkin.distance_meters is not None else None,
             }
         )
     return rows
@@ -251,6 +283,29 @@ def _attendance_history(db: Session) -> list[dict]:
                 "status": record.status,
                 "markedBy": marker.full_name if marker else "Professor",
                 "markedAt": record.marked_at.isoformat(),
+                "warning": False,
+            }
+        )
+    warnings = (
+        db.query(StudentBiometricCheckIn)
+        .filter(StudentBiometricCheckIn.warning_flag.is_(True))
+        .order_by(desc(StudentBiometricCheckIn.verified_at), desc(StudentBiometricCheckIn.detected_at))
+        .limit(30)
+        .all()
+    )
+    for checkin in warnings:
+        student = db.get(User, checkin.student_id)
+        rows.append(
+            {
+                "id": -checkin.id,
+                "studentId": checkin.student_id,
+                "student": student.full_name if student else "Student",
+                "studentCode": student.student_profile.student_code if student and student.student_profile else "",
+                "date": checkin.checkin_date.isoformat(),
+                "status": "warning",
+                "markedBy": "Needs professor confirmation",
+                "markedAt": (checkin.verified_at or checkin.detected_at).isoformat(),
+                "warning": True,
             }
         )
     return rows
@@ -316,7 +371,7 @@ def _resource_payload(db: Session, item: StudyResource) -> dict:
         "subject": item.subject,
         "resourceType": item.resource_type,
         "tag": item.tag,
-        "url": item.url or "",
+        "url": public_resource_url(item),
         "professorName": professor.full_name if professor else "Campus faculty",
         "createdAt": item.created_at.isoformat(),
         "createdDate": item.created_at.date().isoformat(),
@@ -365,6 +420,38 @@ def _review_queue(students: list[dict]) -> list[dict]:
     ]
 
 
+def _write_attendance_record(
+    db: Session,
+    student: User,
+    professor: User,
+    attendance_status: str,
+) -> tuple[StudentAttendance, float]:
+    profile = _ensure_student_profile(db, student)
+    today = _today()
+    record = (
+        db.query(StudentAttendance)
+        .filter(StudentAttendance.student_id == student.id, StudentAttendance.attendance_date == today)
+        .first()
+    )
+    if record:
+        record.status = attendance_status
+        record.marked_by_id = professor.id
+        record.marked_at = _now()
+    else:
+        record = StudentAttendance(
+            student_id=student.id,
+            marked_by_id=professor.id,
+            attendance_date=today,
+            status=attendance_status,
+            marked_at=_now(),
+        )
+        db.add(record)
+
+    db.flush()
+    profile.attendance = _attendance_percentage(db, student.id, profile.attendance)
+    return record, profile.attendance
+
+
 @router.get("/dashboard", response_model=ProfessorDashboard)
 def dashboard(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -379,6 +466,16 @@ def dashboard(
     avg_attendance = round(sum(student["attendance"] for student in students) / len(students), 1) if students else 0
     summary = _attendance_summary(db, len(students))
     today = _attendance_today(summary)
+    today_checkins = (
+        db.query(StudentBiometricCheckIn)
+        .filter(StudentBiometricCheckIn.checkin_date == _today())
+        .all()
+    )
+    today["biometricVerified"] = len([item for item in today_checkins if item.biometric_verified])
+    today["pendingConfirmation"] = len(
+        [item for item in today_checkins if item.biometric_verified and not item.professor_confirmed]
+    )
+    today["warnings"] = len([item for item in today_checkins if item.warning_flag])
     queue = _review_queue(students)
 
     return ProfessorDashboard(
@@ -484,36 +581,125 @@ def mark_attendance(
     if not student or student.role != Role.student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    profile = _ensure_student_profile(db, student)
     today = _today()
-    record = (
-        db.query(StudentAttendance)
-        .filter(StudentAttendance.student_id == student.id, StudentAttendance.attendance_date == today)
-        .first()
-    )
-    if record:
-        record.status = payload.status
-        record.marked_by_id = current_user.id
-        record.marked_at = _now()
-    else:
-        record = StudentAttendance(
-            student_id=student.id,
-            marked_by_id=current_user.id,
-            attendance_date=today,
-            status=payload.status,
-            marked_at=_now(),
-        )
-        db.add(record)
-
-    db.flush()
-    profile.attendance = _attendance_percentage(db, student.id, profile.attendance)
+    _record, attendance = _write_attendance_record(db, student, current_user, payload.status)
+    checkin = get_today_checkin(db, student.id)
+    if checkin:
+        checkin.warning_flag = False
+        checkin.confirmed_by_id = current_user.id
+        checkin.confirmed_at = _now()
+        checkin.professor_confirmed = payload.status == "present"
+        checkin.status = "present_confirmed" if payload.status == "present" else "absent_marked"
     db.commit()
     return {
         "ok": True,
         "student_id": student.id,
         "status": payload.status,
-        "attendance": profile.attendance,
+        "attendance": attendance,
         "date": today.isoformat(),
+    }
+
+
+@router.post("/attendance/confirm")
+def confirm_biometric_attendance(
+    payload: ProfessorAttendanceConfirm,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    student = db.get(User, payload.student_id)
+    if not student or student.role != Role.student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    checkin = get_today_checkin(db, student.id)
+    if payload.present and (not checkin or not checkin.biometric_verified):
+        raise HTTPException(
+            status_code=409,
+            detail="Student must complete radius and biometric verification before professor confirmation",
+        )
+
+    attendance_status = "present" if payload.present else "absent"
+    _record, attendance = _write_attendance_record(db, student, current_user, attendance_status)
+
+    if checkin:
+        checkin.professor_confirmed = payload.present
+        checkin.warning_flag = False
+        checkin.confirmed_by_id = current_user.id
+        checkin.confirmed_at = _now()
+        checkin.status = "present_confirmed" if payload.present else "absent_marked"
+
+    db.commit()
+    return {
+        "ok": True,
+        "student_id": student.id,
+        "status": attendance_status,
+        "attendance": attendance,
+        "date": _today().isoformat(),
+        "checkIn": checkin_payload(checkin),
+    }
+
+
+@router.post("/attendance/finalize")
+def finalize_biometric_attendance(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    today = today_local()
+    students = db.query(User).filter(User.role == Role.student).all()
+    existing_records = {
+        record.student_id
+        for record in db.query(StudentAttendance)
+        .filter(StudentAttendance.attendance_date == today)
+        .all()
+    }
+    checkins = {
+        checkin.student_id: checkin
+        for checkin in db.query(StudentBiometricCheckIn)
+        .filter(StudentBiometricCheckIn.checkin_date == today)
+        .all()
+    }
+
+    marked_absent = 0
+    warnings = 0
+    for student in students:
+        checkin = checkins.get(student.id)
+        if student.id in existing_records:
+            if checkin:
+                checkin.warning_flag = False
+            continue
+
+        if checkin and checkin.biometric_verified and not checkin.professor_confirmed:
+            checkin.warning_flag = True
+            checkin.status = "awaiting_professor_confirmation"
+            warnings += 1
+            continue
+
+        _write_attendance_record(db, student, current_user, "absent")
+        marked_absent += 1
+        if checkin:
+            checkin.warning_flag = False
+            checkin.status = "absent_auto"
+        else:
+            db.add(
+                StudentBiometricCheckIn(
+                    student_id=student.id,
+                    checkin_date=today,
+                    status="absent_auto",
+                    within_radius=False,
+                    biometric_verified=False,
+                    professor_confirmed=False,
+                    detected_at=_now(),
+                )
+            )
+
+    db.commit()
+    return {
+        "ok": True,
+        "date": today.isoformat(),
+        "markedAbsent": marked_absent,
+        "warnings": warnings,
+        "message": f"{marked_absent} absent records finalized, {warnings} verified students still need confirmation",
     }
 
 
@@ -574,13 +760,9 @@ def upload_resource(
     if len(subject_name) < 2:
         raise HTTPException(status_code=422, detail="Subject name is required")
 
-    ensure_upload_dirs()
     original_name = Path(file.filename).name
     safe_name = _safe_filename(original_name)
-    stored_name = f"{_now().strftime('%Y%m%d%H%M%S')}_{uuid4().hex[:10]}_{safe_name}"
-    target_path = STUDY_RESOURCE_UPLOAD_DIR / stored_name
-    with target_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    file_bytes = file.file.read()
 
     title = Path(original_name).stem.strip() or safe_name
     item = StudyResource(
@@ -588,10 +770,16 @@ def upload_resource(
         title=title[:180],
         subject=subject_name[:120],
         resource_type=_resource_type_from_file(original_name, file.content_type),
-        url=f"/uploads/study_resources/{stored_name}",
+        url=None,
+        filename=original_name[:255],
+        content_type=(file.content_type or "application/octet-stream")[:120],
+        file_size=len(file_bytes),
+        file_data=file_bytes,
         tag="new",
     )
     db.add(item)
+    db.flush()
+    item.url = resource_file_url(item.id)
     db.commit()
     db.refresh(item)
     return {"ok": True, "id": item.id, "resource": _resource_payload(db, item)}

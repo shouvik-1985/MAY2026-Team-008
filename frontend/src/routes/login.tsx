@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   type ComponentType,
@@ -12,20 +13,28 @@ import {
 } from "react";
 import {
   ArrowRight,
+  BookOpen,
   BriefcaseBusiness,
+  Building2,
   Eye,
   EyeOff,
   FileCheck2,
   GraduationCap,
+  Landmark,
+  Library,
   Lock,
   Mail,
   MapPin,
+  MoonStar,
+  Sparkles,
   ShieldCheck,
   UserPlus,
   Users,
 } from "lucide-react";
+import { CinematicBackdrop } from "@/components/app/cinematic";
 import { getStudentDashboard, googleLogin, loginAccount, registerAccount } from "@/lib/api";
 import { setAuthSession, type AuthResponse } from "@/lib/auth";
+import { resolveRoleHome } from "@/lib/role-home";
 import { clearStoredDashboard, setStoredDashboard } from "@/lib/student-session";
 import { setStoredRole } from "@/lib/use-role";
 
@@ -93,9 +102,18 @@ function LoginPage() {
   const [sceneMood, setSceneMood] = useState<SceneMood>("idle");
   const [focusedField, setFocusedField] = useState<FocusField>(null);
   const [scenePointer, setScenePointer] = useState<ScenePointer>({ x: 0, y: 0 });
+  const isProfessorRegistration = mode === "register" && accountKind === "professor";
+  const isRegistration = mode === "register";
   const showGoogleAccess = mode === "login" || accountKind === "student";
   const hasTyped = Boolean(
-    fullName || email || password || address || gender || highestEducation || expertiseField || licenseDocumentName,
+    fullName ||
+    email ||
+    password ||
+    address ||
+    gender ||
+    highestEducation ||
+    expertiseField ||
+    licenseDocumentName,
   );
   const activeSceneMood: SceneMood = error
     ? "error"
@@ -122,6 +140,23 @@ function LoginPage() {
     });
     if (!busy && !error && !focusedField && !showPw) setSceneMood("hover");
   }
+
+  const handleGoogleCredential = useEffectEvent(async (credential: string) => {
+    setBusy(true);
+    setError(null);
+    setSceneMood("busy");
+    try {
+      const auth = await googleLogin({ credential });
+      setSceneMood("success");
+      await reactionPause();
+      await finishAuth(auth);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google login failed");
+      setSceneMood("error");
+    } finally {
+      setBusy(false);
+    }
+  });
 
   useEffect(() => {
     const clientId = googleClientId;
@@ -154,14 +189,14 @@ function LoginPage() {
     script.defer = true;
     script.onload = () => initializeGoogle(clientId);
     document.head.appendChild(script);
-  }, [googleClientId]);
+  }, [googleClientId, handleGoogleCredential]);
 
   async function finishAuth(auth: AuthResponse) {
     clearStoredDashboard();
     setAuthSession(auth);
     setStoredRole(auth.user.role);
-    if (auth.user.role === "faculty") {
-      navigate({ to: "/professor", replace: true });
+    if (auth.user.role !== "student") {
+      navigate({ to: resolveRoleHome(auth.user.role), replace: true });
       return;
     }
     try {
@@ -220,764 +255,623 @@ function LoginPage() {
     }
   }
 
-  async function handleGoogleCredential(credential: string) {
-    setBusy(true);
-    setError(null);
-    setSceneMood("busy");
-    try {
-      const auth = await googleLogin({ credential });
-      setSceneMood("success");
-      await reactionPause();
-      await finishAuth(auth);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Google login failed");
-      setSceneMood("error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f7f7f5] px-4 py-10 text-[#242428]">
-      <motion.div
-        className="pointer-events-none absolute -left-40 top-0 h-full w-80 bg-black/15 blur-3xl"
-        animate={{ opacity: [0.25, 0.42, 0.25] }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="pointer-events-none absolute -right-40 top-0 h-full w-80 bg-black/15 blur-3xl"
-        animate={{ opacity: [0.36, 0.2, 0.36] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <Link
-        to="/"
-        className="absolute left-6 top-6 z-10 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-black/45 transition hover:text-black"
-      >
-        <span className="size-2 rounded-full bg-[#1f1f23]" />
-        CampusVerse
-      </Link>
-
-      <motion.div
-        initial={{ opacity: 0, y: 28, filter: "blur(16px)" }}
-        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className={`relative mx-auto flex min-h-[calc(100vh-5rem)] w-full items-center justify-center ${
-          mode === "register" && accountKind === "professor" ? "max-w-6xl" : "max-w-5xl"
-        }`}
-      >
-        <motion.div
-          layout
-          onMouseEnter={() => resetFeedback("hover")}
-          onMouseMove={updatePointer}
-          onMouseLeave={() => {
-            setScenePointer({ x: 0, y: 0 });
-            if (!busy && !error) setSceneMood("idle");
-          }}
-          className="relative grid w-full overflow-hidden rounded-[2rem] border border-black/5 bg-white shadow-[0_30px_90px_rgba(0,0,0,0.12)] lg:grid-cols-[1.1fr_0.9fr]"
-        >
-          <CuteLoginScene mood={activeSceneMood} focus={focusedField} pointer={scenePointer} />
-
-          <div className="relative flex min-h-[680px] flex-col justify-center rounded-[1.8rem] bg-white px-7 py-10 shadow-[0_0_0_1px_rgba(0,0,0,0.06)] sm:px-12 lg:min-h-[640px]">
-            <motion.div
-              className="mx-auto mb-8 grid size-12 place-items-center rounded-2xl bg-[#202025] text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)]"
-              animate={{ y: [0, -5, 0], rotate: [0, -4, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <ShieldCheck className="size-6" />
-            </motion.div>
-
-            <div className="mb-8 text-center">
-              <h1 className="font-display text-4xl font-bold tracking-tight text-[#242428]">
-                {mode === "login" ? "Welcome back!" : "Create account"}
-              </h1>
-              <p className="mt-3 text-xs text-black/45">
-                {mode === "login"
-                  ? "Please enter your details"
-                  : accountKind === "professor"
-                    ? "Create your verified professor profile."
-                    : "Create your student profile."}
-              </p>
-            </div>
-
-            <div className="mb-6 grid grid-cols-2 rounded-full bg-[#f1f1f1] p-1">
-              <ModeButton
-                active={mode === "login"}
-                onClick={() => {
-                  setMode("login");
-                  setError(null);
-                  setFocusedField(null);
-                  setSceneMood("hover");
-                }}
-              >
-                Login
-              </ModeButton>
-              <ModeButton
-                active={mode === "register"}
-                onClick={() => {
-                  setMode("register");
-                  setAccountKind("student");
-                  setFullName("");
-                  setEmail("");
-                  setPassword("");
-                  setAddress("");
-                  setGender("");
-                  setHighestEducation("");
-                  setExpertiseField("");
-                  setDepartment("Computer Science & AI");
-                  setDesignation("Assistant Professor");
-                  setLicenseDocumentName("");
-                  setError(null);
-                  setFocusedField(null);
-                  setSceneMood("hover");
-                }}
-              >
-                Sign Up
-              </ModeButton>
-            </div>
-
-            {mode === "register" && (
-              <div className="mb-6 grid grid-cols-2 rounded-full bg-[#f1f1f1] p-1">
-                <ModeButton
-                  active={accountKind === "student"}
-                  onClick={() => {
-                    setAccountKind("student");
-                    setError(null);
-                    setFocusedField(null);
-                    setSceneMood("hover");
-                  }}
-                >
-                  Student
-                </ModeButton>
-                <ModeButton
-                  active={accountKind === "professor"}
-                  onClick={() => {
-                    setAccountKind("professor");
-                    setError(null);
-                    setFocusedField(null);
-                    setSceneMood("hover");
-                  }}
-                >
-                  Professor
-                </ModeButton>
-              </div>
-            )}
-
-            <form onSubmit={submit} className="space-y-5">
-            {mode === "register" && (
-              <Field
-                icon={UserPlus}
-                label="Full name"
-                value={fullName}
-                onChange={(e) => {
-                  resetFeedback();
-                  setFullName(e.target.value);
-                }}
-                onFocus={() => {
-                  resetFeedback("typing");
-                  setFocusedField("name");
-                }}
-                onBlur={() => setFocusedField(null)}
-                placeholder="Your full name"
-                autoComplete="name"
-              />
-            )}
-
-            <Field
-              icon={Mail}
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                resetFeedback();
-                setEmail(e.target.value);
-              }}
-              onFocus={() => {
-                resetFeedback("typing");
-                setFocusedField("email");
-              }}
-              onBlur={() => setFocusedField(null)}
-              placeholder="you@university.edu"
-              autoComplete="email"
-            />
-
-            <div className="relative">
-              <Field
-                icon={Lock}
-                label="Password"
-                type={showPw ? "text" : "password"}
-                value={password}
-                onChange={(e) => {
-                  resetFeedback();
-                  setPassword(e.target.value);
-                }}
-                onFocus={() => {
-                  resetFeedback("typing");
-                  setFocusedField("password");
-                }}
-                onBlur={() => setFocusedField(null)}
-                placeholder="Minimum 8 characters"
-                autoComplete={mode === "register" ? "new-password" : "current-password"}
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setShowPw((visible) => {
-                    const next = !visible;
-                    setSceneMood(next ? "peek" : "typing");
-                    return next;
-                  })
-                }
-                onMouseEnter={() => {
-                  if (!busy && !error) setSceneMood("peek");
-                }}
-                onMouseLeave={() => {
-                  if (!busy && !error && !showPw) setSceneMood(focusedField ? "typing" : "hover");
-                }}
-                className="absolute right-0 top-[36px] text-black/45 transition hover:text-black"
-                aria-label={showPw ? "Hide password" : "Show password"}
-              >
-                {showPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
-
-            {mode === "register" && accountKind === "professor" && (
-              <div className="grid max-h-[340px] gap-5 overflow-y-auto pr-2 md:grid-cols-2">
-                <Field
-                  icon={MapPin}
-                  label="Address"
-                  value={address}
-                  onChange={(e) => {
-                    resetFeedback();
-                    setAddress(e.target.value);
-                  }}
-                  onFocus={() => {
-                    resetFeedback("typing");
-                    setFocusedField("profile");
-                  }}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="Current address"
-                  autoComplete="street-address"
-                />
-                <ChoiceField
-                  icon={Users}
-                  label="Gender"
-                  value={gender}
-                  onChange={(value) => {
-                    resetFeedback();
-                    setGender(value);
-                  }}
-                  options={[
-                    { value: "female", label: "Female" },
-                    { value: "male", label: "Male" },
-                    { value: "non-binary", label: "Non-binary" },
-                    { value: "prefer-not-to-say", label: "Prefer not" },
-                  ]}
-                />
-                <Field
-                  icon={GraduationCap}
-                  label="Highest education"
-                  value={highestEducation}
-                  onChange={(e) => {
-                    resetFeedback();
-                    setHighestEducation(e.target.value);
-                  }}
-                  onFocus={() => {
-                    resetFeedback("typing");
-                    setFocusedField("profile");
-                  }}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="PhD, M.Tech, MSc..."
-                />
-                <Field
-                  icon={BriefcaseBusiness}
-                  label="Expertise field"
-                  value={expertiseField}
-                  onChange={(e) => {
-                    resetFeedback();
-                    setExpertiseField(e.target.value);
-                  }}
-                  onFocus={() => {
-                    resetFeedback("typing");
-                    setFocusedField("profile");
-                  }}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="AI, Networks, Physics..."
-                />
-                <Field
-                  icon={BriefcaseBusiness}
-                  label="Department"
-                  value={department}
-                  onChange={(e) => {
-                    resetFeedback();
-                    setDepartment(e.target.value);
-                  }}
-                  onFocus={() => {
-                    resetFeedback("typing");
-                    setFocusedField("profile");
-                  }}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="Computer Science & AI"
-                />
-                <Field
-                  icon={GraduationCap}
-                  label="Designation"
-                  value={designation}
-                  onChange={(e) => {
-                    resetFeedback();
-                    setDesignation(e.target.value);
-                  }}
-                  onFocus={() => {
-                    resetFeedback("typing");
-                    setFocusedField("profile");
-                  }}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="Assistant Professor"
-                />
-                <FileField
-                  label="Valid professor license"
-                  fileName={licenseDocumentName}
-                  onChange={(name) => {
-                    resetFeedback();
-                    setLicenseDocumentName(name);
-                  }}
-                />
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={busy}
-              className="group relative mt-2 w-full overflow-hidden rounded-full bg-[#242428] py-3.5 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:bg-black disabled:opacity-60"
-            >
-              <span className="relative z-10 inline-flex items-center justify-center gap-3">
-                {busy ? "Authenticating" : mode === "login" ? "Log in" : "Create account"}
-                {!busy && <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />}
-              </span>
-            </button>
-          </form>
-
-          {showGoogleAccess && (
-            <>
-              <div className="flex items-center gap-3 pt-6 text-[10px] uppercase tracking-[0.24em] text-black/30">
-                <span className="h-px flex-1 bg-black/10" />
-                or
-                <span className="h-px flex-1 bg-black/10" />
-              </div>
-
-              {googleClientId && <div ref={googleButtonRef} className="mt-4 flex justify-center" />}
-
-              {!googleClientId && (
-                <p className="mt-6 text-center text-xs text-black/45">
-                  Add your Google OAuth client ID to enable real Google login.
-                </p>
-              )}
-            </>
-          )}
-            <div className="mt-10 text-center text-xs text-black/45">
-              {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode(mode === "login" ? "register" : "login");
-                  setAccountKind("student");
-                  setError(null);
-                  setFocusedField(null);
-                  setSceneMood("hover");
-                }}
-                className="font-semibold text-[#242428] transition hover:text-black"
-              >
-                {mode === "login" ? "Sign Up" : "Log in"}
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </motion.div>
-    </div>
-  );
-}
-
-function CuteLoginScene({
-  mood,
-  focus,
-  pointer,
-}: {
-  mood: SceneMood;
-  focus: FocusField;
-  pointer: ScenePointer;
-}) {
-  const isError = mood === "error";
-  const isSuccess = mood === "success";
-  const isBusy = mood === "busy";
-  const isHover = mood === "hover";
-  const isTyping = mood === "typing";
-  const isPeek = mood === "peek";
-
-  return (
-    <motion.div
-      className="relative hidden min-h-[640px] overflow-hidden bg-[#ececec] lg:block"
-      animate={{
-        backgroundColor: isError ? "#f4e6e6" : isSuccess ? "#eaf5ef" : "#ececec",
-      }}
-      transition={{ duration: 0.35 }}
-    >
-      <motion.div
-        className="absolute inset-x-0 bottom-[19%] mx-auto h-[360px] w-[540px]"
-        animate={{
-          x: isTyping || isPeek ? 20 : isHover ? pointer.x * 10 : 0,
-          y: isSuccess ? [0, -16, 0] : isError ? [0, 4, -4, 3, 0] : isHover ? pointer.y * 8 : 0,
-          rotate: isTyping || isPeek ? 1.8 : isError ? [0, -1.5, 1.5, -1, 0] : 0,
-        }}
-        transition={{
-          duration: isSuccess ? 0.7 : isError ? 0.42 : 0.28,
-          ease: "easeOut",
-        }}
-      >
-        <CuteBlob
-          kind="purple"
-          className="left-[32%] top-[45px] h-[255px] w-[120px] rounded-[22px]"
-          color="linear-gradient(180deg, #8757f4 0%, #6f43e7 100%)"
-          entry={{ x: 45, y: -360, rotate: 8, opacity: 0 }}
-          entryDelay={0.18}
-          mood={mood}
-          focus={focus}
-          pointer={pointer}
-        />
-        <CuteBlob
-          kind="pink"
-          className="left-[51%] top-[125px] h-[175px] w-[86px] rounded-[16px]"
-          color="linear-gradient(180deg, #f1489b 0%, #d72f84 100%)"
-          entry={{ x: 0, y: -320, rotate: 0, opacity: 0 }}
-          entryDelay={0.34}
-          mood={mood}
-          focus={focus}
-          pointer={pointer}
-        />
-        <CuteBlob
-          kind="yellow"
-          className="left-[64%] top-[176px] h-[124px] w-[112px] rounded-t-full rounded-b-[16px]"
-          color="linear-gradient(180deg, #ffe55c 0%, #ffd33d 100%)"
-          entry={{ x: 170, y: 80, rotate: 0, opacity: 0 }}
-          entryDelay={0.52}
-          mood={mood}
-          focus={focus}
-          pointer={pointer}
-        />
-        <CuteBlob
-          kind="orange"
-          className="left-[11%] top-[228px] h-[124px] w-[255px] rounded-t-full rounded-b-[18px]"
-          color="linear-gradient(180deg, #ff9b3f 0%, #ff762c 100%)"
-          entry={{ x: -210, y: 90, rotate: 0, opacity: 0 }}
-          entryDelay={0.72}
-          wide
-          mood={mood}
-          focus={focus}
-          pointer={pointer}
-        />
-      </motion.div>
-
-      <motion.div
-        className="absolute bottom-[18%] left-1/2 h-8 w-[530px] -translate-x-1/2 rounded-full bg-black/10 blur-xl"
-        animate={{
-          scaleX: isSuccess ? [0.92, 1.12, 0.92] : [0.92, 1.02, 0.92],
-          opacity: isError ? [0.22, 0.3, 0.22] : [0.3, 0.42, 0.3],
-        }}
-        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-      />
-    </motion.div>
-  );
-}
-
-function CuteBlob({
-  kind,
-  className,
-  color,
-  entry,
-  entryDelay,
-  mood,
-  focus,
-  pointer,
-  wide = false,
-}: {
-  kind: "purple" | "pink" | "yellow" | "orange";
-  className: string;
-  color: string;
-  entry: { x: number; y: number; rotate: number; opacity: number };
-  entryDelay: number;
-  mood: SceneMood;
-  focus: FocusField;
-  pointer: ScenePointer;
-  wide?: boolean;
-}) {
-  const isError = mood === "error";
-  const isSuccess = mood === "success";
-  const isBusy = mood === "busy";
-  const isHover = mood === "hover";
-  const isTyping = mood === "typing";
-  const isPeek = mood === "peek";
-  const repeat = isError || isSuccess || isTyping || isPeek ? 0 : Infinity;
-  const floatAmount = kind === "pink" ? -8 : kind === "yellow" ? -5 : kind === "orange" ? -4 : -9;
-  const fieldTilt =
-    focus === "password"
-      ? kind === "purple"
-        ? -7
-        : kind === "pink"
-          ? -8
-          : kind === "yellow"
-            ? 7
-            : 0
-      : focus === "email"
-        ? kind === "purple"
-          ? 3
-          : kind === "pink"
-            ? -5
-            : kind === "yellow"
-              ? 5
-              : 0
-        : 0;
-  const peekTilt = kind === "purple" ? -12 : kind === "pink" ? -5 : kind === "yellow" ? 8 : 0;
-  const successBounce = kind === "purple" || kind === "pink" ? -24 : kind === "orange" ? -8 : -14;
-
-  return (
-    <motion.div
-      className={`absolute ${className}`}
-      initial={entry}
-      animate={{ x: 0, y: 0, rotate: 0, opacity: 1 }}
-      transition={{ duration: 1.35, delay: entryDelay, ease: [0.16, 1, 0.3, 1] }}
-    >
-      <motion.div
-        className="relative size-full shadow-[0_22px_40px_rgba(0,0,0,0.12)]"
-        style={{ background: color, borderRadius: "inherit", filter: "drop-shadow(0 10px 12px rgba(0,0,0,0.10))" }}
-        animate={{
-          y: isError
-            ? [0, 4, -4, 4, 0]
-            : isSuccess
-              ? [0, successBounce, 0]
-              : isTyping || isPeek
-                ? kind === "orange"
-                  ? 0
-                  : -4
-                : isHover
-                  ? pointer.y * 10
-                  : [0, floatAmount, 0],
-          x: isHover ? pointer.x * (kind === "yellow" ? 8 : 5) : isTyping || isPeek ? (kind === "yellow" ? 10 : 6) : 0,
-          rotate: isError
-            ? [0, -3, 3, -2, 0]
-            : isSuccess
-              ? [0, 3, -2, 0]
-              : isPeek
-                ? peekTilt
-                : isTyping
-                  ? fieldTilt
-                  : isHover
-                    ? pointer.x * 4
-                    : 0,
-          scaleX: isPeek && kind === "purple" ? 0.9 : isBusy ? [1, 1.03, 0.98, 1] : 1,
-          scaleY: isPeek && kind === "purple" ? 1.05 : isBusy ? [1, 1.06, 0.96, 1] : [1, 1.02, 1],
-        }}
-        transition={{
-          duration: isError ? 0.48 : isSuccess ? 0.78 : isTyping || isPeek ? 0.28 : isHover ? 0.18 : 3.7,
-          repeat,
-          delay: isHover || isTyping || isPeek || isError || isSuccess ? 0 : entryDelay,
-          ease: "easeInOut",
-        }}
-      >
-        <CuteFace kind={kind} mood={mood} focus={focus} pointer={pointer} wide={wide} />
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function CuteFace({
-  kind,
-  mood,
-  focus,
-  pointer,
-  wide,
-}: {
-  kind: "purple" | "pink" | "yellow" | "orange";
-  mood: SceneMood;
-  focus: FocusField;
-  pointer: ScenePointer;
-  wide?: boolean;
-}) {
-  const isError = mood === "error";
-  const isSuccess = mood === "success";
-  const isBusy = mood === "busy";
-  const isTyping = mood === "typing";
-  const isPeek = mood === "peek";
-  const lookRight = isTyping || focus || isPeek;
-  const pupil = {
-    x: isPeek ? (kind === "yellow" ? -1 : 3) : lookRight ? 4 : pointer.x * 2.2,
-    y: isPeek ? (kind === "pink" ? -3 : -1) : focus === "password" ? 2.5 : pointer.y * 1.8,
-  };
-  const eyeTop = wide ? "top-[45%]" : kind === "yellow" ? "top-[26%]" : "top-[18%]";
-  const eyeLeft = wide ? "left-[25%]" : kind === "yellow" ? "left-[38%]" : "left-[28%]";
-  const eyeGap = kind === "yellow" ? "gap-10" : wide ? "gap-12" : "gap-7";
-  const singleEye = kind === "yellow" && !isSuccess;
-
   return (
     <>
-      <div className={`absolute ${eyeLeft} ${eyeTop} flex ${eyeGap}`}>
-        {isError ? <StressEye /> : kind === "orange" ? <DotEye mood={mood} pupil={pupil} /> : <BlinkEye mood={mood} pupil={pupil} />}
-        {!singleEye &&
-          (isError ? (
-            <StressEye flip />
-          ) : kind === "orange" ? (
-            <DotEye mood={mood} pupil={pupil} />
-          ) : (
-            <BlinkEye mood={mood} pupil={pupil} />
-          ))}
+      <CinematicBackdrop intensity={0.55} />
+      <div className="relative min-h-screen overflow-hidden px-4 py-6 text-white sm:px-6 sm:py-8">
+        <motion.div
+          className="pointer-events-none absolute left-[8%] top-[10%] h-44 w-44 rounded-full blur-3xl"
+          style={{
+            background: "radial-gradient(circle, oklch(0.82 0.18 200 / 0.28), transparent 70%)",
+          }}
+          animate={{ opacity: [0.24, 0.44, 0.24], scale: [1, 1.08, 1] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="pointer-events-none absolute bottom-[8%] right-[6%] h-56 w-56 rounded-full blur-3xl"
+          style={{
+            background: "radial-gradient(circle, oklch(0.65 0.25 260 / 0.22), transparent 70%)",
+          }}
+          animate={{ opacity: [0.2, 0.36, 0.2], scale: [1, 1.12, 1] }}
+          transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <Link
+          to="/"
+          className="absolute left-6 top-6 z-10 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-white/55 transition hover:text-white"
+        >
+          <span
+            className="size-2 rounded-full"
+            style={{
+              background: "linear-gradient(135deg, oklch(0.82 0.18 200), oklch(0.72 0.16 230))",
+              boxShadow: "0 0 12px oklch(0.82 0.18 200 / 0.55)",
+            }}
+          />
+          CampusVerse
+        </Link>
+
+        <motion.div
+          initial={{ opacity: 0, y: 28, filter: "blur(16px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="relative mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center justify-center"
+        >
+          <motion.div
+            layout
+            onMouseEnter={() => resetFeedback("hover")}
+            onMouseMove={updatePointer}
+            onMouseLeave={() => {
+              setScenePointer({ x: 0, y: 0 });
+              if (!busy && !error) setSceneMood("idle");
+            }}
+            className="glass-strong relative grid w-full overflow-hidden rounded-[2rem] border border-white/10 shadow-[0_30px_90px_rgba(0,0,0,0.35)] lg:h-[860px] lg:grid-cols-[1.12fr_0.88fr]"
+          >
+            <CuteLoginScene mood={activeSceneMood} pointer={scenePointer} />
+
+            <div
+              className={`relative flex min-h-[680px] flex-col rounded-[1.8rem] bg-[linear-gradient(180deg,oklch(0.1_0.02_280_/_0.95),oklch(0.07_0.01_280_/_0.98))] px-7 py-10 sm:px-12 lg:h-full lg:overflow-hidden ${
+                isProfessorRegistration ? "" : "justify-center"
+              }`}
+            >
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(106,209,255,0.12),transparent_60%)]" />
+              <div className={`flex min-h-0 flex-1 flex-col ${isRegistration ? "" : "justify-center"}`}>
+                <motion.div
+                  className="mx-auto mb-8 grid size-14 place-items-center rounded-[1.25rem] border border-cyan-300/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.1),rgba(255,255,255,0.04))] text-white shadow-[0_14px_30px_rgba(0,0,0,0.28)]"
+                  animate={{ y: [0, -5, 0], rotate: [0, -4, 0] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <ShieldCheck className="size-6 text-cyan-100" />
+                </motion.div>
+
+                <div className="mb-7 text-center">
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.35em] text-white/40">
+                    <Sparkles className="size-3 text-cyan-200" />
+                    Secure campus access
+                  </div>
+                  <h1 className="font-display text-4xl font-bold tracking-tight text-white sm:text-[2.8rem]">
+                    {mode === "login" ? "Welcome back" : "Create your account"}
+                  </h1>
+                  <p className="mt-3 text-sm leading-6 text-white/48">
+                    {mode === "login"
+                      ? "Access classes, resources, notices, and your campus tools from one polished dashboard."
+                      : accountKind === "professor"
+                        ? "Set up a verified professor profile with richer professional details."
+                        : "Create a student profile built for classes, community, and campus life."}
+                  </p>
+                </div>
+
+                <div className="mb-6 rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-2">
+                  <div className="grid grid-cols-2 rounded-full bg-[#101018]/80 p-1">
+                    <ModeButton
+                      active={mode === "login"}
+                      onClick={() => {
+                        setMode("login");
+                        setError(null);
+                        setFocusedField(null);
+                        setSceneMood("hover");
+                      }}
+                    >
+                      Login
+                    </ModeButton>
+                    <ModeButton
+                      active={mode === "register"}
+                      onClick={() => {
+                        setMode("register");
+                        setAccountKind("student");
+                        setFullName("");
+                        setEmail("");
+                        setPassword("");
+                        setAddress("");
+                        setGender("");
+                        setHighestEducation("");
+                        setExpertiseField("");
+                        setDepartment("Computer Science & AI");
+                        setDesignation("Assistant Professor");
+                        setLicenseDocumentName("");
+                        setError(null);
+                        setFocusedField(null);
+                        setSceneMood("hover");
+                      }}
+                    >
+                      Sign Up
+                    </ModeButton>
+                  </div>
+
+                  {mode === "register" && (
+                    <div className="mt-3 grid grid-cols-2 rounded-full bg-[#101018]/80 p-1">
+                      <ModeButton
+                        active={accountKind === "student"}
+                        onClick={() => {
+                          setAccountKind("student");
+                          setError(null);
+                          setFocusedField(null);
+                          setSceneMood("hover");
+                        }}
+                      >
+                        Student
+                      </ModeButton>
+                      <ModeButton
+                        active={accountKind === "professor"}
+                        onClick={() => {
+                          setAccountKind("professor");
+                          setError(null);
+                          setFocusedField(null);
+                          setSceneMood("hover");
+                        }}
+                      >
+                        Professor
+                      </ModeButton>
+                    </div>
+                  )}
+                </div>
+
+                <div className={isRegistration ? "min-h-0 flex-1 overflow-y-auto pr-2" : ""}>
+                  <form onSubmit={submit} className="space-y-5">
+                    {mode === "register" && (
+                      <Field
+                        icon={UserPlus}
+                        label="Full name"
+                        value={fullName}
+                        onChange={(e) => {
+                          resetFeedback();
+                          setFullName(e.target.value);
+                        }}
+                        onFocus={() => {
+                          resetFeedback("typing");
+                          setFocusedField("name");
+                        }}
+                        onBlur={() => setFocusedField(null)}
+                        placeholder="Your full name"
+                        autoComplete="name"
+                      />
+                    )}
+
+                    <Field
+                      icon={Mail}
+                      label="Email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        resetFeedback();
+                        setEmail(e.target.value);
+                      }}
+                      onFocus={() => {
+                        resetFeedback("typing");
+                        setFocusedField("email");
+                      }}
+                      onBlur={() => setFocusedField(null)}
+                      placeholder="you@university.edu"
+                      autoComplete="email"
+                    />
+
+                    <div className="relative">
+                      <Field
+                        icon={Lock}
+                        label="Password"
+                        type={showPw ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => {
+                          resetFeedback();
+                          setPassword(e.target.value);
+                        }}
+                        onFocus={() => {
+                          resetFeedback("typing");
+                          setFocusedField("password");
+                        }}
+                        onBlur={() => setFocusedField(null)}
+                        placeholder="Minimum 8 characters"
+                        autoComplete={mode === "register" ? "new-password" : "current-password"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowPw((visible) => {
+                            const next = !visible;
+                            setSceneMood(next ? "peek" : "typing");
+                            return next;
+                          })
+                        }
+                        onMouseEnter={() => {
+                          if (!busy && !error) setSceneMood("peek");
+                        }}
+                        onMouseLeave={() => {
+                          if (!busy && !error && !showPw)
+                            setSceneMood(focusedField ? "typing" : "hover");
+                        }}
+                        className="absolute right-4 top-[52px] text-white/40 transition hover:text-cyan-100"
+                        aria-label={showPw ? "Hide password" : "Show password"}
+                      >
+                        {showPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+
+                    {mode === "register" && accountKind === "professor" && (
+                      <div className="rounded-[1.6rem] border border-cyan-400/10 bg-[linear-gradient(180deg,rgba(8,16,24,0.86),rgba(8,12,18,0.7))] p-4">
+                        <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white/75">
+                          <Landmark className="size-4 text-cyan-200" />
+                          Professional details
+                        </div>
+                        <div className="grid gap-5 md:grid-cols-2">
+                          <Field
+                            icon={MapPin}
+                            label="Address"
+                            value={address}
+                            onChange={(e) => {
+                              resetFeedback();
+                              setAddress(e.target.value);
+                            }}
+                            onFocus={() => {
+                              resetFeedback("typing");
+                              setFocusedField("profile");
+                            }}
+                            onBlur={() => setFocusedField(null)}
+                            placeholder="Current address"
+                            autoComplete="street-address"
+                          />
+                          <ChoiceField
+                            icon={Users}
+                            label="Gender"
+                            value={gender}
+                            onChange={(value) => {
+                              resetFeedback();
+                              setGender(value);
+                            }}
+                            options={[
+                              { value: "female", label: "Female" },
+                              { value: "male", label: "Male" },
+                              { value: "non-binary", label: "Non-binary" },
+                              { value: "prefer-not-to-say", label: "Prefer not" },
+                            ]}
+                          />
+                          <Field
+                            icon={GraduationCap}
+                            label="Highest education"
+                            value={highestEducation}
+                            onChange={(e) => {
+                              resetFeedback();
+                              setHighestEducation(e.target.value);
+                            }}
+                            onFocus={() => {
+                              resetFeedback("typing");
+                              setFocusedField("profile");
+                            }}
+                            onBlur={() => setFocusedField(null)}
+                            placeholder="PhD, M.Tech, MSc..."
+                          />
+                          <Field
+                            icon={BriefcaseBusiness}
+                            label="Expertise field"
+                            value={expertiseField}
+                            onChange={(e) => {
+                              resetFeedback();
+                              setExpertiseField(e.target.value);
+                            }}
+                            onFocus={() => {
+                              resetFeedback("typing");
+                              setFocusedField("profile");
+                            }}
+                            onBlur={() => setFocusedField(null)}
+                            placeholder="AI, Networks, Physics..."
+                          />
+                          <Field
+                            icon={BriefcaseBusiness}
+                            label="Department"
+                            value={department}
+                            onChange={(e) => {
+                              resetFeedback();
+                              setDepartment(e.target.value);
+                            }}
+                            onFocus={() => {
+                              resetFeedback("typing");
+                              setFocusedField("profile");
+                            }}
+                            onBlur={() => setFocusedField(null)}
+                            placeholder="Computer Science & AI"
+                          />
+                          <Field
+                            icon={GraduationCap}
+                            label="Designation"
+                            value={designation}
+                            onChange={(e) => {
+                              resetFeedback();
+                              setDesignation(e.target.value);
+                            }}
+                            onFocus={() => {
+                              resetFeedback("typing");
+                              setFocusedField("profile");
+                            }}
+                            onBlur={() => setFocusedField(null)}
+                            placeholder="Assistant Professor"
+                          />
+                          <FileField
+                            label="Valid professor license"
+                            fileName={licenseDocumentName}
+                            onChange={(name) => {
+                              resetFeedback();
+                              setLicenseDocumentName(name);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                        {error}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="group relative mt-2 w-full overflow-hidden rounded-full py-4 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(0,0,0,0.32)] transition hover:-translate-y-0.5 disabled:opacity-60"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, oklch(0.66 0.17 192), oklch(0.62 0.18 235) 55%, oklch(0.72 0.13 170))",
+                      }}
+                    >
+                      <span className="absolute inset-[1px] rounded-full bg-[linear-gradient(180deg,rgba(10,12,18,0.82),rgba(11,16,22,0.92))]" />
+                      <span className="absolute inset-y-0 left-[-20%] w-1/3 -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent)] transition-transform duration-700 group-hover:translate-x-[340%]" />
+                      <span className="relative z-10 inline-flex items-center justify-center gap-3">
+                        {busy ? "Authenticating" : mode === "login" ? "Log in" : "Create account"}
+                        {!busy && (
+                          <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                        )}
+                      </span>
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-auto pt-6">
+                  {showGoogleAccess && (
+                    <>
+                      <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.24em] text-white/24">
+                        <span className="h-px flex-1 bg-white/10" />
+                        or continue with
+                        <span className="h-px flex-1 bg-white/10" />
+                      </div>
+
+                      {googleClientId && (
+                        <div ref={googleButtonRef} className="mt-4 flex justify-center" />
+                      )}
+
+                      {!googleClientId && (
+                        <p className="mt-6 text-center text-xs text-white/45">
+                          Add your Google OAuth client ID to enable real Google login.
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  <div className="mt-8 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-center text-xs text-white/42">
+                    {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode(mode === "login" ? "register" : "login");
+                        setAccountKind("student");
+                        setError(null);
+                        setFocusedField(null);
+                        setSceneMood("hover");
+                      }}
+                      className="font-semibold text-cyan-100 transition hover:text-white"
+                    >
+                      {mode === "login" ? "Sign Up" : "Log in"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
       </div>
-      <Mouth kind={kind} mood={mood} focus={focus} isBusy={isBusy} />
     </>
   );
 }
 
-function Mouth({
-  kind,
-  mood,
-  focus,
-  isBusy,
-}: {
-  kind: "purple" | "pink" | "yellow" | "orange";
-  mood: SceneMood;
-  focus: FocusField;
-  isBusy: boolean;
-}) {
-  const isError = mood === "error";
-  const isSuccess = mood === "success";
-  const isTyping = mood === "typing";
-  const isPeek = mood === "peek";
-
-  if (kind === "pink" && !isError && !isSuccess && !isPeek) return null;
-
-  if (isPeek) {
-    if (kind === "yellow") return <WavyMouth className="left-[48%] top-[48%] w-14" />;
-    if (kind === "pink") return <LookUpMouth className="left-[40%] top-[44%]" />;
-    return <Frown className={kind === "orange" ? "left-[48%] top-[58%]" : "left-[42%] top-[34%]"} />;
-  }
-
-  if (isError) {
-    return <Frown className={kind === "orange" ? "left-[49%] top-[58%]" : "left-[42%] top-[34%]"} />;
-  }
-
-  if (isSuccess) {
-    return <Smile className={kind === "orange" ? "left-[48%] top-[56%]" : kind === "yellow" ? "left-[38%] top-[42%]" : "left-[42%] top-[31%]"} wide={kind === "orange"} />;
-  }
-
-  if (kind === "purple" && (isTyping || focus)) {
-    return <span className="absolute left-[55%] top-[24%] h-9 w-[6px] rounded-full bg-[#202025]" />;
-  }
-
-  if (kind === "yellow") {
-    return (
-      <motion.span
-        className="absolute left-[39%] top-[48%] h-[5px] w-14 rounded-full bg-[#202025]"
-        animate={{ width: isBusy ? [42, 56, 42] : isTyping ? 58 : 48 }}
-        transition={{ duration: 0.9, repeat: isBusy ? Infinity : 0 }}
-      />
-    );
-  }
-
-  if (kind === "orange" || kind === "purple") {
-    return <Smile className={kind === "orange" ? "left-[48%] top-[57%]" : "left-[42%] top-[31%]"} wide={kind === "orange"} />;
-  }
-
-  return null;
-}
-
-function BlinkEye({ mood, pupil }: { mood: SceneMood; pupil: ScenePointer }) {
-  if (mood === "error") {
-    return (
-      <span className="relative block size-4">
-        <span className="absolute left-1/2 top-1/2 h-[3px] w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-[#202025]" />
-        <span className="absolute left-1/2 top-1/2 h-[3px] w-4 -translate-x-1/2 -translate-y-1/2 -rotate-45 rounded-full bg-[#202025]" />
-      </span>
-    );
-  }
+function CuteLoginScene({ mood, pointer }: { mood: SceneMood; pointer: ScenePointer }) {
+  const toneClass =
+    mood === "error"
+      ? "from-rose-500/18 via-transparent to-transparent"
+      : mood === "success"
+        ? "from-emerald-400/18 via-transparent to-transparent"
+        : "from-cyan-400/12 via-transparent to-[oklch(0.65_0.25_260_/_0.08)]";
 
   return (
-    <span className="relative block size-3 rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]">
-      <motion.span
-        className="absolute left-1/2 top-1/2 block size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#202025]"
-        animate={{
-          scaleY: mood === "success" ? [1, 0.2, 1] : [1, 1, 0.08, 1],
-          x: pupil.x,
-          y: pupil.y,
-        }}
-        transition={{
-          duration: mood === "success" ? 0.7 : 4.5,
-          repeat: mood === "success" || mood === "typing" || mood === "peek" ? 0 : Infinity,
-          times: mood === "success" ? undefined : [0, 0.88, 0.92, 1],
-        }}
-      />
-    </span>
-  );
-}
-
-function DotEye({ mood, pupil }: { mood: SceneMood; pupil: ScenePointer }) {
-  if (mood === "error") {
-    return <span className="block h-[4px] w-4 rotate-12 rounded-full bg-[#202025]" />;
-  }
-
-  return (
-    <motion.span
-      className="block size-3 rounded-full bg-[#202025]"
+    <motion.div
+      className="relative hidden min-h-full overflow-hidden border-r border-white/8 bg-[#07070d] lg:block"
       animate={{
-        scaleY: mood === "success" ? [1, 0.18, 1] : [1, 1, 0.12, 1],
-        x: pupil.x,
-        y: pupil.y,
+        x: pointer.x * 4,
+        y: pointer.y * 4,
       }}
-      transition={{
-        duration: mood === "success" ? 0.7 : 4.4,
-        repeat: mood === "success" || mood === "typing" || mood === "peek" ? 0 : Infinity,
-        times: mood === "success" ? undefined : [0, 0.9, 0.94, 1],
-      }}
-    />
-  );
-}
-
-function StressEye({ flip = false }: { flip?: boolean }) {
-  return <span className={`block h-[4px] w-4 rounded-full bg-[#202025] ${flip ? "-rotate-12" : "rotate-12"}`} />;
-}
-
-function Smile({ className, wide = false }: { className: string; wide?: boolean }) {
-  return (
-    <motion.span
-      className={`absolute rounded-b-full border-b-[5px] border-[#202025] ${wide ? "h-4 w-9" : "h-3 w-7"} ${className}`}
-      animate={{ scaleX: [1, 1.14, 1] }}
-      transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-    />
-  );
-}
-
-function Frown({ className }: { className: string }) {
-  return <span className={`absolute h-3 w-8 rounded-t-full border-t-[5px] border-[#202025] ${className}`} />;
-}
-
-function LookUpMouth({ className }: { className: string }) {
-  return <span className={`absolute h-[5px] w-8 rounded-full bg-[#202025] ${className}`} />;
-}
-
-function WavyMouth({ className }: { className: string }) {
-  return (
-    <svg viewBox="0 0 56 16" className={`absolute h-4 ${className}`} aria-hidden="true">
-      <motion.path
-        d="M2 8 C 10 1, 18 15, 26 8 S 42 1, 54 8"
-        fill="none"
-        stroke="#202025"
-        strokeLinecap="round"
-        strokeWidth="5"
-        animate={{ d: ["M2 8 C 10 1, 18 15, 26 8 S 42 1, 54 8", "M2 8 C 10 15, 18 1, 26 8 S 42 15, 54 8", "M2 8 C 10 1, 18 15, 26 8 S 42 1, 54 8"] }}
-        transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut" }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(67,191,255,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(116,255,213,0.12),transparent_30%),linear-gradient(135deg,#041018_0%,#07111b_42%,#090913_100%)]" />
+      <div className="absolute inset-0 grid-bg opacity-[0.14]" />
+      <div className={`absolute inset-0 bg-gradient-to-br ${toneClass}`} />
+      <div
+        className="absolute left-10 top-12 h-40 w-40 rounded-full blur-3xl"
+        style={{
+          background: "radial-gradient(circle, oklch(0.82 0.18 200 / 0.22), transparent 68%)",
+        }}
       />
-    </svg>
+      <div
+        className="absolute bottom-10 right-10 h-52 w-52 rounded-full blur-3xl"
+        style={{
+          background: "radial-gradient(circle, oklch(0.65 0.25 260 / 0.14), transparent 68%)",
+        }}
+      />
+
+      <motion.div
+        className="absolute right-14 top-16 h-28 w-28 rounded-full border border-cyan-300/20"
+        animate={{ rotate: 360 }}
+        transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
+      >
+        <motion.div
+          className="absolute left-1/2 top-0 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-100/30 bg-white shadow-[0_0_30px_rgba(90,220,255,0.3)]"
+          animate={{ scale: mood === "busy" ? [1, 1.2, 1] : 1 }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </motion.div>
+
+      <div className="relative flex h-full flex-col justify-between p-10">
+        <div className="max-w-lg">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-white/45">
+            <span className="size-1.5 rounded-full bg-cyan-300" />
+            Campus access
+          </div>
+          <h2 className="max-w-md font-display text-4xl font-bold leading-[0.95] tracking-tight text-white">
+            Step into a connected college experience.
+          </h2>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-white/50">
+            Smarter campus life, all in one place.
+          </p>
+          <div className="mt-6 grid max-w-md grid-cols-3 gap-3">
+            <SceneMetric value="24/7" label="smart access" />
+            <SceneMetric value="1 hub" label="campus tools" />
+            <SceneMetric value="secure" label="verified flow" />
+          </div>
+        </div>
+
+        <motion.div
+          className="relative mx-auto mt-6 w-full max-w-[620px]"
+          animate={{ y: mood === "success" ? [0, -8, 0] : [0, -2, 0] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <div className="absolute inset-x-16 bottom-0 h-14 rounded-full bg-cyan-400/12 blur-3xl" />
+          <div className="glass-strong relative overflow-hidden rounded-[30px] border border-white/10 shadow-[0_30px_70px_rgba(0,0,0,0.35)]">
+            <div className="relative h-[540px] overflow-hidden rounded-[30px] bg-[linear-gradient(180deg,#08111a_0%,#0d1822_38%,#101820_100%)]">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(116,214,255,0.18),transparent_32%)]" />
+              <div className="absolute inset-x-0 bottom-0 h-[42%] bg-[linear-gradient(180deg,rgba(9,17,26,0),rgba(11,20,28,0.94)_45%,rgba(11,20,28,1)_100%)]" />
+              <div className="absolute left-0 right-0 top-0 h-28 bg-[linear-gradient(180deg,rgba(130,210,255,0.08),transparent)]" />
+              <motion.div
+                className="absolute inset-x-0 top-0 h-full bg-[linear-gradient(180deg,transparent,rgba(88,221,255,0.08),transparent)]"
+                animate={{ y: ["-100%", "100%"] }}
+                transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
+              />
+
+              <div className="absolute left-8 top-8 right-8 flex items-start justify-between">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.3em] text-cyan-100/45">
+                    CampusVerse
+                  </div>
+                  <div className="mt-2 max-w-xs text-[2rem] font-semibold leading-tight text-white">
+                    Smart campus.
+                  </div>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] text-cyan-200">
+                  <MoonStar className="size-3.5" />
+                  Evening mode
+                </div>
+              </div>
+
+              <div className="absolute left-10 right-10 top-24 h-[230px] rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))]">
+                <div className="absolute inset-x-0 top-0 h-[56%] rounded-[28px] bg-[linear-gradient(180deg,rgba(130,210,255,0.08),rgba(130,210,255,0.01))]" />
+                <motion.div
+                  className="absolute left-[10%] top-[24%] h-[46%] w-[14%] rounded-t-[20px] bg-[#d9dee3]"
+                  animate={{ y: [0, -3, 0], scaleY: [1, 1.01, 1] }}
+                  transition={{ duration: 4.6, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.div
+                  className="absolute left-[24%] top-[12%] h-[58%] w-[18%] rounded-t-[22px] bg-[#eef3f7]"
+                  animate={{ y: [0, -7, 0], scaleY: [1, 1.018, 1] }}
+                  transition={{ duration: 5.4, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                />
+                <motion.div
+                  className="absolute left-[45%] top-[20%] h-[50%] w-[15%] rounded-t-[18px] bg-[#d7e0e8]"
+                  animate={{ y: [0, -4, 0], scaleY: [1, 1.012, 1] }}
+                  transition={{ duration: 4.9, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
+                />
+                <motion.div
+                  className="absolute left-[63%] top-[8%] h-[62%] w-[20%] rounded-t-[26px] bg-[#f3f7fa]"
+                  animate={{ y: [0, -9, 0], scaleY: [1, 1.02, 1] }}
+                  transition={{ duration: 5.8, repeat: Infinity, ease: "easeInOut", delay: 0.45 }}
+                />
+                <motion.div
+                  className="absolute left-[85%] top-[28%] h-[42%] w-[7%] rounded-t-[14px] bg-[#d5dce2]"
+                  animate={{ y: [0, -2, 0], scaleY: [1, 1.008, 1] }}
+                  transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut", delay: 0.25 }}
+                />
+
+                <motion.div
+                  className="absolute left-[13%] top-[33%] grid grid-cols-2 gap-1"
+                  animate={{ opacity: [0.55, 0.8, 0.55] }}
+                  transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  {Array.from({ length: 8 }).map((_, index) => (
+                    <span key={index} className="h-2 w-2 rounded-[2px] bg-cyan-900/25" />
+                  ))}
+                </motion.div>
+                <motion.div
+                  className="absolute left-[28%] top-[24%] grid grid-cols-3 gap-1.5"
+                  animate={{ opacity: [0.65, 0.95, 0.65] }}
+                  transition={{ duration: 4.1, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                >
+                  {Array.from({ length: 15 }).map((_, index) => (
+                    <span key={index} className="h-2.5 w-2.5 rounded-[2px] bg-cyan-900/22" />
+                  ))}
+                </motion.div>
+                <motion.div
+                  className="absolute left-[48%] top-[30%] grid grid-cols-2 gap-1"
+                  animate={{ opacity: [0.55, 0.82, 0.55] }}
+                  transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut", delay: 0.25 }}
+                >
+                  {Array.from({ length: 10 }).map((_, index) => (
+                    <span key={index} className="h-2 w-2 rounded-[2px] bg-cyan-900/22" />
+                  ))}
+                </motion.div>
+                <motion.div
+                  className="absolute left-[67%] top-[20%] grid grid-cols-4 gap-1.5"
+                  animate={{ opacity: [0.62, 0.9, 0.62] }}
+                  transition={{ duration: 4.4, repeat: Infinity, ease: "easeInOut", delay: 0.55 }}
+                >
+                  {Array.from({ length: 20 }).map((_, index) => (
+                    <span key={index} className="h-2.5 w-2.5 rounded-[2px] bg-cyan-900/20" />
+                  ))}
+                </motion.div>
+
+                <div className="absolute inset-x-0 bottom-0 h-[30%] bg-[linear-gradient(180deg,rgba(19,40,42,0),rgba(31,62,65,0.9))]" />
+                <div className="absolute left-0 right-0 bottom-[22%] h-[4px] bg-cyan-200/30" />
+              </div>
+
+              <div className="absolute left-10 right-10 bottom-8 grid grid-cols-3 gap-4">
+                <SceneInfoCard icon={Building2} title="Academic Block" hint="Classes and labs" />
+                <SceneInfoCard icon={Library} title="Library" hint="Resources and reading" />
+                <SceneInfoCard icon={BookOpen} title="Student Life" hint="Events and clubs" />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+}
+
+function SceneMetric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 backdrop-blur-xl">
+      <div className="text-lg font-semibold text-white">{value}</div>
+      <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-white/36">{label}</div>
+    </div>
+  );
+}
+
+function SceneInfoCard({
+  icon: Icon,
+  title,
+  hint,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  hint: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] p-4 backdrop-blur-xl">
+      <div className="mb-3 flex items-center gap-2 text-white">
+        <Icon className="size-4 text-cyan-200" />
+        <div className="text-sm font-medium">{title}</div>
+      </div>
+      <div className="text-xs leading-5 text-white/48">{hint}</div>
+    </div>
   );
 }
 
@@ -996,11 +890,13 @@ function ChoiceField({
 }) {
   return (
     <div className="block">
-      <div className="mb-1.5 text-sm font-medium text-[#57575f]">{label}</div>
-      <div className="rounded-2xl border border-black/10 bg-[#f7f7f7] p-2">
-        <div className="mb-2 flex items-center gap-2 px-2 text-xs text-black/45">
+      <div className="mb-2 text-sm font-medium text-white/72">{label}</div>
+      <div className="rounded-2xl border border-white/10 bg-white/6 p-2 backdrop-blur-xl">
+        <div className="mb-2 flex items-center gap-2 px-2 text-xs text-white/45">
           <Icon className="size-4" />
-          <span>{value ? options.find((option) => option.value === value)?.label : "Choose gender"}</span>
+          <span>
+            {value ? options.find((option) => option.value === value)?.label : "Choose gender"}
+          </span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {options.map((option) => (
@@ -1010,8 +906,8 @@ function ChoiceField({
               onClick={() => onChange(option.value)}
               className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
                 value === option.value
-                  ? "bg-[#242428] text-white shadow-sm"
-                  : "bg-white text-black/55 hover:bg-black/5 hover:text-black"
+                  ? "bg-[linear-gradient(135deg,rgba(223,248,255,0.96),rgba(241,255,252,0.92))] text-[#0b1018] shadow-sm"
+                  : "bg-transparent text-white/55 hover:bg-white/8 hover:text-white"
               }`}
             >
               {option.label}
@@ -1034,13 +930,15 @@ function FileField({
 }) {
   return (
     <label className="block md:col-span-2">
-      <div className="mb-1.5 text-sm font-medium text-[#57575f]">{label}</div>
-      <div className="relative flex items-center gap-3 rounded-2xl border border-black/10 bg-[#f7f7f7] px-4 py-3">
-        <FileCheck2 className="size-4 shrink-0 text-black/45" />
-        <span className="flex-1 truncate text-sm text-black/55">
+      <div className="mb-2 text-sm font-medium text-white/72">{label}</div>
+      <div className="relative flex items-center gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-3 backdrop-blur-xl">
+        <FileCheck2 className="size-4 shrink-0 text-white/45" />
+        <span className="flex-1 truncate text-sm text-white/60">
           {fileName || "Upload license / appointment proof"}
         </span>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">Choose</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/45">
+          Choose
+        </span>
         <input
           required
           type="file"
@@ -1066,8 +964,10 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
-        active ? "bg-white text-[#242428] shadow-sm" : "text-black/40 hover:text-black"
+      className={`rounded-full px-3 py-2.5 text-sm font-semibold transition ${
+        active
+          ? "bg-[linear-gradient(135deg,rgba(247,255,255,0.98),rgba(224,247,255,0.94))] text-[#081018] shadow-[0_10px_24px_rgba(110,214,255,0.18)]"
+          : "text-white/40 hover:text-white"
       }`}
     >
       {children}
@@ -1085,13 +985,13 @@ function Field({
 } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="block">
-      <div className="mb-1.5 text-sm font-medium text-[#57575f]">{label}</div>
-      <div className="relative">
-        <Icon className="absolute left-0 top-1/2 size-4 -translate-y-1/2 text-black/35" />
+      <div className="mb-2 text-sm font-medium text-white/72">{label}</div>
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] px-4">
+        <Icon className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
         <input
           {...rest}
           required
-          className="w-full border-0 border-b border-black/25 bg-transparent py-3 pl-7 pr-8 text-sm text-[#242428] placeholder:text-black/25 outline-none transition focus:border-black"
+          className="w-full border-0 bg-transparent py-4 pl-8 pr-8 text-sm text-white placeholder:text-white/24 outline-none transition"
         />
       </div>
     </label>

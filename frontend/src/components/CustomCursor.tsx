@@ -1,5 +1,6 @@
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { getLowPerformancePreference } from "@/lib/performance";
 
 const CINEMATIC_CURSOR_ROUTES = new Set(["/", "/login"]);
 
@@ -12,13 +13,16 @@ export function CustomCursor() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const media = window.matchMedia("(min-width: 769px)");
-    const syncDesktop = () => setIsDesktop(media.matches);
+    const media = window.matchMedia("(min-width: 769px) and (hover: hover) and (pointer: fine)");
+    const motionMedia = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncDesktop = () => setIsDesktop(media.matches && !getLowPerformancePreference());
     syncDesktop();
 
     media.addEventListener("change", syncDesktop);
+    motionMedia.addEventListener("change", syncDesktop);
     return () => {
       media.removeEventListener("change", syncDesktop);
+      motionMedia.removeEventListener("change", syncDesktop);
     };
   }, []);
 
