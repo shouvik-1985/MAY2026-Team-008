@@ -1,17 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
+  AlertTriangle,
+  Building2,
   BriefcaseBusiness,
+  CalendarClock,
   CheckCircle2,
+  ChevronRight,
   Clock,
   FileText,
+  GraduationCap,
   Github,
   Linkedin,
   Loader2,
-  Mail,
+  MapPin,
   Phone,
   Save,
   ShieldCheck,
+  Trash2,
   Upload,
   User,
   XCircle,
@@ -20,11 +26,14 @@ import {
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { GlassCard, PageTransition } from "@/components/app/cinematic";
 import {
+  applyToPlacementRole,
+  dismissPlacementRoleApplication,
   getPlacementStudentPortal,
   getStudentDashboard,
   openProtectedResource,
   submitPlacementApplication,
   type PlacementApplication,
+  type PlacementRole,
   type PlacementStudentPortal,
 } from "@/lib/api";
 import { setStoredDashboard } from "@/lib/student-session";
@@ -35,8 +44,11 @@ function PlacementPortalPage() {
   const [portal, setPortal] = useState<PlacementStudentPortal | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [applyingRoleId, setApplyingRoleId] = useState<number | null>(null);
+  const [clearingRoleId, setClearingRoleId] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
   const [skills, setSkills] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [github, setGithub] = useState("");
@@ -51,6 +63,7 @@ function PlacementPortalPage() {
     setLinkedin(data.application?.linkedinProfile ?? "");
     setGithub(data.application?.githubProfile ?? "");
     setPhone(data.application?.phoneNumber ?? "");
+    setSelectedRoleId((current) => (current && data.jobs.some((role) => role.id === current) ? current : null));
     if (successMessage) setStatus(successMessage);
     try {
       setStoredDashboard(await getStudentDashboard());
@@ -100,6 +113,71 @@ function PlacementPortalPage() {
       setStatus(error instanceof Error ? error.message : "Could not submit placement form");
     } finally {
       setSaving(false);
+    }
+  }
+
+  const roleOpenings = portal?.jobs ?? [];
+  const selectedRole = roleOpenings.find((role) => role.id === selectedRoleId) ?? null;
+
+  useEffect(() => {
+    if (selectedRoleId !== null && !roleOpenings.some((role) => role.id === selectedRoleId)) {
+      setSelectedRoleId(null);
+    }
+  }, [roleOpenings, selectedRoleId]);
+
+  async function applyForRole(role: PlacementRole) {
+    if (applyingRoleId) return;
+    setApplyingRoleId(role.id);
+    setStatus(null);
+    try {
+      const result = await applyToPlacementRole(role.id);
+      setPortal((current) =>
+        current
+          ? {
+              ...current,
+              jobs: current.jobs.map((item) => (item.id === result.role.id ? result.role : item)),
+            }
+          : current,
+      );
+      setSelectedRoleId(result.role.id);
+      setStatus(result.message);
+      try {
+        setStoredDashboard(await getStudentDashboard());
+      } catch {
+        // The placement portal state is already updated.
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not apply for this role");
+    } finally {
+      setApplyingRoleId(null);
+    }
+  }
+
+  async function removePastRole(role: PlacementRole) {
+    if (clearingRoleId) return;
+    if (role.applicationStatus !== "accepted" && role.applicationStatus !== "rejected") {
+      setStatus("Only accepted or rejected role history can be removed");
+      return;
+    }
+
+    setClearingRoleId(role.id);
+    setStatus(null);
+    try {
+      const result = await dismissPlacementRoleApplication(role.id);
+      setPortal((current) =>
+        current
+          ? {
+              ...current,
+              jobs: current.jobs.filter((item) => item.id !== role.id),
+            }
+          : current,
+      );
+      setSelectedRoleId((current) => (current === role.id ? null : current));
+      setStatus(result.message);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not remove this role history");
+    } finally {
+      setClearingRoleId(null);
     }
   }
 
@@ -184,10 +262,10 @@ function PlacementPortalPage() {
           </GlassCard>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+        <section className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
           <GlassCard>
             <PanelTitle icon={User} eyebrow="Student details" title="Prefilled placement profile" />
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
+            <div className="mt-6 grid gap-3">
               <ReadonlyField label="Student name" value={portal.student.name} />
               <ReadonlyField label="Email" value={portal.student.email} />
               <ReadonlyField label="Semester" value={`Sem ${portal.student.semester}`} />
@@ -224,7 +302,7 @@ function PlacementPortalPage() {
 
             {showForm ? (
               <form onSubmit={submit} className="mt-6 space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4">
                   <FormField icon={Phone} label="Phone number">
                     <input
                       required
@@ -302,42 +380,157 @@ function PlacementPortalPage() {
             ) : null}
           </GlassCard>
 
-          <div className="space-y-5">
-            <GlassCard>
+          <div className="min-h-0">
+            <GlassCard className="flex h-full min-h-[620px] flex-col overflow-hidden">
               <PanelTitle icon={BriefcaseBusiness} eyebrow="Job availability" title="Open roles" />
-              <div className="mt-6">
-                {portal.jobs.length ? (
-                  <div className="space-y-3">
-                    {portal.jobs.map((job, index) => (
-                      <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/70">
-                        {String(job)}
-                      </div>
-                    ))}
+              <div className="mt-6 min-h-0 flex-1">
+                {roleOpenings.length ? (
+                  <div className="flex h-full min-h-0 flex-col gap-4">
+                    <div className="max-h-[220px] shrink-0 space-y-3 overflow-y-auto pr-1">
+                      {roleOpenings.map((role) => {
+                        const isSelected = selectedRoleId === role.id;
+                        const canRemove = role.applicationStatus === "accepted" || role.applicationStatus === "rejected";
+                        return (
+                          <div
+                            key={role.id}
+                            className={`w-full rounded-2xl border p-4 text-left transition ${
+                              isSelected
+                                ? "border-emerald-300/30 bg-emerald-400/10 shadow-[0_0_24px_rgba(52,211,153,0.08)]"
+                                : "border-white/10 bg-white/[0.03] hover:border-white/18 hover:bg-white/[0.05]"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedRoleId((current) => (current === role.id ? null : role.id))}
+                                className="min-w-0 flex-1 text-left"
+                              >
+                                <div className="truncate font-semibold text-white" title={role.title}>
+                                  {role.title}
+                                </div>
+                                <div className="mt-1 truncate text-xs text-white/45" title={role.companyName}>
+                                  {role.companyName}
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/52">
+                                  <RoleMini icon={BriefcaseBusiness}>{titleCase(role.workMode)}</RoleMini>
+                                </div>
+                              </button>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <StudentRoleStatus status={role.applicationStatus} canApply={role.canApply} />
+                                {canRemove ? (
+                                  <button
+                                    type="button"
+                                    disabled={clearingRoleId === role.id}
+                                    onClick={() => void removePastRole(role)}
+                                    aria-label={`Remove ${role.title} history`}
+                                    className="grid size-8 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/45 transition hover:border-rose-300/25 hover:text-rose-100 disabled:cursor-wait disabled:opacity-50"
+                                    title="Remove from Open roles"
+                                  >
+                                    {clearingRoleId === role.id ? (
+                                      <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="size-3.5" />
+                                    )}
+                                  </button>
+                                ) : null}
+                                <ChevronRight className={`size-4 text-white/35 transition ${isSelected ? "rotate-90" : ""}`} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {selectedRole ? (
+                      <motion.div
+                        key={selectedRole.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.035]"
+                      >
+                        <div className="min-h-0 flex-1 overflow-y-auto p-4 pr-2">
+                          <div className="pr-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-[10px] uppercase tracking-[0.25em] text-white/35">
+                                {titleCase(selectedRole.roleType)}
+                              </div>
+                              <h3 className="mt-1 font-display text-2xl">{selectedRole.title}</h3>
+                            </div>
+                            <StudentRoleStatus status={selectedRole.applicationStatus} canApply={selectedRole.canApply} />
+                          </div>
+
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <RoleDetail icon={Building2} label="Company" value={selectedRole.companyName} />
+                            <RoleDetail icon={MapPin} label="Location" value={`${titleCase(selectedRole.workMode)} - ${selectedRole.location}`} />
+                            <RoleDetail icon={CalendarClock} label="Deadline" value={selectedRole.deadline} />
+                            <RoleDetail icon={ShieldCheck} label="Pay" value={selectedRole.compensation} />
+                            <RoleDetail icon={GraduationCap} label="Min sem" value={`Sem ${selectedRole.minimumSemester}+`} />
+                            <RoleDetail icon={CheckCircle2} label="Min CGPA" value={selectedRole.minimumCgpa.toFixed(1)} />
+                          </div>
+
+                          <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-4">
+                            <div className="text-[10px] uppercase tracking-[0.25em] text-white/35">Criteria</div>
+                            <p className="mt-2 text-sm leading-6 text-white/62">{selectedRole.description}</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {splitSkills(selectedRole.requiredSkills).map((skill) => (
+                                <span key={skill} className="rounded-full border border-emerald-300/18 bg-emerald-400/[0.09] px-3 py-1.5 text-sm text-emerald-50/90">
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                            {selectedRole.missingSkills?.length ? (
+                              <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-300/18 bg-amber-400/8 px-3 py-2 text-sm text-amber-50/78">
+                                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                                Missing: {selectedRole.missingSkills.join(", ")}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {selectedRole.decisionMessage ? (
+                            <div className="mt-4 border-l-2 border-emerald-400/55 pl-3 text-sm italic leading-6 text-white/58">
+                              {selectedRole.decisionMessage}
+                            </div>
+                          ) : null}
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 border-t border-white/8 bg-black/20 p-4">
+                          <button
+                            type="button"
+                            disabled={!selectedRole.canApply || applyingRoleId === selectedRole.id}
+                            onClick={() => void applyForRole(selectedRole)}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/12 px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-55"
+                          >
+                            {applyingRoleId === selectedRole.id ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <BriefcaseBusiness className="size-4" />
+                            )}
+                            {selectedRole.applicationStatus ? titleCase(selectedRole.applicationStatus) : "Apply for role"}
+                          </button>
+
+                          {selectedRole.applicationStatus === "accepted" || selectedRole.applicationStatus === "rejected" ? (
+                            <button
+                              type="button"
+                              disabled={clearingRoleId === selectedRole.id}
+                              onClick={() => void removePastRole(selectedRole)}
+                              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/58 transition hover:border-rose-300/25 hover:text-rose-100 disabled:cursor-wait disabled:opacity-50"
+                            >
+                              {clearingRoleId === selectedRole.id ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="size-4" />
+                              )}
+                              Remove past role
+                            </button>
+                          ) : null}
+                        </div>
+                      </motion.div>
+                    ) : null}
                   </div>
                 ) : (
                   <EmptyState text="No jobs right now." />
-                )}
-              </div>
-            </GlassCard>
-
-            <GlassCard>
-              <PanelTitle icon={Mail} eyebrow="Placement inbox" title="Notifications" />
-              <div className="mt-6 space-y-3">
-                {portal.notifications.length ? (
-                  portal.notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="font-medium">{notification.title}</div>
-                        <div className="text-[10px] text-white/40">{formatDateTime(notification.createdAt)}</div>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-white/55">{notification.body}</p>
-                    </div>
-                  ))
-                ) : (
-                  <EmptyState text="No placement messages yet." />
                 )}
               </div>
             </GlassCard>
@@ -376,7 +569,7 @@ function ApplicationDetails({
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3">
         <Detail label="Phone" value={application.phoneNumber} />
         <Detail label="Resume" value={application.resumeFilename} />
         <Detail label="LinkedIn" value={application.linkedinProfile || "Not added"} />
@@ -466,6 +659,54 @@ function PanelTitle({ icon: Icon, eyebrow, title }: { icon: LucideIcon; eyebrow:
   );
 }
 
+function RoleMini({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+      <Icon className="size-3 text-white/48" />
+      <span>{children}</span>
+    </span>
+  );
+}
+
+function RoleDetail({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-white/35">
+        <Icon className="size-3.5" />
+        {label}
+      </div>
+      <div className="mt-2 break-words text-sm text-white/72">{value}</div>
+    </div>
+  );
+}
+
+function StudentRoleStatus({
+  status,
+  canApply,
+}: {
+  status?: PlacementRole["applicationStatus"] | null;
+  canApply?: boolean;
+}) {
+  const label = status ? titleCase(status) : canApply ? "Open" : "Locked";
+  const styles =
+    status === "accepted"
+      ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+      : status === "rejected"
+        ? "border-rose-300/20 bg-rose-400/10 text-rose-100"
+        : status === "applied"
+          ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+          : canApply
+            ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+            : "border-white/10 bg-white/[0.04] text-white/48";
+  const Icon = status === "accepted" ? CheckCircle2 : status === "rejected" ? XCircle : status === "applied" ? Clock : canApply ? CheckCircle2 : Clock;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.16em] ${styles}`}>
+      <Icon className="size-3.5" />
+      {label}
+    </span>
+  );
+}
+
 function StatusPill({ status }: { status: string }) {
   const selected = status === "selected";
   return (
@@ -488,6 +729,22 @@ function EmptyState({ text }: { text: string }) {
       {text}
     </div>
   );
+}
+
+function splitSkills(value: string) {
+  const parts = value
+    .split(/[\n,]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length ? parts : [value];
+}
+
+function titleCase(value: string) {
+  return value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }
 
 function formatDateTime(value: string) {

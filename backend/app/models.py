@@ -273,6 +273,73 @@ class PlacementApplication(Base):
     selected_by: Mapped[User | None] = relationship(foreign_keys=[selected_by_id])
 
 
+class PlacementRole(Base):
+    __tablename__ = "placement_roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    manager_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    company_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    role_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    location: Mapped[str] = mapped_column(String(160), nullable=False)
+    work_mode: Mapped[str] = mapped_column(String(40), nullable=False)
+    compensation: Mapped[str] = mapped_column(String(120), nullable=False)
+    deadline: Mapped[str] = mapped_column(String(80), nullable=False)
+    minimum_semester: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    minimum_cgpa: Mapped[float] = mapped_column(Float, default=7.5, nullable=False)
+    required_skills: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="open", nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    manager: Mapped[User] = relationship(foreign_keys=[manager_id])
+    applications: Mapped[list["PlacementRoleApplication"]] = relationship(
+        back_populates="role",
+        cascade="all, delete-orphan",
+    )
+
+
+class PlacementRoleApplication(Base):
+    __tablename__ = "placement_role_applications"
+    __table_args__ = (UniqueConstraint("role_id", "student_id", name="uq_placement_role_student"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    role_id: Mapped[int] = mapped_column(ForeignKey("placement_roles.id"), nullable=False, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    placement_application_id: Mapped[int] = mapped_column(
+        ForeignKey("placement_applications.id"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(40), default="applied", nullable=False, index=True)
+    decision_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dismissed_by_student: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    dismissed_by_manager: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    role: Mapped[PlacementRole] = relationship(back_populates="applications")
+    student: Mapped[User] = relationship(foreign_keys=[student_id])
+    placement_application: Mapped[PlacementApplication] = relationship(foreign_keys=[placement_application_id])
+    decided_by: Mapped[User | None] = relationship(foreign_keys=[decided_by_id])
+
+
 class PlacementNotification(Base):
     __tablename__ = "placement_notifications"
 

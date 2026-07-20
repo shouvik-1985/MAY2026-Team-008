@@ -34,6 +34,7 @@ function PlacementLayout() {
 
 const PLACEMENT_NAV: { href: string; label: string; icon: ComponentType<{ className?: string }> }[] = [
   { href: "#dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "#roles", label: "Roles", icon: BriefcaseBusiness },
   { href: "#applicants", label: "Applicants", icon: UserCheck },
   { href: "#messages", label: "Messages", icon: Mail },
 ];
