@@ -742,7 +742,7 @@ def verify_biometric_attendance(
             checkin.status = "biometric_mismatch"
             db.commit()
             raise HTTPException(
-                status_code=401,
+                status_code=409,
                 detail="Face recognition did not match this student account. Please use the enrolled face and try again.",
             )
     else:

@@ -678,15 +678,33 @@ export type ConnectHubData = {
 
 type RequestOptions = RequestInit & { auth?: boolean };
 
+function shouldClearAuthSession(status: number, message: string) {
+  if (status === 423) return true;
+  if (status !== 401) return false;
+  const normalized = message.toLowerCase();
+  return (
+    normalized === "not authenticated" ||
+    normalized === "could not validate credentials" ||
+    normalized.includes("token") ||
+    normalized.includes("login session")
+  );
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const token = getAuthToken();
+  const requiresAuth = options.auth !== false;
+
+  if (requiresAuth && !token) {
+    clearAuthSession();
+    throw new Error("Your login session expired. Please sign in again.");
+  }
 
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   if (!headers.has("Content-Type") && options.body && !isFormData) {
     headers.set("Content-Type", "application/json");
   }
-  if (options.auth !== false && token) {
+  if (requiresAuth && token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
@@ -695,17 +713,20 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers,
   });
 
-  if (res.status === 401 || res.status === 423) {
-    clearAuthSession();
-  }
-
   if (!res.ok) {
     let message = `Request failed with ${res.status}`;
     try {
       const body = await res.json();
-      message = body.detail ?? message;
+      if (typeof body.detail === "string") {
+        message = body.detail;
+      } else if (body.detail) {
+        message = JSON.stringify(body.detail);
+      }
     } catch {
       // Keep the default message.
+    }
+    if (requiresAuth && shouldClearAuthSession(res.status, message)) {
+      clearAuthSession();
     }
     throw new Error(message);
   }
