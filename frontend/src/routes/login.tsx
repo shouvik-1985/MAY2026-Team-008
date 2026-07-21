@@ -13,18 +13,24 @@ import {
 } from "react";
 import {
   ArrowRight,
+  Award,
   BookOpen,
   BriefcaseBusiness,
   Building2,
+  Calendar,
+  ClipboardCheck,
+  CreditCard,
   Eye,
   EyeOff,
   FileCheck2,
+  FileText,
   GraduationCap,
   Landmark,
   Library,
   Lock,
   Mail,
   MapPin,
+  MessageSquareWarning,
   MoonStar,
   Sparkles,
   ShieldCheck,
@@ -258,7 +264,7 @@ function LoginPage() {
   return (
     <>
       <CinematicBackdrop intensity={0.55} />
-      <div className="relative min-h-screen overflow-hidden px-4 py-6 text-white sm:px-6 sm:py-8">
+      <div className="relative min-h-screen flex flex-col overflow-x-hidden px-4 py-6 text-white sm:px-6 sm:py-8">
         <motion.div
           className="pointer-events-none absolute left-[8%] top-[10%] h-44 w-44 rounded-full blur-3xl"
           style={{
@@ -293,7 +299,7 @@ function LoginPage() {
           initial={{ opacity: 0, y: 28, filter: "blur(16px)" }}
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="relative mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center justify-center"
+          className="relative mx-auto my-auto w-full max-w-5xl"
         >
           <motion.div
             layout
@@ -307,13 +313,9 @@ function LoginPage() {
           >
             <CuteLoginScene mood={activeSceneMood} pointer={scenePointer} />
 
-            <div
-              className={`relative flex min-h-[680px] flex-col rounded-[1.8rem] bg-[linear-gradient(180deg,oklch(0.1_0.02_280_/_0.95),oklch(0.07_0.01_280_/_0.98))] px-7 py-10 sm:px-12 lg:h-full lg:overflow-hidden ${
-                isProfessorRegistration ? "" : "justify-center"
-              }`}
-            >
+            <div className="relative flex min-h-[680px] flex-col rounded-[1.8rem] bg-[linear-gradient(180deg,oklch(0.1_0.02_280_/_0.95),oklch(0.07_0.01_280_/_0.98))] px-7 py-10 sm:px-12 lg:min-h-0 lg:h-full lg:overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10 hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(106,209,255,0.12),transparent_60%)]" />
-              <div className={`flex min-h-0 flex-1 flex-col ${isRegistration ? "" : "justify-center"}`}>
+              <div className={`flex min-h-0 w-full flex-col ${isRegistration ? "" : "my-auto"}`}>
                 <motion.div
                   className="mx-auto mb-8 grid size-14 place-items-center rounded-[1.25rem] border border-cyan-300/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.1),rgba(255,255,255,0.04))] text-white shadow-[0_14px_30px_rgba(0,0,0,0.28)]"
                   animate={{ y: [0, -5, 0], rotate: [0, -4, 0] }}
@@ -404,7 +406,7 @@ function LoginPage() {
                   )}
                 </div>
 
-                <div className={isRegistration ? "min-h-0 flex-1 overflow-y-auto pr-2" : ""}>
+                <div className="mt-4">
                   <form onSubmit={submit} className="space-y-5">
                     {mode === "register" && (
                       <Field
@@ -621,7 +623,7 @@ function LoginPage() {
                   </form>
                 </div>
 
-                <div className="mt-auto pt-6">
+                <div className="mt-5">
                   {showGoogleAccess && (
                     <>
                       <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.24em] text-white/24">
@@ -642,7 +644,7 @@ function LoginPage() {
                     </>
                   )}
 
-                  <div className="mt-8 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-center text-xs text-white/42">
+                  <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-center text-xs text-white/42">
                     {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
                     <button
                       type="button"
@@ -678,14 +680,14 @@ function CuteLoginScene({ mood, pointer }: { mood: SceneMood; pointer: ScenePoin
 
   return (
     <motion.div
-      className="relative hidden min-h-full overflow-hidden border-r border-white/8 bg-[#07070d] lg:block"
+      className="relative hidden min-h-full w-full overflow-hidden border-r border-white/8 bg-[#07070d] lg:flex lg:flex-col"
       animate={{
         x: pointer.x * 4,
         y: pointer.y * 4,
       }}
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(67,191,255,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(116,255,213,0.12),transparent_30%),linear-gradient(135deg,#041018_0%,#07111b_42%,#090913_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.12),transparent_30%),linear-gradient(135deg,#040714_0%,#090911_42%,#05050f_100%)]" />
       <div className="absolute inset-0 grid-bg opacity-[0.14]" />
       <div className={`absolute inset-0 bg-gradient-to-br ${toneClass}`} />
       <div
@@ -713,10 +715,10 @@ function CuteLoginScene({ mood, pointer }: { mood: SceneMood; pointer: ScenePoin
         />
       </motion.div>
 
-      <div className="relative flex h-full flex-col justify-between p-10">
-        <div className="max-w-lg">
+      <div className="relative flex flex-1 w-full flex-col justify-between p-10 pb-8">
+        <div className="w-full max-w-[620px]">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-white/45">
-            <span className="size-1.5 rounded-full bg-cyan-300" />
+            <span className="size-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" />
             Campus access
           </div>
           <h2 className="max-w-md font-display text-4xl font-bold leading-[0.95] tracking-tight text-white">
@@ -725,21 +727,22 @@ function CuteLoginScene({ mood, pointer }: { mood: SceneMood; pointer: ScenePoin
           <p className="mt-4 max-w-sm text-sm leading-6 text-white/50">
             Smarter campus life, all in one place.
           </p>
-          <div className="mt-6 grid max-w-md grid-cols-3 gap-3">
+          <div className="mt-8 grid w-full grid-cols-3 gap-4">
             <SceneMetric value="24/7" label="smart access" />
             <SceneMetric value="1 hub" label="campus tools" />
             <SceneMetric value="secure" label="verified flow" />
           </div>
         </div>
 
-        <motion.div
-          className="relative mx-auto mt-6 w-full max-w-[620px]"
-          animate={{ y: mood === "success" ? [0, -8, 0] : [0, -2, 0] }}
-          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <div className="absolute inset-x-16 bottom-0 h-14 rounded-full bg-cyan-400/12 blur-3xl" />
-          <div className="glass-strong relative overflow-hidden rounded-[30px] border border-white/10 shadow-[0_30px_70px_rgba(0,0,0,0.35)]">
-            <div className="relative h-[540px] overflow-hidden rounded-[30px] bg-[linear-gradient(180deg,#08111a_0%,#0d1822_38%,#101820_100%)]">
+        <div className="flex flex-col gap-6">
+          <motion.div
+            className="relative w-full max-w-[620px]"
+            animate={{ y: mood === "success" ? [0, -8, 0] : [0, -2, 0] }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <div className="absolute inset-x-16 bottom-0 h-14 rounded-full bg-cyan-400/12 blur-3xl" />
+            <div className="glass-strong relative overflow-hidden rounded-[30px] border border-white/10 shadow-[0_30px_70px_rgba(0,0,0,0.35),0_0_40px_rgba(99,102,241,0.12)]">
+              <div className="relative h-[540px] overflow-hidden rounded-[30px] bg-[linear-gradient(180deg,#0a0b16_0%,#0c0d1b_38%,#080811_100%)]">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(116,214,255,0.18),transparent_32%)]" />
               <div className="absolute inset-x-0 bottom-0 h-[42%] bg-[linear-gradient(180deg,rgba(9,17,26,0),rgba(11,20,28,0.94)_45%,rgba(11,20,28,1)_100%)]" />
               <div className="absolute left-0 right-0 top-0 h-28 bg-[linear-gradient(180deg,rgba(130,210,255,0.08),transparent)]" />
@@ -757,10 +760,6 @@ function CuteLoginScene({ mood, pointer }: { mood: SceneMood; pointer: ScenePoin
                   <div className="mt-2 max-w-xs text-[2rem] font-semibold leading-tight text-white">
                     Smart campus.
                   </div>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] text-cyan-200">
-                  <MoonStar className="size-3.5" />
-                  Evening mode
                 </div>
               </div>
 
@@ -840,7 +839,8 @@ function CuteLoginScene({ mood, pointer }: { mood: SceneMood; pointer: ScenePoin
               </div>
             </div>
           </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </motion.div>
   );
@@ -848,9 +848,9 @@ function CuteLoginScene({ mood, pointer }: { mood: SceneMood; pointer: ScenePoin
 
 function SceneMetric({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 backdrop-blur-xl">
-      <div className="text-lg font-semibold text-white">{value}</div>
-      <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-white/36">{label}</div>
+    <div className="group rounded-2xl border border-white/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] px-4 py-3 backdrop-blur-md transition-all duration-300 hover:border-indigo-400/20 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] hover:shadow-[0_4px_16px_rgba(99,102,241,0.1)]">
+      <div className="text-lg font-semibold text-white transition-colors group-hover:text-indigo-50">{value}</div>
+      <div className="mt-1 text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors group-hover:text-indigo-200/60">{label}</div>
     </div>
   );
 }
@@ -995,5 +995,31 @@ function Field({
         />
       </div>
     </label>
+  );
+}
+
+function FeatureShowcaseCard({
+  icon: Icon,
+  title,
+  hint,
+  className,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  hint: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`group rounded-[20px] border border-white/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/20 hover:shadow-[0_8px_24px_rgba(34,211,238,0.08)] hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] ${
+        className || ""
+      }`}
+    >
+      <div className="mb-2.5 flex items-center gap-2.5 text-white/90 transition-colors group-hover:text-white">
+        <Icon className="size-5 text-cyan-200/80 transition-colors group-hover:text-cyan-300" />
+        <div className="text-[13px] font-semibold">{title}</div>
+      </div>
+      <div className="text-xs leading-5 text-white/40 transition-colors group-hover:text-white/55">{hint}</div>
+    </div>
   );
 }

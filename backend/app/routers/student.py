@@ -21,6 +21,7 @@ from app.dependencies import get_current_user
 from app.db import get_db
 from app.intake_flow import resolve_student_semester
 from app.models import (
+    Announcement,
     PlacementNotification,
     Role,
     StudentAttendance,
@@ -370,6 +371,27 @@ def _placement_notification_rows(db: Session, student_id: int) -> list[dict]:
     ]
 
 
+def _student_announcement_rows(db: Session, user: User) -> list[dict]:
+    announcements = (
+        db.query(Announcement)
+        .order_by(desc(Announcement.created_at))
+        .limit(10)
+        .all()
+    )
+    return [
+        {
+            "id": item.id,
+            "pinned": item.pinned,
+            "title": item.title,
+            "category": item.category,
+            "time": item.created_at.strftime("%d %b, %I:%M %p"),
+            "unread": True,
+            "body": item.body,
+        }
+        for item in announcements
+    ]
+
+
 def _complaint_rows(
     db: Session,
     user: User,
@@ -538,33 +560,7 @@ def _student_dataset(db: Session, user: User) -> dict:
         ],
         "announcements": [
             *_placement_notification_rows(db, user.id),
-            {
-                "id": user.id * 10 + 1,
-                "pinned": True,
-                "title": "Mid-Sem Schedule Released",
-                "category": "Academic",
-                "time": "12 min ago",
-                "unread": True,
-                "body": f"Semester {semester} examination updates are available for {first_name}.",
-            },
-            {
-                "id": user.id * 10 + 2,
-                "pinned": bool(due_amount),
-                "title": f"Semester {semester} fee status updated",
-                "category": "Fees",
-                "time": "Yesterday",
-                "unread": bool(due_amount),
-                "body": "Your fee clearance is pending." if due_amount else "Your current fee status is cleared.",
-            },
-            {
-                "id": user.id * 10 + 3,
-                "pinned": False,
-                "title": "New study resources added",
-                "category": "Library",
-                "time": "3 days ago",
-                "unread": False,
-                "body": f"Fresh resources for {department} students are ready in the library module.",
-            },
+            *_student_announcement_rows(db, user),
         ],
         "assignment_items": [
             {"id": user.id * 10 + 1, "title": f"{first_name}'s Research Brief", "subject": "Research", "due": "tomorrow", "progress": min(98, 55 + seed * 5), "status": "ongoing"},
