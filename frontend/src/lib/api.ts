@@ -283,6 +283,65 @@ export type PlacementNotification = {
   createdAt: string;
 };
 
+export type PlacementRoleStatus = "open" | "closed" | string;
+export type PlacementRoleApplicationStatus = "applied" | "accepted" | "rejected" | string;
+
+export type PlacementRole = {
+  id: number;
+  title: string;
+  companyName: string;
+  roleType: "internship" | "job" | string;
+  location: string;
+  workMode: "onsite" | "hybrid" | "remote" | string;
+  compensation: string;
+  deadline: string;
+  minimumSemester: number;
+  minimumCgpa: number;
+  requiredSkills: string;
+  description: string;
+  status: PlacementRoleStatus;
+  active?: boolean;
+  deadlineExpired?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  semesterReady?: boolean;
+  cgpaReady?: boolean;
+  skillsReady?: boolean;
+  criteriaReady?: boolean;
+  missingSkills?: string[];
+  profileSubmitted?: boolean;
+  canApply?: boolean;
+  applicationStatus?: PlacementRoleApplicationStatus | null;
+  roleApplicationId?: number | null;
+  dismissedByStudent?: boolean;
+  decisionMessage?: string | null;
+  appliedAt?: string | null;
+  decidedAt?: string | null;
+};
+
+export type PlacementRoleApplicant = {
+  id: number;
+  roleId: number;
+  studentId: number;
+  status: PlacementRoleApplicationStatus;
+  decisionMessage: string | null;
+  dismissedByStudent?: boolean;
+  dismissedByManager?: boolean;
+  decidedAt: string | null;
+  appliedAt: string;
+  updatedAt: string;
+  semesterReady: boolean;
+  cgpaReady: boolean;
+  skillsReady: boolean;
+  criteriaReady: boolean;
+  missingSkills: string[];
+  application: PlacementApplication;
+};
+
+export type PlacementManagerRole = PlacementRole & {
+  applicants: PlacementRoleApplicant[];
+};
+
 export type PlacementStudentPortal = {
   student: {
     id: number;
@@ -300,7 +359,7 @@ export type PlacementStudentPortal = {
   eligible: boolean;
   application: PlacementApplication | null;
   notifications: PlacementNotification[];
-  jobs: unknown[];
+  jobs: PlacementRole[];
 };
 
 export type PlacementManagerDashboard = {
@@ -319,6 +378,7 @@ export type PlacementManagerDashboard = {
     pendingStudents: number;
   };
   applications: PlacementApplication[];
+  roles: PlacementManagerRole[];
 };
 
 export type ComplaintStatus = "submitted" | "acknowledged" | "in_progress" | "resolved";
@@ -690,6 +750,32 @@ function shouldClearAuthSession(status: number, message: string) {
   );
 }
 
+function labelFromValidationLocation(location: unknown) {
+  if (!Array.isArray(location)) return "Request";
+  const field = location.filter((part) => part !== "body").at(-1);
+  if (typeof field !== "string" && typeof field !== "number") return "Request";
+  return String(field)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatErrorDetail(detail: unknown, fallback: string) {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (!item || typeof item !== "object") return "";
+        const record = item as { loc?: unknown; msg?: unknown };
+        const msg = typeof record.msg === "string" ? record.msg : "";
+        if (!msg) return "";
+        return `${labelFromValidationLocation(record.loc)}: ${msg}`;
+      })
+      .filter(Boolean);
+    return messages.length ? messages.join("\n") : fallback;
+  }
+  return fallback;
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const token = getAuthToken();
@@ -717,11 +803,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     let message = `Request failed with ${res.status}`;
     try {
       const body = await res.json();
-      if (typeof body.detail === "string") {
-        message = body.detail;
-      } else if (body.detail) {
-        message = JSON.stringify(body.detail);
-      }
+      message = formatErrorDetail(body.detail, message);
     } catch {
       // Keep the default message.
     }
@@ -822,6 +904,67 @@ export function submitPlacementApplication(payload: FormData) {
 
 export function getPlacementManagerDashboard() {
   return request<PlacementManagerDashboard>("/placement/manager/dashboard");
+}
+
+export function createPlacementRole(payload: {
+  title: string;
+  company_name: string;
+  role_type: "internship" | "job";
+  location: string;
+  work_mode: "onsite" | "hybrid" | "remote";
+  compensation: string;
+  deadline: string;
+  minimum_semester: number;
+  minimum_cgpa: number;
+  required_skills: string;
+  description: string;
+}) {
+  return request<{ ok: boolean; role: PlacementManagerRole; message: string }>("/placement/manager/roles", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deletePlacementRole(roleId: number) {
+  return request<{ ok: boolean; roleId: number; message: string }>(`/placement/manager/roles/${roleId}`, {
+    method: "DELETE",
+  });
+}
+
+export function applyToPlacementRole(roleId: number) {
+  return request<{ ok: boolean; role: PlacementRole; message: string }>(`/placement/student/roles/${roleId}/apply`, {
+    method: "POST",
+  });
+}
+
+export function dismissPlacementRoleApplication(roleId: number) {
+  return request<{ ok: boolean; roleId: number; message: string }>(`/placement/student/roles/${roleId}/application`, {
+    method: "DELETE",
+  });
+}
+
+export function decidePlacementRoleApplication(
+  roleId: number,
+  roleApplicationId: number,
+  payload: { status: "accepted" | "rejected"; message?: string },
+) {
+  return request<{
+    ok: boolean;
+    roleApplication: PlacementRoleApplicant;
+    notification: string;
+  }>(`/placement/manager/roles/${roleId}/applications/${roleApplicationId}/decision`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function dismissPlacementRoleApplicant(roleId: number, roleApplicationId: number) {
+  return request<{ ok: boolean; roleId: number; roleApplicationId: number; message: string }>(
+    `/placement/manager/roles/${roleId}/applications/${roleApplicationId}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export function selectPlacementApplication(applicationId: number, payload: { opportunity_title?: string }) {

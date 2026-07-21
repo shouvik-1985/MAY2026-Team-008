@@ -1,17 +1,17 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.attendance_flow import get_campus_attendance_setting
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.intake_flow import resolve_student_semester
-from app.models import PlacementApplication, PlacementNotification, Role, User
-from app.schemas import PlacementSelectionRequest
+from app.models import PlacementApplication, PlacementNotification, PlacementRole, PlacementRoleApplication, Role, User
+from app.schemas import PlacementRoleCreate, PlacementRoleDecisionRequest, PlacementSelectionRequest
 from app.workers.tasks import send_placement_selection_email
 
 router = APIRouter(prefix="/placement", tags=["placement"])
@@ -50,6 +50,29 @@ def _clean_optional_url(value: str, *, field: str) -> str:
     if len(cleaned) > 500:
         raise HTTPException(status_code=422, detail=f"{field} is too long")
     return cleaned
+
+
+def _parse_role_deadline(value: str) -> date | None:
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    for fmt in ("%Y-%m-%d", "%b %d, %Y", "%B %d, %Y", "%d %b %Y", "%d %B %Y"):
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            pass
+    for fmt in ("%b %d", "%B %d", "%d %b", "%d %B"):
+        try:
+            parsed = datetime.strptime(cleaned, fmt)
+            return date(_now().year, parsed.month, parsed.day)
+        except ValueError:
+            pass
+    return None
+
+
+def _role_deadline_expired(role: PlacementRole) -> bool:
+    deadline = _parse_role_deadline(role.deadline)
+    return deadline is not None and deadline < _now().date()
 
 
 def _student_snapshot(db: Session, student: User) -> dict:
@@ -119,6 +142,131 @@ def _notification_payload(notification: PlacementNotification) -> dict:
     }
 
 
+def _split_criteria_skills(value: str) -> list[str]:
+    return [
+        item.strip()
+        for item in value.replace("\n", ",").split(",")
+        if item.strip()
+    ]
+
+
+def _missing_role_skills(role: PlacementRole, application: PlacementApplication | None) -> list[str]:
+    if not application:
+        return _split_criteria_skills(role.required_skills)
+    skill_text = application.skills.lower()
+    return [
+        skill
+        for skill in _split_criteria_skills(role.required_skills)
+        if skill.lower() not in skill_text
+    ]
+
+
+def _role_readiness(
+    role: PlacementRole,
+    *,
+    semester: int,
+    cgpa: float,
+    application: PlacementApplication | None,
+) -> dict:
+    missing_skills = _missing_role_skills(role, application)
+    semester_ready = semester >= role.minimum_semester
+    cgpa_ready = cgpa >= role.minimum_cgpa
+    return {
+        "semesterReady": semester_ready,
+        "cgpaReady": cgpa_ready,
+        "skillsReady": not missing_skills,
+        "criteriaReady": semester_ready and cgpa_ready and not missing_skills,
+        "missingSkills": missing_skills,
+    }
+
+
+def _role_base_payload(role: PlacementRole) -> dict:
+    return {
+        "id": role.id,
+        "title": role.title,
+        "companyName": role.company_name,
+        "roleType": role.role_type,
+        "location": role.location,
+        "workMode": role.work_mode,
+        "compensation": role.compensation,
+        "deadline": role.deadline,
+        "minimumSemester": role.minimum_semester,
+        "minimumCgpa": role.minimum_cgpa,
+        "requiredSkills": role.required_skills,
+        "description": role.description,
+        "status": role.status,
+        "active": role.active,
+        "deadlineExpired": _role_deadline_expired(role),
+        "createdAt": role.created_at.isoformat(),
+        "updatedAt": role.updated_at.isoformat(),
+    }
+
+
+def _student_role_payload(
+    role: PlacementRole,
+    *,
+    snapshot: dict,
+    application: PlacementApplication | None,
+    role_application: PlacementRoleApplication | None,
+) -> dict:
+    readiness = _role_readiness(
+        role,
+        semester=snapshot["semester"],
+        cgpa=snapshot["cgpa"],
+        application=application,
+    )
+    sem_cgpa_ready = readiness["semesterReady"] and readiness["cgpaReady"]
+    return {
+        **_role_base_payload(role),
+        **readiness,
+        "profileSubmitted": application is not None,
+        "canApply": application is not None and sem_cgpa_ready and role_application is None and role.status == "open",
+        "applicationStatus": role_application.status if role_application else None,
+        "roleApplicationId": role_application.id if role_application else None,
+        "dismissedByStudent": role_application.dismissed_by_student if role_application else False,
+        "decisionMessage": role_application.decision_message if role_application else None,
+        "appliedAt": role_application.created_at.isoformat() if role_application else None,
+        "decidedAt": role_application.decided_at.isoformat() if role_application and role_application.decided_at else None,
+    }
+
+
+def _role_application_payload(role_application: PlacementRoleApplication) -> dict:
+    application = role_application.placement_application
+    role = role_application.role
+    readiness = _role_readiness(
+        role,
+        semester=application.semester,
+        cgpa=application.cgpa,
+        application=application,
+    )
+    return {
+        "id": role_application.id,
+        "roleId": role_application.role_id,
+        "studentId": role_application.student_id,
+        "status": role_application.status,
+        "decisionMessage": role_application.decision_message,
+        "dismissedByStudent": role_application.dismissed_by_student,
+        "dismissedByManager": role_application.dismissed_by_manager,
+        "decidedAt": role_application.decided_at.isoformat() if role_application.decided_at else None,
+        "appliedAt": role_application.created_at.isoformat(),
+        "updatedAt": role_application.updated_at.isoformat(),
+        **readiness,
+        "application": _application_payload(application),
+    }
+
+
+def _manager_role_payload(role: PlacementRole) -> dict:
+    applicants = sorted(
+        [item for item in role.applications if not item.dismissed_by_manager],
+        key=lambda item: item.created_at,
+        reverse=True,
+    )
+    return {
+        **_role_base_payload(role),
+        "applicants": [_role_application_payload(application) for application in applicants],
+    }
+
+
 def _notifications_for_student(db: Session, student_id: int) -> list[dict]:
     notifications = (
         db.query(PlacementNotification)
@@ -171,6 +319,27 @@ def student_portal(
         .filter(PlacementApplication.student_id == current_user.id)
         .first()
     )
+    all_role_applications = (
+        db.query(PlacementRoleApplication)
+        .filter(PlacementRoleApplication.student_id == current_user.id)
+        .all()
+    )
+    dismissed_role_ids = {
+        item.role_id
+        for item in all_role_applications
+        if item.dismissed_by_student and item.status in {"accepted", "rejected"}
+    }
+    role_applications = {
+        item.role_id: item
+        for item in all_role_applications
+        if not item.dismissed_by_student
+    }
+    roles = (
+        db.query(PlacementRole)
+        .filter(PlacementRole.status == "open", PlacementRole.active.is_(True))
+        .order_by(desc(PlacementRole.updated_at))
+        .all()
+    )
     return {
         "student": snapshot,
         "criteria": {
@@ -180,7 +349,16 @@ def student_portal(
         "eligible": _is_eligible(snapshot),
         "application": _application_payload(application) if application else None,
         "notifications": _notifications_for_student(db, current_user.id),
-        "jobs": [],
+        "jobs": [
+            _student_role_payload(
+                role,
+                snapshot=snapshot,
+                application=application,
+                role_application=role_applications.get(role.id),
+            )
+            for role in roles
+            if role.id not in dismissed_role_ids
+        ],
     }
 
 
@@ -262,6 +440,99 @@ async def upsert_student_application(
     }
 
 
+@router.post("/student/roles/{role_id}/apply")
+def apply_to_role(
+    role_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    role = db.get(PlacementRole, role_id)
+    if not role or role.status != "open" or not role.active:
+        raise HTTPException(status_code=404, detail="Placement role is not available")
+
+    snapshot = _student_snapshot(db, current_user)
+    application = (
+        db.query(PlacementApplication)
+        .filter(PlacementApplication.student_id == current_user.id)
+        .first()
+    )
+    if not application:
+        raise HTTPException(status_code=409, detail="Submit your placement profile before applying for roles")
+    if snapshot["semester"] < role.minimum_semester or snapshot["cgpa"] < role.minimum_cgpa:
+        raise HTTPException(status_code=409, detail="You do not meet this role's semester or CGPA criteria")
+
+    role_application = (
+        db.query(PlacementRoleApplication)
+        .filter(
+            PlacementRoleApplication.role_id == role.id,
+            PlacementRoleApplication.student_id == current_user.id,
+        )
+        .first()
+    )
+    if role_application:
+        return {
+            "ok": True,
+            "role": _student_role_payload(
+                role,
+                snapshot=snapshot,
+                application=application,
+                role_application=role_application,
+            ),
+            "message": f"You already applied for {role.title}",
+        }
+
+    role_application = PlacementRoleApplication(
+        role_id=role.id,
+        student_id=current_user.id,
+        placement_application_id=application.id,
+        status="applied",
+    )
+    db.add(role_application)
+    db.commit()
+    db.refresh(role_application)
+    return {
+        "ok": True,
+        "role": _student_role_payload(
+            role,
+            snapshot=snapshot,
+            application=application,
+            role_application=role_application,
+        ),
+        "message": f"Applied for {role.title}",
+    }
+
+
+@router.delete("/student/roles/{role_id}/application")
+def dismiss_role_application(
+    role_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    role_application = (
+        db.query(PlacementRoleApplication)
+        .filter(
+            PlacementRoleApplication.role_id == role_id,
+            PlacementRoleApplication.student_id == current_user.id,
+        )
+        .first()
+    )
+    if not role_application:
+        raise HTTPException(status_code=404, detail="Role application not found")
+    if role_application.status not in {"accepted", "rejected"}:
+        raise HTTPException(status_code=409, detail="Only accepted or rejected role history can be removed")
+
+    role_application.dismissed_by_student = True
+    role_application.updated_at = _now()
+    db.commit()
+    return {
+        "ok": True,
+        "roleId": role_id,
+        "message": "Role history removed from Open roles",
+    }
+
+
 @router.get("/manager/dashboard")
 def manager_dashboard(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -275,6 +546,16 @@ def manager_dashboard(
             PlacementApplication.cgpa >= MIN_PLACEMENT_CGPA,
         )
         .order_by(desc(PlacementApplication.updated_at))
+        .all()
+    )
+    roles = (
+        db.query(PlacementRole)
+        .options(
+            selectinload(PlacementRole.applications)
+            .selectinload(PlacementRoleApplication.placement_application)
+        )
+        .filter(PlacementRole.manager_id == current_user.id, PlacementRole.active.is_(True))
+        .order_by(desc(PlacementRole.updated_at))
         .all()
     )
     selected = [application for application in applications if application.status == "selected"]
@@ -294,6 +575,161 @@ def manager_dashboard(
             "pendingStudents": len(applications) - len(selected),
         },
         "applications": [_application_payload(application) for application in applications],
+        "roles": [_manager_role_payload(role) for role in roles],
+    }
+
+
+@router.post("/manager/roles")
+def create_role(
+    payload: PlacementRoleCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_placement_manager(current_user)
+    role = PlacementRole(
+        manager_id=current_user.id,
+        title=payload.title,
+        company_name=payload.company_name,
+        role_type=payload.role_type,
+        location=payload.location,
+        work_mode=payload.work_mode,
+        compensation=payload.compensation,
+        deadline=payload.deadline,
+        minimum_semester=payload.minimum_semester,
+        minimum_cgpa=payload.minimum_cgpa,
+        required_skills=payload.required_skills,
+        description=payload.description,
+        status="open",
+        active=True,
+    )
+    db.add(role)
+    db.commit()
+    db.refresh(role)
+    return {
+        "ok": True,
+        "role": _manager_role_payload(role),
+        "message": f"{role.title} role created",
+    }
+
+
+@router.delete("/manager/roles/{role_id}")
+def delete_expired_role(
+    role_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_placement_manager(current_user)
+    role = db.get(PlacementRole, role_id)
+    if not role or role.manager_id != current_user.id or not role.active:
+        raise HTTPException(status_code=404, detail="Placement role not found")
+    if not _role_deadline_expired(role):
+        raise HTTPException(status_code=409, detail="Role can be deleted after its deadline has passed")
+
+    role.active = False
+    role.status = "closed"
+    role.updated_at = _now()
+    db.commit()
+    return {
+        "ok": True,
+        "roleId": role_id,
+        "message": f"{role.title} role removed",
+    }
+
+
+@router.post("/manager/roles/{role_id}/applications/{role_application_id}/decision")
+def decide_role_application(
+    role_id: int,
+    role_application_id: int,
+    payload: PlacementRoleDecisionRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_placement_manager(current_user)
+    role = db.get(PlacementRole, role_id)
+    if not role or role.manager_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Placement role not found")
+    role_application = (
+        db.query(PlacementRoleApplication)
+        .options(selectinload(PlacementRoleApplication.placement_application))
+        .filter(
+            PlacementRoleApplication.id == role_application_id,
+            PlacementRoleApplication.role_id == role.id,
+        )
+        .first()
+    )
+    if not role_application:
+        raise HTTPException(status_code=404, detail="Role application not found")
+
+    application = role_application.placement_application
+    moment = _now()
+    if payload.status == "accepted":
+        message = payload.message or f"Dear {application.student_name}, You're accepted for {role.title} at {role.company_name}."
+        title = "Placement role accepted"
+    else:
+        message = payload.message or (
+            f"Dear {application.student_name}, your application for {role.title} at {role.company_name} was rejected."
+        )
+        title = "Placement role rejected"
+
+    role_application.status = payload.status
+    role_application.decision_message = message
+    role_application.decided_by_id = current_user.id
+    role_application.decided_at = moment
+    role_application.dismissed_by_student = False
+    role_application.dismissed_by_manager = False
+    role_application.updated_at = moment
+    db.add(
+        PlacementNotification(
+            student_id=role_application.student_id,
+            application_id=application.id,
+            title=title,
+            body=message,
+            channel="placement",
+            created_at=moment,
+        )
+    )
+    db.commit()
+    db.refresh(role_application)
+    role_application.role = role
+    return {
+        "ok": True,
+        "roleApplication": _role_application_payload(role_application),
+        "notification": message,
+    }
+
+
+@router.delete("/manager/roles/{role_id}/applications/{role_application_id}")
+def dismiss_role_applicant(
+    role_id: int,
+    role_application_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_placement_manager(current_user)
+    role = db.get(PlacementRole, role_id)
+    if not role or role.manager_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Placement role not found")
+    role_application = (
+        db.query(PlacementRoleApplication)
+        .filter(
+            PlacementRoleApplication.id == role_application_id,
+            PlacementRoleApplication.role_id == role.id,
+        )
+        .first()
+    )
+    if not role_application:
+        raise HTTPException(status_code=404, detail="Role application not found")
+    if role_application.status not in {"accepted", "rejected"}:
+        raise HTTPException(status_code=409, detail="Only accepted or rejected applicants can be removed")
+
+    role_application.dismissed_by_manager = True
+    role_application.updated_at = _now()
+    db.commit()
+    return {
+        "ok": True,
+        "roleId": role_id,
+        "roleApplicationId": role_application_id,
+        "message": "Applicant removed from Eligible applicants",
     }
 
 

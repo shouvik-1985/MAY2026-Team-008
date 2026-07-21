@@ -383,6 +383,46 @@ class ConnectMessageDelete(BaseModel):
     mode: Literal["me", "everyone"] = "me"
 
 
+class PlacementRoleCreate(BaseModel):
+    title: str = Field(min_length=3, max_length=160)
+    company_name: str = Field(min_length=2, max_length=160)
+    role_type: Literal["internship", "job"] = "internship"
+    location: str = Field(min_length=2, max_length=160)
+    work_mode: Literal["onsite", "hybrid", "remote"] = "onsite"
+    compensation: str = Field(min_length=2, max_length=120)
+    deadline: str = Field(min_length=2, max_length=80)
+    minimum_semester: int = Field(default=3, ge=1, le=14)
+    minimum_cgpa: float = Field(default=7.5, ge=0, le=10)
+    required_skills: str = Field(min_length=2, max_length=3000)
+    description: str = Field(min_length=10, max_length=12000)
+
+    @field_validator(
+        "title",
+        "company_name",
+        "location",
+        "compensation",
+        "deadline",
+        "required_skills",
+        "description",
+    )
+    @classmethod
+    def clean_role_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class PlacementRoleDecisionRequest(BaseModel):
+    status: Literal["accepted", "rejected"]
+    message: str | None = Field(default=None, max_length=600)
+
+    @field_validator("message")
+    @classmethod
+    def clean_decision_message(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
 class PlacementSelectionRequest(BaseModel):
     opportunity_title: str | None = Field(default=None, max_length=120)
 
