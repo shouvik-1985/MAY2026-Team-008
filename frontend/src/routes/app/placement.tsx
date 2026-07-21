@@ -207,7 +207,7 @@ function PlacementPortalPage() {
               <BriefcaseBusiness className="size-3.5" />
               Placement portal
             </div>
-            <h1 className="max-w-4xl font-display text-5xl font-bold tracking-tight md:text-7xl">
+            <h1 className="max-w-4xl font-display text-5xl font-bold tracking-tight md:text-7xl bg-gradient-to-br from-white via-white to-cyan-400 bg-clip-text text-transparent drop-shadow-sm">
               Career readiness for {portal.student.name.split(" ")[0]}
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-white/58">
@@ -309,7 +309,7 @@ function PlacementPortalPage() {
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
                       placeholder="+91 98765 43210"
-                      className="form-input"
+                      className="w-full bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:bg-white/10 focus:border-white/30 focus:shadow-[0_0_20px_rgba(255,255,255,0.05)] transition-all duration-300"
                     />
                   </FormField>
                   <FormField icon={Linkedin} label="LinkedIn profile">
@@ -317,7 +317,7 @@ function PlacementPortalPage() {
                       value={linkedin}
                       onChange={(event) => setLinkedin(event.target.value)}
                       placeholder="https://linkedin.com/in/..."
-                      className="form-input"
+                      className="w-full bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:bg-white/10 focus:border-white/30 focus:shadow-[0_0_20px_rgba(255,255,255,0.05)] transition-all duration-300"
                     />
                   </FormField>
                   <FormField icon={Github} label="GitHub profile">
@@ -325,11 +325,11 @@ function PlacementPortalPage() {
                       value={github}
                       onChange={(event) => setGithub(event.target.value)}
                       placeholder="https://github.com/..."
-                      className="form-input"
+                      className="w-full bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:bg-white/10 focus:border-white/30 focus:shadow-[0_0_20px_rgba(255,255,255,0.05)] transition-all duration-300"
                     />
                   </FormField>
                   <FormField icon={Upload} label="Resume">
-                    <label className="relative flex min-h-[46px] cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm text-white/70 transition hover:border-white/20">
+                    <label className="relative flex min-h-[46px] cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md px-4 py-3 text-sm text-white/70 transition-all duration-300 hover:border-white/30 hover:bg-white/10 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]">
                       <FileText className="size-4 shrink-0 text-white/45" />
                       <span className="min-w-0 flex-1 truncate">
                         {resume?.name ?? application?.resumeFilename ?? "Upload PDF, DOC, or DOCX"}
@@ -353,7 +353,7 @@ function PlacementPortalPage() {
                     onChange={(event) => setSkills(event.target.value)}
                     rows={4}
                     placeholder="React, Python, SQL, machine learning, communication..."
-                    className="form-input resize-none"
+                    className="w-full bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:bg-white/10 focus:border-white/30 focus:shadow-[0_0_20px_rgba(255,255,255,0.05)] transition-all duration-300 resize-none"
                   />
                 </FormField>
 
@@ -361,10 +361,10 @@ function PlacementPortalPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-full border border-fuchsia-300/25 bg-fuchsia-400/12 px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-fuchsia-400/20 disabled:cursor-wait disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/30 bg-gradient-to-r from-fuchsia-500/20 to-purple-500/20 px-6 py-3.5 text-[11px] font-bold uppercase tracking-[0.2em] text-white shadow-[0_0_20px_rgba(217,70,239,0.15)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:border-fuchsia-400/50 disabled:cursor-wait disabled:opacity-60 disabled:hover:scale-100"
                   >
                     {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                    {application ? "Save profile" : "Submit form"}
+                    {application ? "Save profile" : "Submit profile"}
                   </button>
                   {application ? (
                     <button
@@ -393,10 +393,10 @@ function PlacementPortalPage() {
                         return (
                           <div
                             key={role.id}
-                            className={`w-full rounded-2xl border p-4 text-left transition ${
+                            className={`w-full rounded-2xl border p-4 text-left transition-all duration-300 ${
                               isSelected
-                                ? "border-emerald-300/30 bg-emerald-400/10 shadow-[0_0_24px_rgba(52,211,153,0.08)]"
-                                : "border-white/10 bg-white/[0.03] hover:border-white/18 hover:bg-white/[0.05]"
+                                ? "border-emerald-300/40 bg-emerald-400/10 shadow-[0_0_30px_rgba(52,211,153,0.15)] scale-[1.02]"
+                                : "border-white/10 bg-white/[0.03] hover:border-white/30 hover:bg-white/10 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:-translate-y-0.5"
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3">

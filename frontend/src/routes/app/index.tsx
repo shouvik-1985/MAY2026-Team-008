@@ -319,7 +319,7 @@ function Dashboard() {
             <GraduationCap className="size-3.5" />
             Student dashboard
           </div>
-          <h1 className="font-display text-4xl font-bold leading-tight md:text-6xl">
+          <h1 className="font-display text-4xl font-bold leading-tight md:text-6xl bg-gradient-to-br from-white via-white to-fuchsia-400 bg-clip-text text-transparent drop-shadow-sm">
             {dashboard.user.name.split(" ")[0]}'s academic command center
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-white/58">
@@ -477,10 +477,10 @@ function Dashboard() {
           <PanelHeader icon={CheckCircle2} eyebrow="Single source of truth" title="Module status" />
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             {dashboard.module_health.map((item) => (
-              <div key={item.module} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+              <div key={item.module} className="group rounded-2xl border border-white/8 bg-white/[0.02] p-4 transition duration-300 hover:border-white/20 hover:bg-white/[0.05] hover:shadow-lg">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium">{item.module}</div>
-                  <div className="rounded-full bg-white/8 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/60">
+                  <div className="font-medium text-white/90 group-hover:text-white transition-colors">{item.module}</div>
+                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/60 shadow-sm transition group-hover:bg-white/10 group-hover:text-white">
                     {item.status}
                   </div>
                 </div>
@@ -511,13 +511,13 @@ function Dashboard() {
           <PanelHeader icon={MessageSquare} eyebrow="Status visibility" title="Requests" action="/app/complaints" />
           <div className="mt-5 space-y-4">
             {dashboard.request_timeline.map((item, index) => (
-              <div key={item.title} className="relative pl-7">
-                <span className="absolute left-1 top-1.5 size-3 rounded-full bg-[oklch(0.82_0.18_200)]" />
+              <div key={item.title} className="group relative pl-7 transition-all duration-300 hover:translate-x-1">
+                <span className="absolute left-1 top-1.5 size-3 rounded-full bg-[oklch(0.82_0.18_200)] shadow-[0_0_12px_oklch(0.82_0.18_200_/_0.8)] group-hover:scale-125 transition-transform" />
                 {index < dashboard.request_timeline.length - 1 && (
                   <span className="absolute bottom-[-18px] left-[9px] top-5 w-px bg-white/10" />
                 )}
-                <div className="text-sm font-medium">{item.title}</div>
-                <div className="mt-1 text-xs text-white/45">
+                <div className="text-sm font-medium text-white/90 group-hover:text-white">{item.title}</div>
+                <div className="mt-1 text-xs text-white/45 group-hover:text-white/60 transition-colors">
                   {item.kind} / {item.stage} / {item.updated}
                 </div>
               </div>
@@ -586,14 +586,14 @@ function TodoPlannerCard({
           onChange={(event) => onTitle(event.target.value)}
           maxLength={180}
           placeholder="Write today's plan or future task..."
-          className="w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-fuchsia-300/35 focus:bg-white/[0.075]"
+          className="w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-fuchsia-400/50 focus:bg-white/[0.075] focus:shadow-[0_0_20px_rgba(232,121,249,0.15)]"
         />
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <input
             value={dueAt}
             onChange={(event) => onDueAt(event.target.value)}
             type="datetime-local"
-            className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm text-white outline-none transition [color-scheme:dark] focus:border-fuchsia-300/35 focus:bg-white/[0.075]"
+            className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-white outline-none transition [color-scheme:dark] focus:border-fuchsia-400/50 focus:bg-white/[0.075] focus:shadow-[0_0_20px_rgba(232,121,249,0.15)]"
           />
           <button
             type="submit"
@@ -664,18 +664,22 @@ function TodoPlannerCard({
 function MetricCard({ metric }: { metric: StudentDashboard["metrics"][number] }) {
   const tone = TONE[metric.tone] ?? TONE.cyan;
   return (
-    <GlassCard hover>
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-[10px] uppercase tracking-[0.25em] text-white/40">{metric.label}</div>
+    <GlassCard hover className="group relative overflow-hidden">
+      <div 
+        className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-10 pointer-events-none" 
+        style={{ background: `linear-gradient(135deg, transparent, ${tone.text})` }} 
+      />
+      <div className="relative z-10 flex items-start justify-between gap-3">
+        <div className="text-[10px] uppercase tracking-[0.25em] text-white/40 group-hover:text-white/60 transition-colors">{metric.label}</div>
         <span
-          className="size-8 rounded-full border"
+          className="size-8 rounded-full border shadow-[0_0_15px_rgba(255,255,255,0.03)] transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(255,255,255,0.12)]"
           style={{ background: tone.bg, borderColor: tone.border }}
         />
       </div>
-      <div className="mt-3 font-display text-4xl font-bold" style={{ color: tone.text }}>
+      <div className="relative z-10 mt-3 font-display text-4xl font-bold transition-transform duration-300 group-hover:translate-x-1" style={{ color: tone.text }}>
         {metric.value}
       </div>
-      <div className="mt-2 text-xs text-white/48">{metric.hint}</div>
+      <div className="relative z-10 mt-2 text-xs text-white/48 group-hover:text-white/60 transition-colors">{metric.hint}</div>
     </GlassCard>
   );
 }
@@ -735,12 +739,12 @@ function RiskDot({ risk }: { risk: string }) {
 
 function EligibilityRow({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-      <span className="text-sm text-white/70">{label}</span>
+    <div className="group flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 transition hover:border-white/20 hover:bg-white/[0.04]">
+      <span className="text-sm text-white/70 group-hover:text-white transition-colors">{label}</span>
       <span
-        className={`inline-flex items-center gap-1 text-xs ${
-          ok ? "text-emerald-100" : "text-[oklch(0.9_0.1_70)]"
-        }`}
+        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border ${
+          ok ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200/90" : "border-amber-500/20 bg-amber-500/10 text-amber-200/90"
+        } transition-all duration-300 group-hover:scale-105`}
       >
         {ok ? <CheckCircle2 className="size-3.5" /> : <AlertCircle className="size-3.5" />}
         {value}

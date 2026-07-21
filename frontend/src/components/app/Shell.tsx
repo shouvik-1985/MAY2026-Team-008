@@ -210,6 +210,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
 function TopBar({ onSearch, onNotif }: { onSearch: () => void; onNotif: () => void }) {
   const [dark, setDark] = useState(true);
+  const [hasViewedNotifs, setHasViewedNotifs] = useState(false);
   const [time, setTime] = useState(() => new Date());
   const [authUser, setAuthUser] = useState(() => getStoredUser());
   const [studentProfile, setStudentProfile] = useState<EditableStudentProfile | null>(() =>
@@ -272,9 +273,15 @@ function TopBar({ onSearch, onNotif }: { onSearch: () => void; onNotif: () => vo
         <IconBtn onClick={() => setDark((d) => !d)} aria-label="Theme">
           {dark ? <Moon className="size-4" /> : <Sun className="size-4" />}
         </IconBtn>
-        <IconBtn onClick={onNotif} aria-label="Notifications">
+        <IconBtn 
+          onClick={() => {
+            setHasViewedNotifs(true);
+            onNotif();
+          }} 
+          aria-label="Notifications"
+        >
           <Bell className="size-4" />
-          <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[oklch(0.72_0.27_350)]" />
+          {!hasViewedNotifs && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[oklch(0.72_0.27_350)]" />}
         </IconBtn>
         <Link
           to="/app/profile"

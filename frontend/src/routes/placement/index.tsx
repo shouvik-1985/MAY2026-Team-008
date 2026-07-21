@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, AreaChart, Area } from "recharts";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -43,6 +44,7 @@ import {
   type PlacementManagerRole,
   type PlacementRoleApplicant,
 } from "@/lib/api";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/placement/")({ component: PlacementManagerPage });
 
@@ -128,6 +130,64 @@ function PlacementManagerPage() {
       live = false;
     };
   }, []);
+
+  const roleApplicationsData = useMemo(() => {
+    if (!dashboard?.roles) return [];
+    return dashboard.roles.slice(0, 5).map(role => {
+      let accepted = 0, rejected = 0, pending = 0;
+      role.applicants.forEach(app => {
+        if (app.status === "accepted") accepted++;
+        else if (app.status === "rejected") rejected++;
+        else pending++;
+      });
+      return {
+        name: role.title.length > 15 ? role.title.slice(0, 15) + "..." : role.title,
+        accepted,
+        rejected,
+        pending,
+        total: role.applicants.length,
+        fullTitle: role.title
+      };
+    });
+  }, [dashboard?.roles]);
+
+  const cgpaData = useMemo(() => {
+    if (!dashboard?.applications) return [];
+    const bins = {
+      "7.0-7.5": 0,
+      "7.5-8.0": 0,
+      "8.0-8.5": 0,
+      "8.5-9.0": 0,
+      "9.0-9.5": 0,
+      "9.5-10.0": 0,
+    };
+    dashboard.applications.forEach(app => {
+      const c = app.cgpa;
+      if (c >= 9.5) bins["9.5-10.0"]++;
+      else if (c >= 9.0) bins["9.0-9.5"]++;
+      else if (c >= 8.5) bins["8.5-9.0"]++;
+      else if (c >= 8.0) bins["8.0-8.5"]++;
+      else if (c >= 7.5) bins["7.5-8.0"]++;
+      else bins["7.0-7.5"]++;
+    });
+    return Object.entries(bins).map(([name, count]) => ({ name, count }));
+  }, [dashboard?.applications]);
+
+  const topSkillsData = useMemo(() => {
+    if (!dashboard?.applications) return [];
+    const skillCounts: Record<string, number> = {};
+    dashboard.applications.forEach(app => {
+      const skills = app.skills.split(",").map(s => s.trim()).filter(Boolean);
+      skills.forEach(skill => {
+        skillCounts[skill] = (skillCounts[skill] || 0) + 1;
+      });
+    });
+    
+    return Object.entries(skillCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, value]) => ({ name, value }));
+  }, [dashboard?.applications]);
 
   const filteredApplications = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -422,6 +482,93 @@ function PlacementManagerPage() {
             tone="amber"
           />
         </div>
+
+        {/* Analytics Charts */}
+        <div className="grid gap-4 lg:grid-cols-2 pt-4">
+          {/* Chart 1: Role Popularity */}
+          <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-6 shadow-xl backdrop-blur-md">
+            <h3 className="mb-6 text-sm font-semibold uppercase tracking-widest text-white/80">Role Conversion Pipeline</h3>
+            <div className="h-[240px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={roleApplicationsData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                  <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} axisLine={false} angle={-35} textAnchor="end" height={50} />
+                  <YAxis stroke="rgba(255,255,255,0.3)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip 
+                    cursor={{ fill: "rgba(255,255,255,0.05)" }} 
+                    contentStyle={{ backgroundColor: "rgba(15,20,30,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", fontSize: "12px" }}
+                  />
+                  <Bar dataKey="accepted" stackId="a" fill="#10b981" />
+                  <Bar dataKey="pending" stackId="a" fill="#f59e0b" />
+                  <Bar dataKey="rejected" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="flex flex-col rounded-[24px] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-6 shadow-xl backdrop-blur-md">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-widest text-white/80">Top Talent Pool Skills</h3>
+            <div className="relative min-h-[240px] w-full flex-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={topSkillsData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={90}
+                    paddingAngle={6}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {topSkillsData.map((entry, index) => {
+                      const colors = ["#34d399", "#059669", "#22d3ee", "#0891b2", "#818cf8"];
+                      return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} stroke="rgba(255,255,255,0.15)" strokeWidth={1} />;
+                    })}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: "rgba(15,20,30,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", fontSize: "12px" }}
+                    itemStyle={{ color: "#34d399" }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap justify-center gap-x-4 gap-y-2">
+                {topSkillsData.map((entry, index) => {
+                  const colors = ["#34d399", "#059669", "#22d3ee", "#0891b2", "#818cf8"];
+                  return (
+                    <div key={entry.name} className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />
+                      <span className="text-[11px] font-medium uppercase tracking-wider text-white/60">{entry.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          
+          {/* Chart 3: CGPA Distribution (Full Width) */}
+          <div className="lg:col-span-2 rounded-[24px] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-6 shadow-xl backdrop-blur-md">
+            <h3 className="mb-6 text-sm font-semibold uppercase tracking-widest text-white/80">Talent Pool Academic Strength (CGPA)</h3>
+            <div className="h-[240px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={cgpaData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorCgpa" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.5} />
+                      <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="name" stroke="rgba(255,255,255,0.3)" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="rgba(255,255,255,0.3)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: "rgba(15,20,30,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", fontSize: "12px" }}
+                    itemStyle={{ color: "#22d3ee" }}
+                  />
+                  <Area type="monotone" dataKey="count" stroke="#22d3ee" strokeWidth={2} fillOpacity={1} fill="url(#colorCgpa)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
       </section>
       ) : null}
 
@@ -466,35 +613,43 @@ function PlacementManagerPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <RoleField icon={Sparkles} label="Role type">
-                <select
+                <Select
                   value={roleForm.roleType}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     setRoleForm((current) => ({
                       ...current,
-                      roleType: event.target.value as RoleFormState["roleType"],
+                      roleType: value as RoleFormState["roleType"],
                     }))
                   }
-                  className="form-input"
                 >
-                  <option value="internship">Internship</option>
-                  <option value="job">Job</option>
-                </select>
+                  <SelectTrigger className="form-input">
+                    <SelectValue placeholder="Select role type" />
+                  </SelectTrigger>
+                  <SelectContent className="border-white/10 bg-[rgba(15,20,30,0.95)] text-white backdrop-blur-xl">
+                    <SelectItem value="internship" className="focus:bg-white/10 focus:text-white">Internship</SelectItem>
+                    <SelectItem value="job" className="focus:bg-white/10 focus:text-white">Job</SelectItem>
+                  </SelectContent>
+                </Select>
               </RoleField>
               <RoleField icon={SlidersHorizontal} label="Work mode">
-                <select
+                <Select
                   value={roleForm.workMode}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     setRoleForm((current) => ({
                       ...current,
-                      workMode: event.target.value as RoleFormState["workMode"],
+                      workMode: value as RoleFormState["workMode"],
                     }))
                   }
-                  className="form-input"
                 >
-                  <option value="onsite">Onsite</option>
-                  <option value="hybrid">Hybrid</option>
-                  <option value="remote">Remote</option>
-                </select>
+                  <SelectTrigger className="form-input">
+                    <SelectValue placeholder="Select work mode" />
+                  </SelectTrigger>
+                  <SelectContent className="border-white/10 bg-[rgba(15,20,30,0.95)] text-white backdrop-blur-xl">
+                    <SelectItem value="onsite" className="focus:bg-white/10 focus:text-white">Onsite</SelectItem>
+                    <SelectItem value="hybrid" className="focus:bg-white/10 focus:text-white">Hybrid</SelectItem>
+                    <SelectItem value="remote" className="focus:bg-white/10 focus:text-white">Remote</SelectItem>
+                  </SelectContent>
+                </Select>
               </RoleField>
             </div>
 

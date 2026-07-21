@@ -101,29 +101,31 @@ function AnnouncementsPage() {
 
 function Card({ a }: { a: Announcement }) {
   return (
-    <GlassCard hover className="cursor-pointer">
-      <div className="flex items-start gap-3">
-        <div className="size-9 rounded-xl glass flex items-center justify-center shrink-0">
-          <Bell className="size-4 text-white/60" />
+    <GlassCard hover className="cursor-pointer group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-white/20">
+      <div className="flex items-start gap-4">
+        <div className="size-10 rounded-xl glass flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
+          <Bell className="size-4 text-white/60 group-hover:text-white transition-colors" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+            <span className="text-[10px] uppercase tracking-[0.3em] font-medium text-white/40 group-hover:text-white/60 transition-colors">
               {a.category}
             </span>
             <span className="text-[10px] text-white/30">/</span>
             <span className="text-[10px] text-white/45">{a.time}</span>
             {a.unread && (
               <span
-                className="text-[10px] px-2 py-0.5 rounded-full"
+                className="text-[10px] px-2 py-0.5 rounded-full font-semibold shadow-sm"
                 style={{ background: "oklch(0.72 0.27 350 / 0.2)", color: "oklch(0.85 0.18 350)" }}
               >
                 New
               </span>
             )}
           </div>
-          <div className="font-display text-lg mt-1">{a.title}</div>
-          <p className="text-sm text-white/55 mt-1">{a.body}</p>
+          <div className="font-display text-lg mt-1 group-hover:text-fuchsia-100 transition-colors">
+            {a.title}
+          </div>
+          <p className="text-sm text-white/55 mt-1 group-hover:text-white/70 transition-colors">{a.body}</p>
         </div>
       </div>
     </GlassCard>
