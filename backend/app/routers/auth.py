@@ -115,7 +115,8 @@ def register(payload: RegisterRequest, db: Annotated[Session, Depends(get_db)]) 
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
     intake_batch = available_slot_batch_for_intake(db) if payload.role == Role.student else None
-
+    if payload.role not in (Role.student, Role.faculty):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid role for self-registration")
     user = User(
         email=payload.email,
         full_name=payload.full_name.strip(),
