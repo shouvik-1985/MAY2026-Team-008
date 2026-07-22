@@ -17,6 +17,7 @@ from app.attendance_flow import (
 )
 from app.biometric_flow import clear_face_template, has_face_template, save_face_template, verify_face_template
 from app.complaint_flow import complaint_payload
+from app.core.config import get_settings
 from app.dependencies import get_current_user
 from app.db import get_db
 from app.intake_flow import resolve_student_semester
@@ -35,6 +36,8 @@ from app.models import (
 from app.resource_files import public_resource_url
 from app.schemas import (
     CampusAttendanceSettingsOut,
+    StudentAssistantRequest,
+    StudentAssistantResponse,
     StudentBiometricVerify,
     StudentDashboard,
     StudentProfileOut,
@@ -43,6 +46,7 @@ from app.schemas import (
     StudentTodoCreate,
     StudentTodoUpdate,
 )
+from app.services.student_assistant import answer_student_assistant
 
 router = APIRouter(prefix="/student", tags=["student"])
 LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
@@ -459,6 +463,9 @@ def _student_dataset(db: Session, user: User) -> dict:
     fee_base = 78000 + (semester * 1200)
     due_amount = fee_base if semester % 2 == 0 else 0
     first_name = user.full_name.split()[0] if user.full_name else "Student"
+    resource_rows = _resource_rows(db)
+    resource_status = f"{len(resource_rows)} uploaded" if resource_rows else "0 uploaded"
+    resource_detail = "Notes, slides, previous papers" if resource_rows else "No study resources uploaded yet"
 
     return {
         "user": {
@@ -527,7 +534,7 @@ def _student_dataset(db: Session, user: User) -> dict:
             {"module": "Complaints", "status": f"{user.id % 3} open", "detail": "Live request tracking"},
             {"module": "Certificates", "status": "Available", "detail": "Bonafide and transcript requests"},
             {"module": "Fees", "status": "Pending" if due_amount else "Cleared", "detail": "Payment verification and receipts"},
-            {"module": "Resources", "status": f"{8 + seed} new", "detail": "Notes, slides, previous papers"},
+            {"module": "Resources", "status": resource_status, "detail": resource_detail},
         ],
         "upcoming_deadlines": [
             {"title": f"{first_name}'s assignment checkpoint", "module": "Assignments", "due": "Tomorrow", "risk": "high"},
@@ -568,7 +575,7 @@ def _student_dataset(db: Session, user: User) -> dict:
             {"id": user.id * 10 + 3, "title": "Academic Writing Checkpoint", "subject": "Communication", "due": "in 9 days", "progress": seed * 6, "status": "pending"},
             {"id": user.id * 10 + 4, "title": "Semester Portfolio Review", "subject": department.split()[0], "due": "completed", "progress": 100, "status": "graded", "grade": "A" if cgpa >= 8.8 else "B+"},
         ],
-        "resource_items": _resource_rows(db),
+        "resource_items": resource_rows,
         "complaint_items": complaint_rows,
         "certificate_items": [
             {"id": user.id * 10 + 1, "name": "Bonafide Certificate", "desc": f"Enrollment proof for {first_name}.", "eta": "24 hours", "status": "available"},
@@ -884,6 +891,26 @@ def dashboard(
         nav_modules=STUDENT_NAV,
         student_todos=data["student_todos"],
     )
+
+
+@router.post("/assistant/chat", response_model=StudentAssistantResponse)
+def assistant_chat(
+    payload: StudentAssistantRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> StudentAssistantResponse:
+    _require_student(current_user)
+    data = _student_dataset(db, current_user)
+    answer = answer_student_assistant(
+        settings=get_settings(),
+        db=db,
+        current_user=current_user,
+        dashboard=data,
+        message=payload.message,
+        current_path=payload.current_path,
+        history=[turn.model_dump() for turn in payload.history],
+    )
+    return StudentAssistantResponse(**answer)
 
 
 @router.get("/todos")

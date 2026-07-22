@@ -221,6 +221,23 @@ export type StudentTodo = {
   updatedAt: string;
 };
 
+export type StudentAssistantMessage = {
+  role: "user" | "ai";
+  text: string;
+};
+
+export type StudentAssistantResponse = {
+  answer: string;
+  tab: {
+    label: string;
+    path: string;
+    feature: string;
+  };
+  model: string;
+  fallback: boolean;
+  suggestedPrompts: string[];
+};
+
 export type StudentProfile = {
   id: number;
   name: string;
@@ -859,6 +876,21 @@ export function logoutAccount() {
 
 export function getStudentDashboard() {
   return request<StudentDashboard>("/student/dashboard");
+}
+
+export function sendStudentAssistantMessage(payload: {
+  message: string;
+  current_path: string;
+  history?: StudentAssistantMessage[];
+}) {
+  return request<StudentAssistantResponse>("/student/assistant/chat", {
+    method: "POST",
+    body: JSON.stringify({
+      message: payload.message,
+      current_path: payload.current_path,
+      history: payload.history ?? [],
+    }),
+  });
 }
 
 export function getStudentProfile() {

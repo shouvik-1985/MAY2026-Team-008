@@ -94,6 +94,30 @@ class StudentDashboard(BaseModel):
     student_todos: list[dict]
 
 
+class StudentAssistantTurn(BaseModel):
+    role: Literal["user", "ai"]
+    text: str = Field(min_length=1, max_length=4000)
+
+
+class StudentAssistantRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    current_path: str = Field(default="/app", max_length=200)
+    history: list[StudentAssistantTurn] = Field(default_factory=list, max_length=12)
+
+    @field_validator("message", "current_path")
+    @classmethod
+    def clean_assistant_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class StudentAssistantResponse(BaseModel):
+    answer: str
+    tab: dict
+    model: str
+    fallback: bool = False
+    suggestedPrompts: list[str]
+
+
 class StudentProfileOut(BaseModel):
     id: int
     name: str

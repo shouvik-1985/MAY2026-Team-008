@@ -26,7 +26,6 @@ import {
   Bell,
   Sun,
   Moon,
-  Plus,
   ChevronLeft,
   X,
   Send,
@@ -34,10 +33,19 @@ import {
   Mic,
   Users,
   BriefcaseBusiness,
+  GraduationCap,
+  Copy,
+  Check,
+  PencilLine,
+  Trash2,
 } from "lucide-react";
 import { clearStoredRole } from "@/lib/use-role";
 import { clearAuthSession, getStoredUser } from "@/lib/auth";
-import { logoutAccount } from "@/lib/api";
+import {
+  logoutAccount,
+  sendStudentAssistantMessage,
+  type StudentAssistantMessage,
+} from "@/lib/api";
 import { clearStoredDashboard, useStudentDashboard } from "@/lib/student-session";
 import {
   getStoredStudentProfile,
@@ -45,6 +53,14 @@ import {
   studentProfileEventName,
   type EditableStudentProfile,
 } from "@/lib/student-profile";
+import {
+  clearStoredStudentAssistantMessages,
+  defaultStudentAssistantMessages,
+  getStoredStudentAssistantMessages,
+  setStoredStudentAssistantMessages,
+} from "@/lib/student-assistant-session";
+import { copyTextToClipboard } from "@/lib/clipboard";
+import { startVoiceCommand, type VoiceCommandController } from "@/lib/voice-command";
 
 type NavItem = {
   to: string;
@@ -192,12 +208,17 @@ export function Shell({ children }: { children: ReactNode }) {
       <div
         className={`min-h-screen transition-[padding] duration-300 ${collapsed ? "md:pl-[100px]" : "md:pl-[280px]"}`}
       >
-        <TopBar onSearch={() => setOpenSearch(true)} onNotif={() => setOpenNotif(true)} />
+        <TopBar
+          onSearch={() => setOpenSearch(true)}
+          onNotif={() => setOpenNotif(true)}
+          onAssistant={() => setOpenFab((open) => !open)}
+          assistantOpen={openFab}
+        />
         <main className="px-5 md:px-10 py-6 pb-32 max-w-[1400px] mx-auto">{children}</main>
       </div>
 
       {/* Floating Action */}
-      {!pathname.startsWith("/app/profile") && <Fab open={openFab} setOpen={setOpenFab} />}
+      <Fab open={openFab} setOpen={setOpenFab} currentPath={pathname} />
 
       {/* Notifications drawer */}
       <NotifDrawer open={openNotif} onClose={() => setOpenNotif(false)} />
@@ -208,19 +229,24 @@ export function Shell({ children }: { children: ReactNode }) {
   );
 }
 
-function TopBar({ onSearch, onNotif }: { onSearch: () => void; onNotif: () => void }) {
+function TopBar({
+  onSearch,
+  onNotif,
+  onAssistant,
+  assistantOpen,
+}: {
+  onSearch: () => void;
+  onNotif: () => void;
+  onAssistant: () => void;
+  assistantOpen: boolean;
+}) {
   const [dark, setDark] = useState(true);
   const [hasViewedNotifs, setHasViewedNotifs] = useState(false);
-  const [time, setTime] = useState(() => new Date());
   const [authUser, setAuthUser] = useState(() => getStoredUser());
   const [studentProfile, setStudentProfile] = useState<EditableStudentProfile | null>(() =>
     getStoredStudentProfile(),
   );
   const { dashboard } = useStudentDashboard();
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 30_000);
-    return () => clearInterval(t);
-  }, []);
   useEffect(() => setAuthUser(getStoredUser()), []);
   useEffect(() => {
     const onProfileUpdate = (event: Event) => {
@@ -230,7 +256,7 @@ function TopBar({ onSearch, onNotif }: { onSearch: () => void; onNotif: () => vo
     window.addEventListener(studentProfileEventName(), onProfileUpdate);
     return () => window.removeEventListener(studentProfileEventName(), onProfileUpdate);
   }, []);
-  const hour = time.getHours();
+  const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const displayName =
     studentProfile?.name.trim() || dashboard?.user.name || authUser?.full_name || "Student";
@@ -266,10 +292,30 @@ function TopBar({ onSearch, onNotif }: { onSearch: () => void; onNotif: () => vo
             Ctrl K
           </kbd>
         </button>
-        <div className="hidden lg:flex items-center gap-2 text-xs text-white/45 px-3">
-          <span className="size-1.5 rounded-full bg-emerald-400 pulse-glow" />
-          {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </div>
+        <button
+          type="button"
+          onClick={onAssistant}
+          className={`group flex shrink-0 items-center gap-2 rounded-full border px-2 py-1.5 pr-2.5 text-left transition ${
+            assistantOpen
+              ? "border-cyan-300/35 bg-cyan-300/10 text-white shadow-[0_0_24px_oklch(0.82_0.18_200_/_0.16)]"
+              : "glass text-white/70 hover:text-white hover:border-white/20"
+          }`}
+          aria-label="Open AI mentor"
+          aria-pressed={assistantOpen}
+        >
+          <span
+            className="size-8 rounded-full flex items-center justify-center relative overflow-hidden"
+            style={{ background: "var(--grad-aurora)" }}
+          >
+            <GraduationCap className="relative size-4 text-white" />
+          </span>
+          <span className="hidden lg:flex flex-col leading-none">
+            <span className="font-display text-xs tracking-wide">AI Mentor</span>
+            <span className="mt-1 text-[9px] uppercase tracking-[0.22em] text-white/38">
+              Tutor synced
+            </span>
+          </span>
+        </button>
         <IconBtn onClick={() => setDark((d) => !d)} aria-label="Theme">
           {dark ? <Moon className="size-4" /> : <Sun className="size-4" />}
         </IconBtn>
@@ -306,16 +352,28 @@ function IconBtn({ children, ...p }: ButtonHTMLAttributes<HTMLButtonElement>) {
   );
 }
 
-function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }) {
+function Fab({
+  open,
+  setOpen,
+  currentPath,
+}: {
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  currentPath: string;
+}) {
   const { dashboard } = useStudentDashboard();
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
-  const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([
-    {
-      role: "ai" as const,
-      text: "Hi, I am your CampusVerse student assistant. Ask me about attendance, CGPA, fees, or deadlines.",
-    },
-  ]);
+  const [listening, setListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(true);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [copiedMessageKey, setCopiedMessageKey] = useState<string | null>(null);
+  const voiceRef = useRef<VoiceCommandController | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [messages, setMessages] = useState<StudentAssistantMessage[]>(
+    () => getStoredStudentAssistantMessages() ?? defaultStudentAssistantMessages(),
+  );
+  const [promptOptions, setPromptOptions] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prompts = dashboard?.ai_context.suggested_prompts ?? [
     "Summarise my deadlines",
@@ -324,38 +382,149 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
   ];
 
   useEffect(() => {
-    if (dashboard?.ai_context.chat_history?.length) {
-      setMessages(dashboard.ai_context.chat_history);
-    }
+    setPromptOptions(dashboard?.ai_context.suggested_prompts ?? prompts);
   }, [dashboard]);
+
+  useEffect(() => {
+    setStoredStudentAssistantMessages(messages);
+  }, [messages]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing, open]);
 
-  function sendAi(text: string) {
-    if (!text.trim()) return;
-    setMessages((current) => [...current, { role: "user", text: text.trim() }]);
+  useEffect(() => {
+    return () => voiceRef.current?.stop();
+  }, []);
+
+  async function sendAi(text: string, replaceFromIndex: number | null = editingIndex) {
+    const cleanText = text.trim();
+    if (!cleanText || typing) return;
+    voiceRef.current?.stop();
+    const baseMessages = replaceFromIndex === null ? messages : messages.slice(0, replaceFromIndex);
+    const history = baseMessages.slice(-10);
+    setMessages([...baseMessages, { role: "user", text: cleanText }]);
     setInput("");
+    setEditingIndex(null);
     setTyping(true);
-    setTimeout(() => {
+    try {
+      const response = await sendStudentAssistantMessage({
+        message: cleanText,
+        current_path: currentPath,
+        history,
+      });
+      setMessages((current) => [...current, { role: "ai", text: response.answer }]);
+      if (response.suggestedPrompts.length) setPromptOptions(response.suggestedPrompts);
+    } catch (error) {
       setMessages((current) => [
         ...current,
-        { role: "ai", text: simulateAiBubble(text, dashboard) },
+        {
+          role: "ai",
+          text: error instanceof Error ? error.message : "The assistant could not respond right now.",
+        },
       ]);
+    } finally {
       setTyping(false);
-    }, 750);
+    }
+  }
+
+  function editMessage(index: number) {
+    const message = messages[index];
+    if (!message || message.role !== "user" || typing) return;
+    voiceRef.current?.stop();
+    setEditingIndex(index);
+    setInput(message.text);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  async function copyMessage(key: string, text: string) {
+    try {
+      await copyTextToClipboard(text);
+      setCopiedMessageKey(key);
+      window.setTimeout(() => {
+        setCopiedMessageKey((current) => (current === key ? null : current));
+      }, 1400);
+    } catch {
+      setMessages((current) => [
+        ...current,
+        { role: "ai", text: "I could not copy that message in this browser." },
+      ]);
+    }
+  }
+
+  function cancelEdit() {
+    setEditingIndex(null);
+    setInput("");
+  }
+
+  function clearChat() {
+    voiceRef.current?.stop();
+    clearStoredStudentAssistantMessages();
+    setMessages(defaultStudentAssistantMessages());
+    setInput("");
+    setEditingIndex(null);
+    setCopiedMessageKey(null);
+  }
+
+  function toggleVoice() {
+    if (listening) {
+      voiceRef.current?.stop();
+      return;
+    }
+    const controller = startVoiceCommand({
+      onTranscript: (transcript) => {
+        setInput(transcript);
+      },
+      onStart: () => {
+        setVoiceSupported(true);
+        setListening(true);
+      },
+      onEnd: () => {
+        setListening(false);
+        voiceRef.current = null;
+      },
+      onUnsupported: () => {
+        setVoiceSupported(false);
+        setMessages((current) => [
+          ...current,
+          {
+            role: "ai",
+            text: "Voice input is not available in this browser. You can still type your question here.",
+          },
+        ]);
+      },
+    });
+    voiceRef.current = controller;
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
+    <>
       <AnimatePresence>
         {open && (
+          <motion.button
+            type="button"
+            aria-label="Close assistant"
+            onClick={() => setOpen(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-30 cursor-default bg-transparent"
+          />
+        )}
+      </AnimatePresence>
+      <div className="pointer-events-none fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
+        <AnimatePresence>
+          {open && (
           <motion.div
+            data-lenis-prevent
+            onWheelCapture={(event) => event.stopPropagation()}
+            onWheel={(event) => event.stopPropagation()}
+            onTouchMoveCapture={(event) => event.stopPropagation()}
+            onTouchMove={(event) => event.stopPropagation()}
             initial={{ opacity: 0, y: 24, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.94 }}
-            className="w-[min(calc(100vw-32px),430px)] overflow-hidden rounded-3xl border border-white/12 bg-[#080808]/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
+            className="pointer-events-auto w-[min(calc(100vw-32px),430px)] overflow-hidden rounded-3xl border border-white/12 bg-[#080808]/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
           >
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
               <div className="flex items-center gap-3">
@@ -368,32 +537,84 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
                 <div>
                   <div className="font-display text-lg leading-none">Student AI Assistant</div>
                   <div className="mt-1 text-[10px] uppercase tracking-[0.24em] text-white/40">
-                    Frontend preview
+                    Backend synced
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="size-9 rounded-full bg-white/5 text-white/55 hover:text-white"
-                aria-label="Close assistant"
-              >
-                <X className="mx-auto size-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={clearChat}
+                  className="inline-flex h-9 items-center gap-2 rounded-full bg-white/5 px-3 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+                  aria-label="Clear assistant chat"
+                  title="Clear chat"
+                >
+                  <Trash2 className="size-3.5" />
+                  <span className="hidden sm:inline">Clear</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="size-9 rounded-full bg-white/5 text-white/55 hover:text-white"
+                  aria-label="Close assistant"
+                >
+                  <X className="mx-auto size-4" />
+                </button>
+              </div>
             </div>
 
-            <div ref={scrollRef} className="max-h-[380px] overflow-y-auto px-4 py-4 space-y-3">
+            <div
+              ref={scrollRef}
+              data-lenis-prevent
+              onWheelCapture={(event) => event.stopPropagation()}
+              onWheel={(event) => event.stopPropagation()}
+              onTouchMoveCapture={(event) => event.stopPropagation()}
+              onTouchMove={(event) => event.stopPropagation()}
+              className="max-h-[380px] overflow-y-auto overscroll-contain px-4 py-4 space-y-3"
+            >
               {messages.map((message, index) => (
                 <div
                   key={`${message.role}-${index}`}
-                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  className={`group flex flex-col ${
+                    message.role === "user" ? "items-end" : "items-start"
+                  }`}
                 >
                   <div
-                    className={`max-w-[82%] rounded-3xl px-4 py-2.5 text-sm ${
+                    className={`max-w-[82%] whitespace-pre-wrap break-words rounded-3xl px-4 py-2.5 text-sm leading-6 ${
                       message.role === "user" ? "bg-white text-black" : "glass text-white"
                     }`}
                   >
                     {message.text}
+                  </div>
+                  <div
+                    className={`mt-1 flex items-center gap-1 px-1 text-white/45 transition group-hover:text-white/70 ${
+                      message.role === "user" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => void copyMessage(`${message.role}-${index}`, message.text)}
+                      className="rounded-full p-1.5 hover:bg-white/10 hover:text-white"
+                      aria-label="Copy message"
+                      title="Copy"
+                    >
+                      {copiedMessageKey === `${message.role}-${index}` ? (
+                        <Check className="size-3.5" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
+                    </button>
+                    {message.role === "user" && (
+                      <button
+                        type="button"
+                        onClick={() => editMessage(index)}
+                        className="rounded-full p-1.5 hover:bg-white/10 hover:text-white"
+                        aria-label="Edit and send again"
+                        title="Edit and send again"
+                      >
+                        <PencilLine className="size-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -405,11 +626,11 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
             </div>
 
             <div className="px-4 pb-3 flex gap-2 overflow-x-auto">
-              {prompts.slice(0, 4).map((prompt) => (
+              {(promptOptions.length ? promptOptions : prompts).slice(0, 4).map((prompt) => (
                 <button
                   key={prompt}
                   type="button"
-                  onClick={() => sendAi(prompt)}
+                  onClick={() => void sendAi(prompt, null)}
                   className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs text-white/65 hover:text-white"
                 >
                   {prompt}
@@ -420,22 +641,44 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                sendAi(input);
+                void sendAi(input);
               }}
               className="border-t border-white/10 p-3"
             >
+              {editingIndex !== null && (
+                <div className="mb-2 flex items-center justify-between rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs text-cyan-50">
+                  <span>Editing prompt. Update it, then send again.</span>
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className="rounded-full px-2 py-1 text-white/60 hover:bg-white/10 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
               <div className="glass flex items-center gap-2 rounded-2xl px-3 py-2">
-                <button type="button" className="size-9 rounded-xl text-white/55 hover:text-white">
+                <button
+                  type="button"
+                  onClick={toggleVoice}
+                  disabled={!voiceSupported}
+                  className={`size-9 rounded-xl transition ${
+                    listening ? "bg-cyan-400/15 text-cyan-100" : "text-white/55 hover:text-white"
+                  }`}
+                  aria-label={listening ? "Stop voice input" : "Start voice input"}
+                >
                   <Mic className="mx-auto size-4" />
                 </button>
                 <input
+                  ref={inputRef}
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
-                  placeholder="Ask your student assistant..."
+                  placeholder={listening ? "Listening..." : "Ask your student assistant..."}
                   className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-white/35"
                 />
                 <button
                   type="submit"
+                  disabled={typing || !input.trim()}
                   className="size-9 rounded-xl text-white"
                   style={{ background: "var(--grad-aurora)" }}
                 >
@@ -445,49 +688,10 @@ function Fab({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }
             </form>
           </motion.div>
         )}
-      </AnimatePresence>
-      <motion.button
-        onClick={() => setOpen(!open)}
-        animate={{ rotate: open ? 45 : 0 }}
-        className="size-14 rounded-full flex items-center justify-center text-white relative overflow-hidden"
-      >
-        <span
-          className="absolute inset-0 rounded-full"
-          style={{
-            background: "var(--grad-aurora)",
-            backgroundSize: "200% 200%",
-            animation: "aurora-shift 5s ease-in-out infinite",
-          }}
-        />
-        <span className="absolute inset-px rounded-full bg-[#0a0a0a]/30" />
-        <span
-          className="absolute inset-0 rounded-full blur-xl opacity-60"
-          style={{ background: "var(--grad-aurora)" }}
-        />
-        <Plus className="size-6 relative z-10" />
-      </motion.button>
-    </div>
+        </AnimatePresence>
+      </div>
+    </>
   );
-}
-
-function simulateAiBubble(
-  query: string,
-  dashboard: ReturnType<typeof useStudentDashboard>["dashboard"],
-) {
-  if (!dashboard)
-    return "Your student profile is still syncing. I will have richer answers after backend AI is connected.";
-  const lower = query.toLowerCase();
-  const attendance = Math.round(dashboard.user.attendance);
-  if (lower.includes("attendance")) {
-    return `You are at ${attendance}% attendance, ${Math.max(0, attendance - 75)}% above the safe-zone threshold.`;
-  }
-  if (lower.includes("cgpa") || lower.includes("predict")) {
-    return `Your current CGPA is ${dashboard.user.cgpa.toFixed(1)}. A focused next target is ${(dashboard.user.cgpa + 0.08).toFixed(2)}.`;
-  }
-  if (lower.includes("fee") || lower.includes("certificate")) {
-    return `Fee status is ${dashboard.fee_summary.clearance}. You have ${dashboard.certificate_items.length} certificate options available.`;
-  }
-  return `I checked ${dashboard.user.name}'s student dashboard context and queued this as a frontend AI preview.`;
 }
 
 function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
