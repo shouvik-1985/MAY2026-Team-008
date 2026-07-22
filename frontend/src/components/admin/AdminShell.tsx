@@ -9,6 +9,7 @@ import {
   Moon,
   Search,
   Shield,
+  Gauge,
   Sparkles,
   Sun,
   University,
@@ -23,6 +24,7 @@ const NAV = [
   { href: "#dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "#students", label: "Students", icon: Users },
   { href: "#professors", label: "Professors", icon: University },
+  { href: "#management", label: "Management", icon: Gauge },
 ] as const;
 
 export function AdminShell({ children }: { children: ReactNode }) {

@@ -170,6 +170,39 @@
   backdrop-filter: blur(28px) saturate(160%);
 }
 
+@utility glass-nav {
+  background: linear-gradient(135deg,
+    rgba(20, 20, 20, 0.85),
+    rgba(10, 10, 10, 0.75));
+  border: 1px solid oklch(1 0 0 / 0.15);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  backdrop-filter: blur(32px) saturate(180%);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+@utility form-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid oklch(1 0 0 / 0.1);
+  background: oklch(1 0 0 / 0.055);
+  padding: 0.75rem 1rem;
+  color: white;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.form-input::placeholder {
+  color: oklch(1 0 0 / 0.35);
+}
+
+.form-input:focus {
+  border-color: oklch(0.82 0.18 200 / 0.35);
+  background: oklch(1 0 0 / 0.075);
+}
+
 @utility glow-purple {
   box-shadow: 0 0 40px oklch(0.65 0.28 305 / 0.45),
               0 0 80px oklch(0.65 0.28 305 / 0.2);

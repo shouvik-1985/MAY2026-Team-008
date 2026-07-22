@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence } from "framer-motion";
 import { Shell } from "@/components/app/Shell";
+import { AttendancePresenceWatcher } from "@/components/app/AttendancePresenceWatcher";
 import { CinematicBackdrop } from "@/components/app/cinematic";
 import { getStoredUser, hasAuthSession } from "@/lib/auth";
 import { useLowPerformanceMode } from "@/lib/performance";
@@ -25,6 +26,7 @@ function AppLayout() {
   return (
     <>
       <CinematicBackdrop intensity={0.7} />
+      <AttendancePresenceWatcher />
       <Shell>
         <AnimatePresence mode={lowPerformance ? "sync" : "wait"} initial={!lowPerformance}>
           <div key={pathname}>

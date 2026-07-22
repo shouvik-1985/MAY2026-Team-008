@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -12,22 +13,31 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import {
+  AlertTriangle,
   Ban,
   BarChart3,
   BookOpen,
+  Briefcase,
   CalendarClock,
   CheckCircle2,
   ChevronDown,
   ClipboardCheck,
   Download,
+  Edit3,
   Eye,
   FileText,
   GraduationCap,
   History,
+  Mail,
   Megaphone,
+  Phone,
+  MapPin,
   Save,
   Search,
   Send,
+  ShieldCheck,
+  Sparkles,
+  Target,
   Trash2,
   Upload,
   UserCheck,
@@ -36,9 +46,11 @@ import {
   XCircle,
 } from "lucide-react";
 import {
+  confirmProfessorAttendance,
   createProfessorAnnouncement,
   createProfessorResource,
   deleteProfessorResource,
+  finalizeProfessorAttendance,
   getProfessorDashboard,
   markProfessorAttendance,
   resolveResourceUrl,
@@ -47,6 +59,20 @@ import {
   type ProfessorDashboard,
 } from "@/lib/api";
 import { ConnectHub } from "@/components/connect/ConnectHub";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  getStoredProfessorProfile,
+  professorInitialsFromName,
+  setStoredProfessorProfile,
+  type EditableProfessorProfile,
+} from "@/lib/professor-profile";
 import { STUDY_SUBJECTS } from "@/lib/subjects";
 
 export const Route = createFileRoute("/professor/")({
@@ -104,6 +130,7 @@ function ProfessorDashboardPage() {
   const [reviewSubject, setReviewSubject] = useState("");
   const [reviewGrade, setReviewGrade] = useState("");
   const [reviewFeedback, setReviewFeedback] = useState("");
+  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
 
   const students = dashboard?.students ?? [];
   const professorResources = dashboard?.resources ?? [];
@@ -117,6 +144,10 @@ function ProfessorDashboardPage() {
         .includes(query),
     );
   }, [students, studentQuery]);
+  const verifiedAttendanceStudents = useMemo(
+    () => students.filter((student) => student.biometricVerified && !student.professorConfirmed),
+    [students],
+  );
 
   const filteredProfessorResources = useMemo(() => {
     const query = resourceSearch.trim().toLowerCase();
@@ -146,32 +177,77 @@ function ProfessorDashboardPage() {
     const today = dashboard?.attendance_today.date;
     if (!today) return map;
     for (const item of dashboard?.attendance_history ?? []) {
-      if (item.date === today && !map.has(item.studentId)) {
+      if (item.date === today && item.status !== "warning" && !map.has(item.studentId)) {
         map.set(item.studentId, item.status);
       }
     }
     return map;
   }, [dashboard]);
 
-  async function refresh() {
-    setLoading(true);
-    try {
-      const data = await getProfessorDashboard();
-      setDashboard(data);
-      if (!reviewStudentId && data.review_queue[0]) {
-        loadReview(data.review_queue[0]);
+  const refresh = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent) {
+        setLoading(true);
       }
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Professor dashboard failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }
+      try {
+        const data = await getProfessorDashboard();
+        setDashboard(data);
+        if (!reviewStudentId && data.review_queue[0]) {
+          loadReview(data.review_queue[0]);
+        }
+      } catch (error) {
+        if (!options?.silent) {
+          setStatus(error instanceof Error ? error.message : "Professor dashboard failed to load");
+        }
+      } finally {
+        if (!options?.silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [reviewStudentId],
+  );
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (activeSection !== "academics" || academicTab !== "attendance") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const silentRefresh = async () => {
+      if (cancelled) return;
+      await refresh({ silent: true });
+    };
+
+    const intervalId = window.setInterval(() => {
+      void silentRefresh();
+    }, 4000);
+
+    const onFocus = () => {
+      void silentRefresh();
+    };
+
+    const onVisible = () => {
+      if (!document.hidden) {
+        void silentRefresh();
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [activeSection, academicTab, refresh]);
 
   useEffect(() => {
     const ticker = setInterval(() => setNow(new Date()), 30_000);
@@ -234,7 +310,11 @@ function ProfessorDashboardPage() {
       if (!current) return current;
       const today = current.attendance_today.date;
       const existingToday = current.attendance_history.find(
-        (item) => item.studentId === student.id && item.date === today,
+        (item) => item.studentId === student.id && item.date === today && item.status !== "warning",
+      );
+      const historyWithoutStudentWarnings = current.attendance_history.filter(
+        (item) =>
+          !(item.studentId === student.id && item.date === today && item.status === "warning"),
       );
       const previousStatus = existingToday?.status;
       const markedBy = current.professor.name || "Professor";
@@ -256,7 +336,9 @@ function ProfessorDashboardPage() {
           if (attendanceStatus === "absent") absentCount += 1;
         }
 
-        const attendance = attendanceMarked ? (presentCount / attendanceMarked) * 100 : item.attendance;
+        const attendance = attendanceMarked
+          ? (presentCount / attendanceMarked) * 100
+          : item.attendance;
         return {
           ...item,
           attendance,
@@ -264,6 +346,9 @@ function ProfessorDashboardPage() {
           presentCount,
           absentCount,
           status: item.isBlocked ? "blocked" : attendance >= 75 ? "safe" : "watch",
+          professorConfirmed: attendanceStatus === "present",
+          attendanceWarning: false,
+          biometricStatus: attendanceStatus === "present" ? "present_confirmed" : "absent_marked",
         };
       });
 
@@ -293,12 +378,25 @@ function ProfessorDashboardPage() {
         marked: previousStatus
           ? current.attendance_today.marked
           : current.attendance_today.marked + 1,
+        warnings: Math.max(
+          0,
+          (current.attendance_today.warnings ?? 0) - (student.attendanceWarning ? 1 : 0),
+        ),
+        pendingConfirmation: Math.max(
+          0,
+          (current.attendance_today.pendingConfirmation ?? 0) -
+            (attendanceStatus === "present" && student.biometricVerified ? 1 : 0),
+        ),
         liveAt: markedAt,
       };
       const nextTodayWithRatios = {
         ...nextToday,
-        presentRatio: nextToday.marked ? Number(((nextToday.present / nextToday.marked) * 100).toFixed(1)) : 0,
-        absentRatio: nextToday.marked ? Number(((nextToday.absent / nextToday.marked) * 100).toFixed(1)) : 0,
+        presentRatio: nextToday.marked
+          ? Number(((nextToday.present / nextToday.marked) * 100).toFixed(1))
+          : 0,
+        absentRatio: nextToday.marked
+          ? Number(((nextToday.absent / nextToday.marked) * 100).toFixed(1))
+          : 0,
       };
 
       const nextSummary = current.attendance_summary.map((item) =>
@@ -316,7 +414,7 @@ function ProfessorDashboardPage() {
       );
 
       const nextHistory = existingToday
-        ? current.attendance_history.map((item) =>
+        ? historyWithoutStudentWarnings.map((item) =>
             item.id === existingToday.id
               ? { ...item, status: attendanceStatus, markedAt, markedBy }
               : item,
@@ -332,7 +430,7 @@ function ProfessorDashboardPage() {
               markedBy,
               markedAt,
             },
-            ...current.attendance_history,
+            ...historyWithoutStudentWarnings,
           ];
 
       return {
@@ -378,19 +476,46 @@ function ProfessorDashboardPage() {
     updateLocalAttendance(student, attendanceStatus);
     setAttendanceStatus(`${student.name} marked ${attendanceStatus}`);
     try {
-      const result = await markProfessorAttendance({ student_id: student.id, status: attendanceStatus });
+      const result =
+        attendanceStatus === "present" && student.biometricVerified
+          ? await confirmProfessorAttendance({ student_id: student.id, present: true })
+          : await markProfessorAttendance({ student_id: student.id, status: attendanceStatus });
       setDashboard((current) => {
         if (!current) return current;
         return {
           ...current,
           students: current.students.map((item) =>
-            item.id === student.id ? { ...item, attendance: result.attendance } : item,
+            item.id === student.id
+              ? {
+                  ...item,
+                  attendance: result.attendance,
+                  biometricCheckIn: "checkIn" in result ? result.checkIn : item.biometricCheckIn,
+                  professorConfirmed: attendanceStatus === "present",
+                  attendanceWarning: false,
+                  biometricStatus:
+                    attendanceStatus === "present" ? "present_confirmed" : "absent_marked",
+                }
+              : item,
           ),
         };
       });
     } catch (error) {
       await refresh();
       setAttendanceStatus(error instanceof Error ? error.message : "Attendance update failed");
+    }
+  }
+
+  async function finalizeAttendance() {
+    setSaving(true);
+    setAttendanceStatus(null);
+    try {
+      const result = await finalizeProfessorAttendance();
+      setAttendanceStatus(result.message);
+      await refresh();
+    } catch (error) {
+      setAttendanceStatus(error instanceof Error ? error.message : "Could not finalize attendance");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -420,10 +545,7 @@ function ProfessorDashboardPage() {
     const formData = new FormData();
     formData.append("subject", resourceSubject);
     formData.append("file", resourceFile);
-    await runAction(
-      () => createProfessorResource(formData),
-      "Study resource uploaded",
-    );
+    await runAction(() => createProfessorResource(formData), "Study resource uploaded");
     setResourceFile(null);
     setResourceFileKey((value) => value + 1);
   }
@@ -451,15 +573,206 @@ function ProfessorDashboardPage() {
     setReviewFeedback("");
   }
 
-  if (loading && !dashboard) {
-    return <div className="glass rounded-3xl p-8 text-white/60">Loading professor dashboard...</div>;
-  }
-
   const professor = dashboard?.professor;
   const attendanceToday = dashboard?.attendance_today;
   const attendanceSummary = dashboard?.attendance_summary ?? [];
   const cgpaYears = dashboard?.cgpa_years ?? [];
   const visible = (section: ProfessorSection) => activeSection === section;
+  const baseProfessorSkills = useMemo(() => {
+    const skills = [
+      professor?.expertiseField,
+      professor?.department,
+      professor?.designation,
+      "Student Mentorship",
+      "Academic Review",
+    ].filter(Boolean) as string[];
+    return Array.from(new Set(skills)).slice(0, 6);
+  }, [professor?.department, professor?.designation, professor?.expertiseField]);
+  const defaultProfessorProfile = useMemo<EditableProfessorProfile>(
+    () => ({
+      name: professor?.name ?? "Professor",
+      email: professor?.email ?? "faculty@campusverse.edu",
+      bio: "",
+      phone: "",
+      office: "",
+      officeHours: "",
+      focus: "",
+      department: professor?.department ?? "Academic Department",
+      designation: professor?.designation ?? "Professor",
+      expertiseField: professor?.expertiseField ?? "Academic Operations",
+      highestEducation: professor?.highestEducation ?? "Verified Faculty",
+      licenseDocumentName: professor?.licenseDocumentName ?? "",
+      skills: baseProfessorSkills,
+    }),
+    [baseProfessorSkills, professor],
+  );
+  const [profile, setProfile] = useState<EditableProfessorProfile>(
+    () => getStoredProfessorProfile() ?? defaultProfessorProfile,
+  );
+  const [draftProfile, setDraftProfile] = useState<EditableProfessorProfile>(
+    () => getStoredProfessorProfile() ?? defaultProfessorProfile,
+  );
+
+  useEffect(() => {
+    const stored = getStoredProfessorProfile();
+    const nextProfile = stored ?? defaultProfessorProfile;
+    setProfile(nextProfile);
+    setDraftProfile(nextProfile);
+  }, [defaultProfessorProfile]);
+
+  const profileCompletion = useMemo(() => {
+    const checks = [
+      profile.name.trim(),
+      profile.email.trim(),
+      profile.bio.trim(),
+      profile.phone.trim(),
+      profile.office.trim(),
+      profile.officeHours.trim(),
+      profile.focus.trim(),
+      profile.department.trim(),
+      profile.designation.trim(),
+      profile.expertiseField.trim(),
+      profile.highestEducation.trim(),
+      profile.skills.length > 0 ? "skills" : "",
+    ];
+    const completed = checks.filter(Boolean).length;
+    return Math.round((completed / checks.length) * 100);
+  }, [profile]);
+
+  const mentorshipCoverage = useMemo(() => {
+    const total = students.length || 1;
+    const verified = students.filter(
+      (student) => student.professorConfirmed || student.biometricVerified,
+    ).length;
+    return Math.round((verified / total) * 100);
+  }, [students]);
+
+  const averageAttendance = useMemo(() => {
+    if (!students.length) return 0;
+    return Math.round(
+      students.reduce((sum, student) => sum + student.attendance, 0) / students.length,
+    );
+  }, [students]);
+
+  const professorHighlights = useMemo(
+    () => [
+      {
+        label: "Profile Readiness",
+        value: `${profileCompletion}%`,
+        hint:
+          profileCompletion >= 80
+            ? "Faculty profile looks complete"
+            : "Add more professional details",
+        icon: ShieldCheck,
+      },
+      {
+        label: "Student Coverage",
+        value: `${students.length}`,
+        hint: `${mentorshipCoverage}% verified or confirmed`,
+        icon: Users,
+      },
+      {
+        label: "Attendance Health",
+        value: `${averageAttendance}%`,
+        hint: "Average across assigned students",
+        icon: GraduationCap,
+      },
+      {
+        label: "Teaching Focus",
+        value: profile.expertiseField || "Add expertise",
+        hint: profile.focus || "Set your mentoring focus",
+        icon: Target,
+      },
+    ],
+    [
+      averageAttendance,
+      mentorshipCoverage,
+      profile.expertiseField,
+      profile.focus,
+      profileCompletion,
+      students.length,
+    ],
+  );
+
+  const professorMilestones = useMemo(
+    () => [
+      {
+        title: "Faculty Profile Verified",
+        detail:
+          profileCompletion >= 80
+            ? "Professional details are ready for review"
+            : "Complete profile details for a stronger faculty page",
+        earned: profileCompletion >= 80,
+      },
+      {
+        title: "Attendance Oversight Active",
+        detail: `${averageAttendance}% average student attendance`,
+        earned: averageAttendance >= 80,
+      },
+      {
+        title: "Mentorship Coverage",
+        detail: `${mentorshipCoverage}% classroom verification progress`,
+        earned: mentorshipCoverage >= 70,
+      },
+      {
+        title: "Campus Resource Contributor",
+        detail: `${professorResources.length} shared learning resources`,
+        earned: professorResources.length >= 1,
+      },
+    ],
+    [averageAttendance, mentorshipCoverage, profileCompletion, professorResources.length],
+  );
+
+  const profileTimeline = useMemo(
+    () =>
+      [
+        profile.officeHours
+          ? { when: "This week", text: `Office hours shared as ${profile.officeHours}` }
+          : null,
+        attendanceToday
+          ? {
+              when: attendanceToday.label,
+              text: `${attendanceToday.present} students marked present today`,
+            }
+          : null,
+        dashboard?.announcements?.[0]
+          ? { when: "Latest announcement", text: dashboard.announcements[0].title }
+          : null,
+        professorResources[0]
+          ? {
+              when: "Recent resource",
+              text: `${professorResources[0].title} uploaded for ${professorResources[0].subject}`,
+            }
+          : null,
+      ].filter(Boolean) as { when: string; text: string }[],
+    [attendanceToday, dashboard?.announcements, professorResources, profile.officeHours],
+  );
+
+  if (loading && !dashboard) {
+    return (
+      <div className="glass rounded-3xl p-8 text-white/60">Loading professor dashboard...</div>
+    );
+  }
+
+  function openProfessorEditor() {
+    setDraftProfile(profile);
+    setIsProfileEditOpen(true);
+  }
+
+  function saveProfessorProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextProfile = {
+      ...draftProfile,
+      skills: Array.from(
+        new Set(draftProfile.skills.map((skill) => skill.trim()).filter(Boolean)),
+      ).slice(0, 8),
+    };
+    setProfile(nextProfile);
+    setDraftProfile(nextProfile);
+    setStoredProfessorProfile(nextProfile);
+    setIsProfileEditOpen(false);
+    setStatus("Professor profile updated locally for the demo");
+  }
 
   return (
     <div className="space-y-8">
@@ -481,11 +794,14 @@ function ProfessorDashboardPage() {
               {professor?.name?.split(" ")[0] ?? "Professor"}'s academic control center
             </h1>
             <p className="mt-5 text-white/55 max-w-3xl">
-              Manage student CGPA, attendance, announcements, resources, and submitted assignments from one professor desk.
+              Manage student CGPA, attendance, announcements, resources, and submitted assignments
+              from one professor desk.
             </p>
           </div>
           <Panel className="p-5">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Verified profile</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+              Verified profile
+            </div>
             <div className="mt-3 flex items-center gap-3">
               <div
                 className="size-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
@@ -494,11 +810,17 @@ function ProfessorDashboardPage() {
                 {professor?.avatar ?? "PR"}
               </div>
               <div className="min-w-0">
-                <div className="font-display text-lg truncate">{professor?.designation ?? "Professor"}</div>
-                <div className="text-xs text-white/45 truncate">{professor?.expertiseField ?? "Academic Operations"}</div>
+                <div className="font-display text-lg truncate">
+                  {professor?.designation ?? "Professor"}
+                </div>
+                <div className="text-xs text-white/45 truncate">
+                  {professor?.expertiseField ?? "Academic Operations"}
+                </div>
               </div>
             </div>
-            <div className="mt-4 text-xs text-white/50">{professor?.licenseDocumentName ?? "License pending"}</div>
+            <div className="mt-4 text-xs text-white/50">
+              {professor?.licenseDocumentName ?? "License pending"}
+            </div>
           </Panel>
         </div>
 
@@ -509,7 +831,9 @@ function ProfessorDashboardPage() {
         </div>
       </section>
 
-      <section className={visible("dashboard") ? "grid xl:grid-cols-[1.2fr_0.8fr] gap-5" : "hidden"}>
+      <section
+        className={visible("dashboard") ? "grid xl:grid-cols-[1.2fr_0.8fr] gap-5" : "hidden"}
+      >
         <Panel className="p-5">
           <SectionTitle icon={BarChart3} eyebrow="Attendance ratio" title="Present vs absent" />
           <AttendanceRatioChart data={attendanceSummary} />
@@ -548,8 +872,12 @@ function ProfessorDashboardPage() {
                     </td>
                     <td className="py-4 pr-4 text-white/55 min-w-[180px]">{student.address}</td>
                     <td className="py-4 pr-4 text-white/65">Sem {student.semester}</td>
-                    <td className="py-4 pr-4 text-cyan-200 font-display text-lg">{student.cgpa.toFixed(1)}</td>
-                    <td className="py-4 pr-4 text-emerald-200 font-display text-lg">{student.attendance.toFixed(0)}%</td>
+                    <td className="py-4 pr-4 text-cyan-200 font-display text-lg">
+                      {student.cgpa.toFixed(1)}
+                    </td>
+                    <td className="py-4 pr-4 text-emerald-200 font-display text-lg">
+                      {student.attendance.toFixed(0)}%
+                    </td>
                     <td className="py-4 pr-4">
                       <StatusPill student={student} />
                     </td>
@@ -564,7 +892,11 @@ function ProfessorDashboardPage() {
                         }`}
                       >
                         <span className="inline-flex items-center gap-1.5">
-                          {student.isBlocked ? <UserCheck className="size-3.5" /> : <Ban className="size-3.5" />}
+                          {student.isBlocked ? (
+                            <UserCheck className="size-3.5" />
+                          ) : (
+                            <Ban className="size-3.5" />
+                          )}
                           {student.isBlocked ? "Unblock" : "Block"}
                         </span>
                       </button>
@@ -587,14 +919,20 @@ function ProfessorDashboardPage() {
       <section id="academics" className={visible("academics") ? "" : "hidden"}>
         <Panel className="p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <SectionTitle icon={GraduationCap} eyebrow="Academic controls" title="CGPA & attendance" />
+            <SectionTitle
+              icon={GraduationCap}
+              eyebrow="Academic controls"
+              title="CGPA & attendance"
+            />
             <div className="glass rounded-full p-1 flex w-full max-w-sm">
               {(["attendance", "cgpa"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setAcademicTab(tab)}
                   className={`flex-1 rounded-full px-4 py-2 text-xs uppercase tracking-[0.2em] transition ${
-                    academicTab === tab ? "bg-white/15 text-white" : "text-white/45 hover:text-white"
+                    academicTab === tab
+                      ? "bg-white/15 text-white"
+                      : "text-white/45 hover:text-white"
                   }`}
                 >
                   {tab === "attendance" ? "Attendance" : "CGPA"}
@@ -617,16 +955,31 @@ function ProfessorDashboardPage() {
                 </motion.div>
               )}
 
-              <div className="grid md:grid-cols-[1fr_auto] gap-3 items-center">
+              <div className="grid gap-3 items-center lg:grid-cols-[1fr_auto_auto]">
                 <div className="glass rounded-2xl px-4 py-3 text-sm text-white/60">
                   <span className="inline-flex items-center gap-2">
                     <CalendarClock className="size-4 text-cyan-200" />
-                    {attendanceToday?.label ?? "Today"} / {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {attendanceToday?.label ?? "Today"} /{" "}
+                    {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
                   <span className="ml-3 text-white/35">
-                    {attendanceToday?.present ?? 0} present, {attendanceToday?.absent ?? 0} absent, {attendanceToday?.unmarked ?? 0} unmarked
+                    {attendanceToday?.present ?? 0} present, {attendanceToday?.absent ?? 0} absent,{" "}
+                    {attendanceToday?.unmarked ?? 0} unmarked
+                    <span className="ml-2 text-cyan-100/70">
+                      {attendanceToday?.biometricVerified ?? 0} biometric verified
+                    </span>
                   </span>
                 </div>
+                <button
+                  onClick={finalizeAttendance}
+                  disabled={saving}
+                  className="glass rounded-full px-4 py-3 text-xs uppercase tracking-[0.2em] text-amber-100 hover:text-white disabled:cursor-wait disabled:opacity-60"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <AlertTriangle className="size-4" />
+                    Finalize absent
+                  </span>
+                </button>
                 <button
                   onClick={() => setShowAttendanceHistory((value) => !value)}
                   className="glass rounded-full px-4 py-3 text-xs uppercase tracking-[0.2em] text-white/65 hover:text-white"
@@ -640,19 +993,96 @@ function ProfessorDashboardPage() {
 
               <div className="grid xl:grid-cols-[0.8fr_1.2fr] gap-4">
                 <div className="glass rounded-3xl p-5">
-                  <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Today ratio</div>
-                  <div className="mt-5 grid grid-cols-3 gap-3">
-                    <MiniStat label="Present" value={String(attendanceToday?.present ?? 0)} tone="text-emerald-200" />
-                    <MiniStat label="Absent" value={String(attendanceToday?.absent ?? 0)} tone="text-rose-100" />
-                    <MiniStat label="Unmarked" value={String(attendanceToday?.unmarked ?? 0)} tone="text-white/65" />
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+                    Today ratio
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                    <MiniStat
+                      label="Present"
+                      value={String(attendanceToday?.present ?? 0)}
+                      tone="text-emerald-200"
+                    />
+                    <MiniStat
+                      label="Absent"
+                      value={String(attendanceToday?.absent ?? 0)}
+                      tone="text-rose-100"
+                    />
+                    <MiniStat
+                      label="Unmarked"
+                      value={String(attendanceToday?.unmarked ?? 0)}
+                      tone="text-white/65"
+                    />
+                    <MiniStat
+                      label="Verified"
+                      value={String(attendanceToday?.biometricVerified ?? 0)}
+                      tone="text-cyan-200"
+                    />
+                    <MiniStat
+                      label="Warnings"
+                      value={String(attendanceToday?.warnings ?? 0)}
+                      tone="text-amber-100"
+                    />
                   </div>
                   <div className="mt-5 text-xs text-white/45">
-                    Attendance is locked to the current date and updates student dashboard percentages immediately.
+                    Attendance is locked to the current date and updates student dashboard
+                    percentages immediately.
                   </div>
                 </div>
                 <div className="glass rounded-3xl p-5">
-                  <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Live attendance graph</div>
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+                    Live attendance graph
+                  </div>
                   <AttendanceRatioChart data={attendanceSummary} compact />
+                </div>
+              </div>
+
+              <div className="glass rounded-3xl p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+                      Biometric verified queue
+                    </div>
+                    <div className="mt-1 font-display text-xl font-semibold">
+                      Students waiting for professor tick
+                    </div>
+                  </div>
+                  <div className="rounded-full bg-cyan-300/10 px-4 py-2 text-xs text-cyan-100">
+                    {verifiedAttendanceStudents.length} verified
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {verifiedAttendanceStudents.map((student) => (
+                    <div
+                      key={student.id}
+                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="font-medium text-white">{student.name}</div>
+                          <div className="mt-1 text-xs text-white/45">
+                            {student.studentCode} /{" "}
+                            {student.radiusDistance != null
+                              ? `${student.radiusDistance}m from center`
+                              : "Inside radius"}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => markAttendance(student, "present")}
+                          disabled={saving || student.isBlocked}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/30 bg-emerald-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-wait disabled:opacity-60"
+                        >
+                          <CheckCircle2 className="size-4" />
+                          Confirm present
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {verifiedAttendanceStudents.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-5 text-sm text-white/45 lg:col-span-2">
+                      No biometric verified students yet. After a student scans, they will appear
+                      here automatically.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -660,14 +1090,15 @@ function ProfessorDashboardPage() {
                 <table className="w-full text-left text-sm">
                   <thead className="text-white/40 text-[10px] uppercase tracking-[0.25em]">
                     <tr>
-                      <th className="py-3 pr-4">Student</th>
-                      <th className="py-3 pr-4">Today</th>
+                      <th className="py-3 pr-4">Verified student</th>
+                      <th className="py-3 pr-4">Radius</th>
+                      <th className="py-3 pr-4">Biometric</th>
                       <th className="py-3 pr-4">Overall</th>
-                      <th className="py-3 pr-4">Mark attendance</th>
+                      <th className="py-3 pr-4">Professor action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {students.map((student) => {
+                    {verifiedAttendanceStudents.map((student) => {
                       const todayStatus = todayStatusByStudent.get(student.id);
                       return (
                         <tr key={student.id} className="border-t border-white/10">
@@ -675,18 +1106,13 @@ function ProfessorDashboardPage() {
                             <div className="font-medium">{student.name}</div>
                             <div className="text-xs text-white/40">{student.studentCode}</div>
                           </td>
+                          <td className="py-4 pr-4 text-white/60">
+                            {student.radiusDistance != null
+                              ? `${student.radiusDistance}m from center`
+                              : "Inside radius"}
+                          </td>
                           <td className="py-4 pr-4">
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs capitalize ${
-                                todayStatus === "present"
-                                  ? "bg-emerald-400/10 text-emerald-200"
-                                  : todayStatus === "absent"
-                                    ? "bg-rose-500/10 text-rose-100"
-                                    : "bg-white/10 text-white/45"
-                              }`}
-                            >
-                              {todayStatus ?? "unmarked"}
-                            </span>
+                            <BiometricPill student={student} />
                           </td>
                           <td className="py-4 pr-4 text-white/60">
                             {student.attendance.toFixed(0)}% / {student.attendanceMarked} days
@@ -710,10 +1136,19 @@ function ProfessorDashboardPage() {
                         </tr>
                       );
                     })}
+                    {verifiedAttendanceStudents.length === 0 && (
+                      <tr className="border-t border-white/10">
+                        <td colSpan={5} className="py-6 text-sm text-white/45">
+                          No biometric verified students are waiting right now. Students will appear
+                          here only after entering the campus radius and finishing biometric
+                          verification. Everyone else will be handled by final absent marking for
+                          today.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
-
             </div>
           ) : (
             <div className="mt-6 min-h-[240px] rounded-3xl border border-white/10 bg-white/[0.02]" />
@@ -721,16 +1156,38 @@ function ProfessorDashboardPage() {
         </Panel>
       </section>
 
-      <section className={visible("announcements") || visible("resources") ? "grid gap-5" : "hidden"}>
+      <section
+        className={visible("announcements") || visible("resources") ? "grid gap-5" : "hidden"}
+      >
         <Panel id="announcements" className={visible("announcements") ? "p-5" : "hidden"}>
           <SectionTitle icon={Megaphone} eyebrow="Announcements" title="Publish campus update" />
           <form onSubmit={submitAnnouncement} className="mt-5 space-y-4">
-            <Input value={announcementTitle} onChange={(event) => setAnnouncementTitle(event.target.value)} placeholder="Announcement title" required />
+            <Input
+              value={announcementTitle}
+              onChange={(event) => setAnnouncementTitle(event.target.value)}
+              placeholder="Announcement title"
+              required
+            />
             <div className="grid sm:grid-cols-2 gap-3">
-              <Input value={announcementCategory} onChange={(event) => setAnnouncementCategory(event.target.value)} placeholder="Category" required />
-              <Input value={announcementAudience} onChange={(event) => setAnnouncementAudience(event.target.value)} placeholder="Audience" required />
+              <Input
+                value={announcementCategory}
+                onChange={(event) => setAnnouncementCategory(event.target.value)}
+                placeholder="Category"
+                required
+              />
+              <Input
+                value={announcementAudience}
+                onChange={(event) => setAnnouncementAudience(event.target.value)}
+                placeholder="Audience"
+                required
+              />
             </div>
-            <Textarea value={announcementBody} onChange={(event) => setAnnouncementBody(event.target.value)} placeholder="Write the announcement body" required />
+            <Textarea
+              value={announcementBody}
+              onChange={(event) => setAnnouncementBody(event.target.value)}
+              placeholder="Write the announcement body"
+              required
+            />
             <label className="flex items-center gap-3 text-sm text-white/60">
               <input
                 type="checkbox"
@@ -740,11 +1197,17 @@ function ProfessorDashboardPage() {
               />
               Pin for students
             </label>
-            <ActionButton disabled={saving} icon={Send}>Publish announcement</ActionButton>
+            <ActionButton disabled={saving} icon={Send}>
+              Publish announcement
+            </ActionButton>
           </form>
           <div className="mt-6 space-y-3">
             {(dashboard?.announcements ?? []).slice(0, 3).map((item) => (
-              <MiniItem key={item.id} title={item.title} meta={`${item.category} / ${item.audience}`} />
+              <MiniItem
+                key={item.id}
+                title={item.title}
+                meta={`${item.category} / ${item.audience}`}
+              />
             ))}
           </div>
         </Panel>
@@ -781,7 +1244,9 @@ function ProfessorDashboardPage() {
                 </span>
                 <span className="min-w-0">
                   <span className="block font-medium truncate">
-                    {resourceFile ? resourceFile.name : "Choose PDF, document, audio, video, CSV, Excel, or any file"}
+                    {resourceFile
+                      ? resourceFile.name
+                      : "Choose PDF, document, audio, video, CSV, Excel, or any file"}
                   </span>
                   <span className="mt-1 block text-xs text-white/40">
                     The file name becomes the resource title after upload.
@@ -790,7 +1255,9 @@ function ProfessorDashboardPage() {
               </span>
             </label>
 
-            <ActionButton disabled={saving || !resourceFile} icon={Upload}>Upload resource</ActionButton>
+            <ActionButton disabled={saving || !resourceFile} icon={Upload}>
+              Upload resource
+            </ActionButton>
           </form>
 
           <div className="mt-7 border-t border-white/10 pt-5">
@@ -836,7 +1303,10 @@ function ProfessorDashboardPage() {
         </Panel>
       </section>
 
-      <section id="reviews" className={visible("reviews") ? "grid xl:grid-cols-[0.9fr_1.1fr] gap-5" : "hidden"}>
+      <section
+        id="reviews"
+        className={visible("reviews") ? "grid xl:grid-cols-[0.9fr_1.1fr] gap-5" : "hidden"}
+      >
         <Panel className="p-5">
           <SectionTitle icon={ClipboardCheck} eyebrow="Submitted work" title="Review queue" />
           <div className="mt-5 space-y-3">
@@ -848,11 +1318,15 @@ function ProfessorDashboardPage() {
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-medium text-sm">{item.title}</div>
-                  <span className={`text-[10px] uppercase tracking-[0.2em] ${item.priority === "high" ? "text-rose-200" : "text-white/40"}`}>
+                  <span
+                    className={`text-[10px] uppercase tracking-[0.2em] ${item.priority === "high" ? "text-rose-200" : "text-white/40"}`}
+                  >
                     {item.priority}
                   </span>
                 </div>
-                <div className="mt-1 text-xs text-white/45">{item.student} / {item.submitted}</div>
+                <div className="mt-1 text-xs text-white/45">
+                  {item.student} / {item.submitted}
+                </div>
               </button>
             ))}
           </div>
@@ -861,7 +1335,11 @@ function ProfessorDashboardPage() {
         <Panel className="p-5">
           <SectionTitle icon={CheckCircle2} eyebrow="Assignment review" title="Grade submission" />
           <form onSubmit={submitReview} className="mt-5 space-y-4">
-            <Select value={reviewStudentId} onChange={(event) => setReviewStudentId(event.target.value)} required>
+            <Select
+              value={reviewStudentId}
+              onChange={(event) => setReviewStudentId(event.target.value)}
+              required
+            >
               <option value="">Select student</option>
               {students.map((student) => (
                 <option key={student.id} value={student.id}>
@@ -870,12 +1348,32 @@ function ProfessorDashboardPage() {
               ))}
             </Select>
             <div className="grid sm:grid-cols-2 gap-3">
-              <Input value={reviewTitle} onChange={(event) => setReviewTitle(event.target.value)} placeholder="Assignment title" required />
-              <Input value={reviewSubject} onChange={(event) => setReviewSubject(event.target.value)} placeholder="Subject" required />
+              <Input
+                value={reviewTitle}
+                onChange={(event) => setReviewTitle(event.target.value)}
+                placeholder="Assignment title"
+                required
+              />
+              <Input
+                value={reviewSubject}
+                onChange={(event) => setReviewSubject(event.target.value)}
+                placeholder="Subject"
+                required
+              />
             </div>
-            <Input value={reviewGrade} onChange={(event) => setReviewGrade(event.target.value)} placeholder="Grade: A, B+, 18/20" />
-            <Textarea value={reviewFeedback} onChange={(event) => setReviewFeedback(event.target.value)} placeholder="Feedback for the student" />
-            <ActionButton disabled={saving || !reviewStudentId} icon={Save}>Save review</ActionButton>
+            <Input
+              value={reviewGrade}
+              onChange={(event) => setReviewGrade(event.target.value)}
+              placeholder="Grade: A, B+, 18/20"
+            />
+            <Textarea
+              value={reviewFeedback}
+              onChange={(event) => setReviewFeedback(event.target.value)}
+              placeholder="Feedback for the student"
+            />
+            <ActionButton disabled={saving || !reviewStudentId} icon={Save}>
+              Save review
+            </ActionButton>
           </form>
           <div className="mt-6 space-y-3">
             {(dashboard?.assignment_reviews ?? []).slice(0, 3).map((item) => (
@@ -885,32 +1383,282 @@ function ProfessorDashboardPage() {
         </Panel>
       </section>
 
-      <section id="profile" className={visible("profile") ? "grid xl:grid-cols-[0.8fr_1.2fr] gap-5" : "hidden"}>
-        <Panel className="p-5">
-          <SectionTitle icon={UserCheck} eyebrow="Verification" title="Professor profile" />
-          <div className="mt-6 flex items-center gap-4">
-            <div
-              className="size-16 rounded-3xl flex items-center justify-center text-lg font-semibold"
-              style={{ background: "var(--grad-aurora)" }}
-            >
-              {professor?.avatar ?? "PR"}
+      <section id="profile" className={visible("profile") ? "space-y-5 pt-2" : "hidden"}>
+        <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-white/45 rounded-full border border-white/10 px-4 py-2">
+          <Briefcase className="size-3.5" />
+          Faculty identity
+        </div>
+
+        <Panel className="relative overflow-hidden p-0">
+          <div className="absolute inset-0" style={{ background: "var(--grad-aurora)" }} />
+          <div className="absolute inset-0 opacity-30 grid-bg" />
+          <div className="absolute inset-px rounded-[calc(1.5rem-1px)] bg-[#07070a]/75" />
+          <div className="relative grid gap-8 p-6 lg:grid-cols-[1.25fr_0.75fr] lg:p-8">
+            <div className="flex gap-5">
+              <div
+                className="flex size-24 shrink-0 items-center justify-center rounded-3xl text-2xl font-semibold"
+                style={{ background: "var(--grad-aurora)" }}
+              >
+                {professorInitialsFromName(profile.name)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] uppercase tracking-[0.35em] text-white/45">
+                  {professor?.verificationStatus ?? "verified faculty"}
+                </div>
+                <h2 className="mt-2 font-display text-4xl font-bold tracking-tight">
+                  {profile.name}
+                </h2>
+                <div className="mt-2 text-lg text-white/68">
+                  {profile.designation} / {profile.department}
+                </div>
+                <p className="mt-4 max-w-2xl text-sm leading-6 text-white/58">
+                  {profile.bio.trim() ||
+                    "Add a short faculty bio to introduce teaching style, academic background, and mentoring focus."}
+                </p>
+                <div className="mt-5 flex flex-wrap gap-4 text-sm text-white/50">
+                  <InlineProfileValue
+                    icon={Mail}
+                    value={profile.email}
+                    fallback="Add faculty email"
+                  />
+                  <InlineProfileValue
+                    icon={Phone}
+                    value={profile.phone}
+                    fallback="Add phone number"
+                  />
+                  <InlineProfileValue
+                    icon={MapPin}
+                    value={profile.office}
+                    fallback="Add office location"
+                  />
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <SnapshotStat
+                    label="Expertise"
+                    value={profile.expertiseField || "Add expertise"}
+                  />
+                  <SnapshotStat
+                    label="Education"
+                    value={profile.highestEducation || "Add education"}
+                  />
+                  <SnapshotStat
+                    label="Office Hours"
+                    value={profile.officeHours || "Set schedule"}
+                  />
+                  <SnapshotStat label="Resources" value={String(professorResources.length)} />
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="font-display text-2xl">{professor?.name ?? "Professor"}</div>
-              <div className="text-sm text-white/45">{professor?.email ?? "faculty@campusverse.edu"}</div>
+
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={openProfessorEditor}
+                  className="glass-strong inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs uppercase tracking-[0.2em]"
+                >
+                  <Edit3 className="size-3.5" />
+                  Edit
+                </button>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-black/25 p-5">
+                <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+                  Faculty Completion
+                </div>
+                <div className="mt-3 flex items-end justify-between gap-3">
+                  <div className="font-display text-4xl">{profileCompletion}%</div>
+                  <div className="max-w-[180px] text-right text-xs text-white/45">
+                    {profileCompletion >= 80
+                      ? "Ready for milestone demo"
+                      : "Add more faculty details"}
+                  </div>
+                </div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${profileCompletion}%`, background: "var(--grad-aurora)" }}
+                  />
+                </div>
+                <div className="mt-4 inline-flex items-start gap-2 text-xs text-white/50">
+                  <Target className="mt-0.5 size-3.5 shrink-0 text-white/55" />
+                  <span>
+                    {profile.focus.trim() ||
+                      "Set your academic focus, mentoring goal, or teaching direction."}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </Panel>
-        <Panel className="p-5">
-          <div className="grid sm:grid-cols-2 gap-4">
-            <ProfileField label="Designation" value={professor?.designation ?? "Professor"} />
-            <ProfileField label="Department" value={professor?.department ?? "Computer Science & AI"} />
-            <ProfileField label="Expertise" value={professor?.expertiseField ?? "Academic Operations"} />
-            <ProfileField label="Education" value={professor?.highestEducation ?? "Verified Faculty"} />
-            <ProfileField label="License" value={professor?.licenseDocumentName ?? "Not submitted"} />
-            <ProfileField label="Status" value={professor?.verificationStatus ?? "pending"} />
+
+        <div className="grid gap-4 lg:grid-cols-4">
+          {professorHighlights.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Panel key={item.label} className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.3em] text-white/35">
+                      {item.label}
+                    </div>
+                    <div className="mt-4 font-display text-3xl font-bold text-white">
+                      {item.value}
+                    </div>
+                    <div className="mt-2 text-sm text-white/45">{item.hint}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/[0.06] p-3">
+                    <Icon className="size-4 text-cyan-200" />
+                  </div>
+                </div>
+              </Panel>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <Panel className="p-5">
+            <SectionTitle icon={History} eyebrow="Activity" title="Faculty timeline" />
+            <div className="mt-6 relative pl-6">
+              <div className="absolute bottom-0 left-2 top-0 w-px bg-gradient-to-b from-white/30 via-white/10 to-transparent" />
+              {profileTimeline.map((entry, index) => (
+                <motion.div
+                  key={`${entry.when}-${entry.text}`}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="relative pb-5"
+                >
+                  <span
+                    className="absolute -left-[18px] top-1.5 size-2.5 rounded-full"
+                    style={{ background: "var(--grad-aurora)" }}
+                  />
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+                    {entry.when}
+                  </div>
+                  <div className="text-sm text-white/78">{entry.text}</div>
+                </motion.div>
+              ))}
+              {profileTimeline.length === 0 && (
+                <div className="text-sm text-white/45">
+                  Timeline items will appear here as professor activity grows.
+                </div>
+              )}
+            </div>
+          </Panel>
+
+          <div className="space-y-5">
+            <Panel className="p-5">
+              <SectionTitle icon={Sparkles} eyebrow="Teaching stack" title="Skills & strengths" />
+              <div className="mt-4 flex flex-wrap gap-2">
+                {profile.skills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="glass rounded-full px-3 py-1.5 text-xs text-white/78"
+                  >
+                    {skill}
+                  </span>
+                ))}
+                {profile.skills.length === 0 && (
+                  <div className="text-sm text-white/45">
+                    Add expertise keywords to make the faculty profile richer.
+                  </div>
+                )}
+              </div>
+            </Panel>
+
+            <Panel className="p-5">
+              <SectionTitle
+                icon={ShieldCheck}
+                eyebrow="Milestones"
+                title="Verification & progress"
+              />
+              <div className="mt-4 grid gap-3">
+                {professorMilestones.map((item, index) => (
+                  <div
+                    key={item.title}
+                    className={`relative overflow-hidden rounded-2xl border p-4 ${
+                      item.earned ? "border-white/15 bg-white/[0.04]" : "border-white/8 bg-black/20"
+                    }`}
+                  >
+                    <div
+                      className={`absolute inset-x-0 top-0 h-1 ${item.earned ? "opacity-100" : "opacity-35"}`}
+                      style={{
+                        background: `linear-gradient(90deg, oklch(0.7 0.25 310), ${
+                          index % 2 === 0 ? "oklch(0.82 0.18 200)" : "oklch(0.85 0.12 60)"
+                        })`,
+                      }}
+                    />
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-white">{item.title}</div>
+                        <div className="mt-1 text-xs text-white/45">{item.detail}</div>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.22em] ${
+                          item.earned ? "bg-white/10 text-white/70" : "bg-black/25 text-white/35"
+                        }`}
+                      >
+                        {item.earned ? "Active" : "Pending"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
           </div>
-        </Panel>
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+          <Panel className="p-5">
+            <SectionTitle icon={UserCheck} eyebrow="Faculty card" title="Professional overview" />
+            <div className="mt-5 grid gap-3">
+              <ProfileField label="Designation" value={profile.designation} />
+              <ProfileField label="Department" value={profile.department} />
+              <ProfileField
+                label="Expertise"
+                value={profile.expertiseField || "Add faculty expertise"}
+              />
+              <ProfileField
+                label="Education"
+                value={profile.highestEducation || "Add highest education"}
+              />
+              <ProfileField
+                label="Office Hours"
+                value={profile.officeHours || "Add office hours"}
+              />
+              <ProfileField
+                label="License"
+                value={profile.licenseDocumentName || "Not added yet"}
+              />
+            </div>
+          </Panel>
+
+          <Panel className="p-5">
+            <SectionTitle icon={Briefcase} eyebrow="Milestone-ready" title="Presentation summary" />
+            <div className="mt-5 space-y-4">
+              <ProfileField
+                label="Verification Status"
+                value={professor?.verificationStatus ?? "pending"}
+              />
+              <ProfileField
+                label="Assigned Students"
+                value={`${students.length} active student records`}
+              />
+              <ProfileField
+                label="Recent Announcements"
+                value={`${dashboard?.announcements?.length ?? 0} published notice(s)`}
+              />
+              <ProfileField
+                label="Resource Contribution"
+                value={`${professorResources.length} study resource(s) uploaded`}
+              />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/58">
+                This faculty profile combines verified identity, mentoring focus, classroom
+                oversight, and contribution signals in one polished professor-facing view.
+              </div>
+            </div>
+          </Panel>
+        </div>
       </section>
 
       <section id="connect" className={visible("connect") ? "" : "hidden"}>
@@ -924,6 +1672,139 @@ function ProfessorDashboardPage() {
           onClose={() => setShowAttendanceHistory(false)}
         />
       )}
+
+      <Dialog open={isProfileEditOpen} onOpenChange={setIsProfileEditOpen}>
+        <DialogContent className="border-white/10 bg-[#0b0b0f] text-white sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl">Edit Professor Profile</DialogTitle>
+            <DialogDescription className="text-white/50">
+              This milestone saves faculty profile updates locally so the professor view stays
+              polished in the demo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={saveProfessorProfile} className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                label="Full Name"
+                value={draftProfile.name}
+                onChange={(value) => setDraftProfile((current) => ({ ...current, name: value }))}
+              />
+              <FormField
+                label="Phone"
+                value={draftProfile.phone}
+                onChange={(value) => setDraftProfile((current) => ({ ...current, phone: value }))}
+              />
+              <FormField
+                label="Email"
+                value={draftProfile.email}
+                onChange={(value) => setDraftProfile((current) => ({ ...current, email: value }))}
+              />
+              <FormField
+                label="Office"
+                value={draftProfile.office}
+                onChange={(value) => setDraftProfile((current) => ({ ...current, office: value }))}
+              />
+              <FormField
+                label="Designation"
+                value={draftProfile.designation}
+                onChange={(value) =>
+                  setDraftProfile((current) => ({ ...current, designation: value }))
+                }
+              />
+              <FormField
+                label="Department"
+                value={draftProfile.department}
+                onChange={(value) =>
+                  setDraftProfile((current) => ({ ...current, department: value }))
+                }
+              />
+              <FormField
+                label="Expertise"
+                value={draftProfile.expertiseField}
+                onChange={(value) =>
+                  setDraftProfile((current) => ({ ...current, expertiseField: value }))
+                }
+              />
+              <FormField
+                label="Office Hours"
+                value={draftProfile.officeHours}
+                onChange={(value) =>
+                  setDraftProfile((current) => ({ ...current, officeHours: value }))
+                }
+              />
+              <FormField
+                label="Highest Education"
+                value={draftProfile.highestEducation}
+                onChange={(value) =>
+                  setDraftProfile((current) => ({ ...current, highestEducation: value }))
+                }
+              />
+              <FormField
+                label="License Document"
+                value={draftProfile.licenseDocumentName}
+                onChange={(value) =>
+                  setDraftProfile((current) => ({ ...current, licenseDocumentName: value }))
+                }
+              />
+            </div>
+
+            <FormField
+              label="Mentoring Focus"
+              value={draftProfile.focus}
+              onChange={(value) => setDraftProfile((current) => ({ ...current, focus: value }))}
+            />
+
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase tracking-[0.28em] text-white/40">Bio</label>
+              <textarea
+                value={draftProfile.bio}
+                onChange={(event) =>
+                  setDraftProfile((current) => ({ ...current, bio: event.target.value }))
+                }
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/25"
+                placeholder="Summarize teaching style, academic background, and faculty role."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase tracking-[0.28em] text-white/40">
+                Skills
+              </label>
+              <input
+                value={draftProfile.skills.join(", ")}
+                onChange={(event) =>
+                  setDraftProfile((current) => ({
+                    ...current,
+                    skills: event.target.value.split(","),
+                  }))
+                }
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/25"
+                placeholder="AI, Mentorship, Research, Classroom Management"
+              />
+              <div className="text-xs text-white/35">Separate skills with commas.</div>
+            </div>
+
+            <DialogFooter className="gap-3 sm:justify-between sm:space-x-0">
+              <button
+                type="button"
+                onClick={() => setIsProfileEditOpen(false)}
+                className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/65 transition hover:border-white/20 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-full px-5 py-2 text-sm font-medium text-white"
+                style={{ background: "var(--grad-aurora)" }}
+              >
+                Save Changes
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -953,13 +1834,26 @@ function AttendanceRatioChart({
   data: ProfessorDashboard["attendance_summary"];
   compact?: boolean;
 }) {
-  const maxStudents = Math.max(...data.map((item) => item.totalStudents), ...data.map((item) => item.marked), 1);
+  const maxStudents = Math.max(
+    ...data.map((item) => item.totalStudents),
+    ...data.map((item) => item.marked),
+    1,
+  );
   return (
     <div className={compact ? "mt-4" : "mt-6"}>
       <div className="flex items-center gap-4 text-xs text-white/45">
-        <span className="inline-flex items-center gap-2"><span className="size-2 rounded-full bg-cyan-300" />Present</span>
-        <span className="inline-flex items-center gap-2"><span className="size-2 rounded-full bg-rose-300" />Absent</span>
-        <span className="inline-flex items-center gap-2"><span className="size-2 rounded-full bg-white/25" />Unmarked</span>
+        <span className="inline-flex items-center gap-2">
+          <span className="size-2 rounded-full bg-cyan-300" />
+          Present
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="size-2 rounded-full bg-rose-300" />
+          Absent
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="size-2 rounded-full bg-white/25" />
+          Unmarked
+        </span>
       </div>
       <div className={`${compact ? "mt-4 h-44" : "mt-5 h-56"} flex items-end gap-3 sm:gap-5`}>
         {data.map((item) => (
@@ -977,22 +1871,34 @@ function AttendanceRatioChart({
                 <ChartTooltipRow color="bg-white/30" label="Unmarked" value={item.unmarked} />
               </div>
             </div>
-            <div className={`${compact ? "h-32" : "h-44"} flex transform-gpu items-end justify-center gap-1.5 border-b border-white/10 transition duration-200 ease-out group-hover/date:-translate-y-1 group-focus/date:-translate-y-1`}>
+            <div
+              className={`${compact ? "h-32" : "h-44"} flex transform-gpu items-end justify-center gap-1.5 border-b border-white/10 transition duration-200 ease-out group-hover/date:-translate-y-1 group-focus/date:-translate-y-1`}
+            >
               <div
                 className="w-full max-w-8 origin-bottom transform-gpu rounded-t-xl bg-gradient-to-t from-cyan-950 to-cyan-300 transition-transform duration-200 ease-out group-hover/date:scale-y-105 group-focus/date:scale-y-105"
-                style={{ height: item.present ? `${Math.max(8, (item.present / maxStudents) * 100)}%` : "0%" }}
+                style={{
+                  height: item.present
+                    ? `${Math.max(8, (item.present / maxStudents) * 100)}%`
+                    : "0%",
+                }}
               />
               <div
                 className="w-full max-w-8 origin-bottom transform-gpu rounded-t-xl bg-gradient-to-t from-rose-950 to-rose-300 transition-transform duration-200 ease-out group-hover/date:scale-y-105 group-focus/date:scale-y-105"
-                style={{ height: item.absent ? `${Math.max(8, (item.absent / maxStudents) * 100)}%` : "0%" }}
+                style={{
+                  height: item.absent ? `${Math.max(8, (item.absent / maxStudents) * 100)}%` : "0%",
+                }}
               />
               <div
                 className="w-full max-w-8 origin-bottom transform-gpu rounded-t-xl bg-white/15 transition-transform duration-200 ease-out group-hover/date:scale-y-105 group-focus/date:scale-y-105"
                 style={{ height: `${Math.max(10, (item.unmarked / maxStudents) * 100)}%` }}
               />
             </div>
-            <div className="mt-2 text-center text-[10px] uppercase tracking-[0.16em] text-white/35 truncate">{item.label}</div>
-            <div className="mt-1 text-center text-xs text-white/55">{item.present}/{item.absent}</div>
+            <div className="mt-2 text-center text-[10px] uppercase tracking-[0.16em] text-white/35 truncate">
+              {item.label}
+            </div>
+            <div className="mt-1 text-center text-xs text-white/55">
+              {item.present}/{item.absent}
+            </div>
           </div>
         ))}
       </div>
@@ -1110,7 +2016,11 @@ function SearchableOptionInput({
 
   return (
     <div className="relative">
-      {label && <span className="mb-2 block text-[10px] uppercase tracking-[0.28em] text-white/35">{label}</span>}
+      {label && (
+        <span className="mb-2 block text-[10px] uppercase tracking-[0.28em] text-white/35">
+          {label}
+        </span>
+      )}
       <div className="relative">
         <input
           id={id}
@@ -1160,7 +2070,9 @@ function SearchableOptionInput({
                 setOpen(false);
               }}
               className={`block w-full rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                option === value ? "bg-white/12 text-white" : "text-white/65 hover:bg-white/8 hover:text-white"
+                option === value
+                  ? "bg-white/12 text-white"
+                  : "text-white/65 hover:bg-white/8 hover:text-white"
               }`}
               role="option"
               aria-selected={option === value}
@@ -1180,7 +2092,9 @@ function SearchableOptionInput({
 function CgpaYearChart({ data }: { data: ProfessorDashboard["cgpa_years"] }) {
   return (
     <div className="mt-6 h-56 flex items-end gap-4">
-      {data.length === 0 && <div className="self-center text-sm text-white/45">No student CGPA records yet.</div>}
+      {data.length === 0 && (
+        <div className="self-center text-sm text-white/45">No student CGPA records yet.</div>
+      )}
       {data.map((item) => (
         <div key={item.year} className="group flex-1 min-w-0">
           <div className="h-44 flex items-end border-b border-white/10">
@@ -1190,8 +2104,12 @@ function CgpaYearChart({ data }: { data: ProfessorDashboard["cgpa_years"] }) {
               title={`${item.averageCgpa} CGPA`}
             />
           </div>
-          <div className="mt-2 text-center text-[10px] uppercase tracking-[0.16em] text-white/35 truncate">{item.year}</div>
-          <div className="mt-1 text-center text-xs text-white/65">{item.averageCgpa.toFixed(2)}</div>
+          <div className="mt-2 text-center text-[10px] uppercase tracking-[0.16em] text-white/35 truncate">
+            {item.year}
+          </div>
+          <div className="mt-1 text-center text-xs text-white/65">
+            {item.averageCgpa.toFixed(2)}
+          </div>
         </div>
       ))}
     </div>
@@ -1209,7 +2127,7 @@ function AttendanceHistoryOverlay({
 }) {
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState(todayDate ?? "");
-  const [statusFilter, setStatusFilter] = useState<"all" | AttendanceStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | AttendanceStatus | "warning">("all");
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -1237,6 +2155,7 @@ function AttendanceHistoryOverlay({
 
   const presentCount = filteredItems.filter((item) => item.status === "present").length;
   const absentCount = filteredItems.filter((item) => item.status === "absent").length;
+  const warningCount = filteredItems.filter((item) => item.status === "warning").length;
 
   return (
     <motion.div
@@ -1255,7 +2174,11 @@ function AttendanceHistoryOverlay({
       >
         <div className="border-b border-white/10 p-5 md:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <SectionTitle icon={History} eyebrow="Attendance history" title="Marked present & absent" />
+            <SectionTitle
+              icon={History}
+              eyebrow="Attendance history"
+              title="Marked present & absent"
+            />
             <button
               onClick={onClose}
               className="glass inline-flex size-11 items-center justify-center rounded-full text-white/65 transition hover:text-white lg:ml-auto"
@@ -1265,7 +2188,7 @@ function AttendanceHistoryOverlay({
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_180px_260px]">
+          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_180px_240px]">
             <label className="glass rounded-2xl px-4 py-3 flex items-center gap-3">
               <Search className="size-4 text-white/45" />
               <input
@@ -1281,26 +2204,41 @@ function AttendanceHistoryOverlay({
               onChange={(event) => setDateFilter(event.target.value)}
               className="glass rounded-2xl px-4 py-3 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-white/30"
             />
-            <div className="glass rounded-2xl p-1 grid grid-cols-3">
-              {(["all", "present", "absent"] as const).map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setStatusFilter(status)}
-                  className={`rounded-xl px-3 py-2 text-[10px] uppercase tracking-[0.18em] transition ${
-                    statusFilter === status ? "bg-white/15 text-white" : "text-white/45 hover:text-white"
-                  }`}
+            <label className="glass rounded-2xl px-4 py-3">
+              <div className="mb-2 text-[10px] uppercase tracking-[0.22em] text-white/35">
+                Status filter
+              </div>
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as "all" | AttendanceStatus | "warning")
+                  }
+                  className="w-full appearance-none bg-transparent pr-10 text-sm text-white focus:outline-none"
                 >
-                  {status}
-                </button>
-              ))}
-            </div>
+                  <option value="all" className="bg-[#101010] text-white">
+                    All statuses
+                  </option>
+                  <option value="present" className="bg-[#101010] text-white">
+                    Present only
+                  </option>
+                  <option value="absent" className="bg-[#101010] text-white">
+                    Absent only
+                  </option>
+                  <option value="warning" className="bg-[#101010] text-white">
+                    Warning only
+                  </option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-0 top-1/2 size-4 -translate-y-1/2 text-white/45" />
+              </div>
+            </label>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
             <MiniStat label="Records" value={String(filteredItems.length)} tone="text-cyan-200" />
             <MiniStat label="Present" value={String(presentCount)} tone="text-emerald-200" />
             <MiniStat label="Absent" value={String(absentCount)} tone="text-rose-100" />
+            <MiniStat label="Warnings" value={String(warningCount)} tone="text-amber-100" />
           </div>
         </div>
 
@@ -1327,10 +2265,15 @@ function AttendanceHistoryOverlay({
                         className={`rounded-full px-3 py-1 text-xs capitalize ${
                           item.status === "present"
                             ? "bg-emerald-400/10 text-emerald-200"
-                            : "bg-rose-500/10 text-rose-100"
+                            : item.status === "absent"
+                              ? "bg-rose-500/10 text-rose-100"
+                              : "bg-amber-400/10 text-amber-100"
                         }`}
                       >
-                        {item.status}
+                        <span className="inline-flex items-center gap-1.5">
+                          {item.status === "warning" && <AlertTriangle className="size-3.5" />}
+                          {item.status === "warning" ? "Needs tick" : item.status}
+                        </span>
                       </span>
                     </td>
                     <td className="px-5 py-4 text-white/60">{formatDateOnly(item.date)}</td>
@@ -1348,16 +2291,23 @@ function AttendanceHistoryOverlay({
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{item.student}</div>
-                    <div className="mt-1 text-xs text-white/40">{item.studentCode || item.date}</div>
+                    <div className="mt-1 text-xs text-white/40">
+                      {item.studentCode || item.date}
+                    </div>
                   </div>
                   <span
                     className={`rounded-full px-3 py-1 text-xs capitalize ${
                       item.status === "present"
                         ? "bg-emerald-400/10 text-emerald-200"
-                        : "bg-rose-500/10 text-rose-100"
+                        : item.status === "absent"
+                          ? "bg-rose-500/10 text-rose-100"
+                          : "bg-amber-400/10 text-amber-100"
                     }`}
                   >
-                    {item.status}
+                    <span className="inline-flex items-center gap-1.5">
+                      {item.status === "warning" && <AlertTriangle className="size-3.5" />}
+                      {item.status === "warning" ? "Needs tick" : item.status}
+                    </span>
                   </span>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/55">
@@ -1382,12 +2332,57 @@ function AttendanceHistoryOverlay({
 
 function StatusPill({ student }: { student: ProfessorStudent }) {
   if (student.isBlocked) {
-    return <span className="rounded-full bg-rose-500/10 px-3 py-1 text-xs text-rose-100">Blocked</span>;
+    return (
+      <span className="rounded-full bg-rose-500/10 px-3 py-1 text-xs text-rose-100">Blocked</span>
+    );
   }
   if (student.attendance < 75) {
-    return <span className="rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-100">Watch</span>;
+    return (
+      <span className="rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-100">Watch</span>
+    );
   }
-  return <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">Safe</span>;
+  return (
+    <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">Safe</span>
+  );
+}
+
+function BiometricPill({ student }: { student: ProfessorStudent }) {
+  if (student.attendanceWarning) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-100">
+        <AlertTriangle className="size-3.5" />
+        Needs tick
+      </span>
+    );
+  }
+  if (student.professorConfirmed) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
+        <CheckCircle2 className="size-3.5" />
+        Confirmed
+      </span>
+    );
+  }
+  if (student.biometricVerified) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-300/10 px-3 py-1 text-xs text-cyan-100">
+        <CheckCircle2 className="size-3.5" />
+        Verified
+      </span>
+    );
+  }
+  if (student.withinRadius) {
+    return (
+      <span className="rounded-full bg-fuchsia-300/10 px-3 py-1 text-xs text-fuchsia-100">
+        Inside radius
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/45">
+      Needs biometric
+    </span>
+  );
 }
 
 function MiniStat({ label, value, tone }: { label: string; value: string; tone: string }) {
@@ -1404,6 +2399,53 @@ function ProfileField({ label, value }: { label: string; value: string }) {
     <div className="glass rounded-2xl p-4">
       <div className="text-[10px] uppercase tracking-[0.25em] text-white/35">{label}</div>
       <div className="mt-2 text-sm text-white/75 break-words">{value}</div>
+    </div>
+  );
+}
+
+function FormField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="text-[10px] uppercase tracking-[0.28em] text-white/40">{label}</label>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/25"
+      />
+    </div>
+  );
+}
+
+function InlineProfileValue({
+  icon: Icon,
+  value,
+  fallback,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  value: string;
+  fallback: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Icon className="size-4 text-white/55" />
+      {value.trim() || <span className="text-white/35">{fallback}</span>}
+    </span>
+  );
+}
+
+function SnapshotStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="glass-strong rounded-2xl px-4 py-2.5">
+      <div className="text-[9px] uppercase tracking-[0.3em] text-white/50">{label}</div>
+      <div className="mt-0.5 font-display text-lg">{value}</div>
     </div>
   );
 }
@@ -1456,7 +2498,15 @@ function SearchField({ value, onChange }: { value: string; onChange: (value: str
   );
 }
 
-function Panel({ id, className = "", children }: { id?: string; className?: string; children: ReactNode }) {
+function Panel({
+  id,
+  className = "",
+  children,
+}: {
+  id?: string;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
     <motion.div
       id={id}

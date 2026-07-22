@@ -146,7 +146,7 @@ const heroTitleClass =
 const sectionTitleClass =
   "font-display uppercase font-bold leading-[0.9] tracking-tight text-balance min-w-0 text-[clamp(2.5rem,4.6vw,4.6rem)] md:text-[clamp(3rem,5.4vw,6rem)]";
 const featureTitleClass =
-  "font-display uppercase font-bold leading-[0.92] tracking-[-0.04em] whitespace-nowrap min-w-max text-[clamp(3.9rem,7.2vw,7.8rem)] md:text-[clamp(5rem,9vw,10rem)]";
+  "font-display uppercase font-bold leading-[0.92] tracking-[-0.04em] whitespace-nowrap min-w-max text-[clamp(3rem,5vw,5.5rem)] md:text-[clamp(4rem,6.5vw,7.5rem)]";
 const finalTitleClass =
   "font-display uppercase font-bold leading-[0.85] tracking-tight text-balance min-w-0 text-[clamp(3.25rem,6.5vw,7rem)] md:text-[clamp(4.25rem,8vw,8.5rem)]";
 
@@ -235,8 +235,8 @@ function Nav() {
   const { scrollY } = useScroll();
   const op = useTransform(scrollY, [0, 200], [0, 1]);
   return (
-    <motion.nav style={{ opacity: op }} className="fixed top-0 inset-x-0 z-50 px-6 lg:px-10 pt-5">
-      <div className="glass-strong mx-auto max-w-7xl rounded-full px-5 py-3 flex items-center justify-between">
+    <motion.nav style={{ opacity: op }} className="fixed top-0 inset-x-0 z-[100] px-6 lg:px-10 pt-5">
+      <div className="glass-nav mx-auto max-w-7xl rounded-full px-5 py-3 flex items-center justify-between">
         <a
           href="#top"
           data-cursor="hover"
@@ -248,7 +248,7 @@ function Nav() {
           />
           CampusVerse
         </a>
-        <div className="hidden md:flex items-center gap-7 text-xs uppercase tracking-[0.25em] text-white/60">
+        <div className="hidden md:flex items-center gap-7 text-xs uppercase tracking-[0.25em] text-white/90 font-medium">
           {["Ecosystem", "AI", "Features", "Twin", "Journey"].map((l) => (
             <a
               key={l}
@@ -1120,59 +1120,25 @@ function FeatureShowcase() {
 }
 
 function FeatureWordmark({ title, accent }: { title: string; accent: string }) {
-  const duration = Math.max(8.8, 7 + title.length * 0.34);
   return (
     <div className="relative w-full overflow-hidden px-4 md:px-5 py-3">
-      <motion.div
+      <div
         aria-hidden
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: [0, 0.18, 0.3, 0], scale: [0.96, 1, 1.03, 1.08] }}
-        transition={{
-          duration,
-          repeat: Infinity,
-          repeatDelay: 1.15,
-          ease: "linear",
-          times: [0, 0.18, 0.78, 1],
-        }}
-        className="absolute inset-x-3 top-1/2 h-[62%] -translate-y-1/2 rounded-full blur-3xl"
+        className="absolute inset-x-3 top-1/2 h-[62%] -translate-y-1/2 rounded-full blur-3xl opacity-20"
         style={{
           background: `linear-gradient(90deg, ${accent} 0%, transparent 85%)`,
         }}
       />
-      <motion.span
+      <div
         aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: [0, 0.9, 0.9, 0] }}
-        transition={{
-          duration,
-          repeat: Infinity,
-          repeatDelay: 1.15,
-          ease: "linear",
-          times: [0, 0.18, 0.78, 1],
-        }}
-        className="absolute -left-4 top-[14%] hidden h-[72%] w-px rounded-full md:block"
+        className="absolute -left-4 top-[14%] hidden h-[72%] w-px rounded-full md:block opacity-60"
         style={{
           background: `linear-gradient(180deg, transparent 0%, ${accent} 18%, transparent 100%)`,
           boxShadow: `0 0 24px ${accent}`,
         }}
       />
       <h3 className="sr-only">{title}</h3>
-      <motion.div
-        aria-hidden
-        initial={{ x: "112%", opacity: 0 }}
-        animate={{
-          x: ["112%", "18%", "-22%", "-122%"],
-          opacity: [0, 1, 1, 0],
-        }}
-        transition={{
-          duration,
-          repeat: Infinity,
-          repeatDelay: 1.15,
-          ease: "linear",
-          times: [0, 0.18, 0.78, 1],
-        }}
-        className="relative inline-block will-change-transform"
-      >
+      <div className="relative inline-block">
         <span className="inline-block pr-4" style={{ filter: `drop-shadow(0 0 20px ${accent})` }}>
           <span
             className={featureTitleClass + " inline-block align-top"}
@@ -1186,7 +1152,7 @@ function FeatureWordmark({ title, accent }: { title: string; accent: string }) {
             {title}
           </span>
         </span>
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -1212,7 +1178,7 @@ function FeaturePanel({ feature, reverse }: { feature: Feature; reverse: boolean
       <div
         className={`max-w-7xl mx-auto w-full grid ${reverse ? "lg:grid-cols-[minmax(380px,0.62fr)_minmax(0,1.38fr)]" : "lg:grid-cols-[minmax(0,1.4fr)_minmax(430px,0.6fr)]"} gap-8 lg:gap-10 items-center min-w-0 ${reverse ? "lg:[&>*:first-child]:order-2" : ""}`}
       >
-        <motion.div style={{ y: titleY }} className="min-w-0">
+        <div className="min-w-0">
           <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-white/40 mb-5">
             <span className="font-mono">{feature.index}</span>
             <Icon className="size-3" style={{ color: feature.accent }} />
@@ -1230,7 +1196,7 @@ function FeaturePanel({ feature, reverse }: { feature: Feature; reverse: boolean
               background: `linear-gradient(90deg, ${feature.accent} 0%, transparent 100%)`,
             }}
           />
-        </motion.div>
+        </div>
         <motion.div
           style={{ y }}
           className={`flex items-center min-w-0 ${reverse ? "justify-center lg:justify-end" : "justify-center"}`}

@@ -127,7 +127,7 @@ export function SectionHeading({
       {eyebrow && (
         <div className="mb-3 text-[10px] uppercase tracking-[0.4em] text-white/40">{eyebrow}</div>
       )}
-      <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl">{title}</h1>
+      <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl bg-gradient-to-br from-white via-white to-white/40 bg-clip-text text-transparent drop-shadow-sm pb-1">{title}</h1>
       {sub && <p className="mt-3 max-w-2xl text-white/55">{sub}</p>}
     </div>
   );
