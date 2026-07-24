@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock, FileText, XCircle, Sparkles } from "lucide-react";
@@ -19,9 +20,59 @@ const STATUS_META: Record<
 function ScholarshipsPage() {
   const { dashboard } = useStudentDashboard();
   const scholarships = dashboard?.scholarship_items ?? [];
+  const [status, setStatus] = useState<string | null>(null);
+  const [activeScholarship, setActiveScholarship] = useState<any>(null);
 
   return (
     <PageTransition>
+      {status && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-4 glass rounded-xl border border-white/10 text-sm text-white/80"
+        >
+          {status}
+        </motion.div>
+      )}
+
+      {activeScholarship && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActiveScholarship(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-lg glass-strong rounded-2xl p-6 border border-white/10"
+          >
+            <button
+              onClick={() => setActiveScholarship(null)}
+              className="absolute right-4 top-4 text-white/50 hover:text-white"
+            >
+              <XCircle className="size-5" />
+            </button>
+            <div className="font-display text-2xl mb-2">{activeScholarship.name}</div>
+            <div className="text-xl text-white/80 mb-4">{activeScholarship.amount}</div>
+            
+            <div className="flex items-center gap-2 mb-6">
+              <span className="text-[10px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full bg-white/10">
+                {activeScholarship.status}
+              </span>
+            </div>
+
+            <div className="mb-6 h-1.5 rounded-full bg-white/10 overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${activeScholarship.progress}%` }}
+                className="h-full bg-white/40"
+              />
+            </div>
+            
+            <p className="text-sm text-white/70 leading-relaxed">
+              This scholarship is administered by the university's financial aid office. Contact student services for documentation requirements.
+            </p>
+          </motion.div>
+        </div>
+      )}
+
       <SectionHeading
         eyebrow="Funding"
         title="Scholarships"
@@ -65,10 +116,16 @@ function ScholarshipsPage() {
                   />
                 </div>
                 <div className="mt-5 flex gap-2">
-                  <button className="flex-1 glass rounded-full py-2 text-xs uppercase tracking-[0.2em] text-white/70 hover:text-white">
+                  <button 
+                    onClick={() => setStatus("Scholarship documentation is managed through the financial aid office. Visit the student services desk for submission.")}
+                    className="flex-1 glass rounded-full py-2 text-xs uppercase tracking-[0.2em] text-white/70 hover:text-white"
+                  >
                     Documents
                   </button>
-                  <button className="flex-1 relative overflow-hidden rounded-full py-2 text-xs uppercase tracking-[0.2em]">
+                  <button 
+                    onClick={() => setActiveScholarship(s)}
+                    className="flex-1 relative overflow-hidden rounded-full py-2 text-xs uppercase tracking-[0.2em]"
+                  >
                     <span
                       className="absolute inset-0 rounded-full"
                       style={{ background: "var(--grad-aurora)" }}

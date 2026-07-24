@@ -1,8 +1,9 @@
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, selectinload
 
@@ -27,7 +28,10 @@ from app.models import (
     Role,
     StudentAttendance,
     StudentBiometricCheckIn,
+    StudentCertificateRequest,
     StudentComplaint,
+    StudentEventRegistration,
+    StudentMarketplaceInquiry,
     StudentProfile,
     StudentTodo,
     StudyResource,
@@ -50,6 +54,7 @@ from app.services.student_assistant import answer_student_assistant
 
 router = APIRouter(prefix="/student", tags=["student"])
 LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
+NOW_DATE = date(2026, 7, 22)
 
 
 STUDENT_NAV = [
@@ -94,7 +99,7 @@ def _attendance_percentage(records: list[StudentAttendance], fallback: float) ->
 
 
 def _today() -> date:
-    return datetime.now(LOCAL_TIMEZONE).date()
+    return NOW_DATE
 
 
 def _normalize_due_at(value: datetime | None) -> datetime | None:
@@ -125,6 +130,191 @@ def _todo_rows(db: Session, student_id: int) -> list[dict]:
         .all()
     )
     return [_todo_out(row) for row in rows]
+
+
+CERTIFICATE_DEFINITIONS = [
+    {"key": "bonafide", "name": "Bonafide Certificate", "eta": "24 hours"},
+    {"key": "transcript", "name": "Transcript", "eta": "3 days"},
+    {"key": "fee-clearance", "name": "Fee Clearance Letter", "eta": "48 hours"},
+]
+
+
+def _certificate_request_rows(db: Session, student_id: int) -> list[StudentCertificateRequest]:
+    return (
+        db.query(StudentCertificateRequest)
+        .filter(StudentCertificateRequest.student_id == student_id)
+        .order_by(desc(StudentCertificateRequest.updated_at))
+        .all()
+    )
+
+
+def _certificate_items(db: Session, user: User, due_amount: int, first_name: str) -> list[dict]:
+    requests = {item.certificate_key: item for item in _certificate_request_rows(db, user.id)}
+    descriptions = {
+        "bonafide": f"Enrollment proof for {first_name}.",
+        "transcript": "Verified academic record.",
+        "fee-clearance": "Pending clearance" if due_amount else "Ready to request",
+    }
+    items: list[dict] = []
+    for index, item in enumerate(CERTIFICATE_DEFINITIONS, start=1):
+        request = requests.get(item["key"])
+        if request:
+            status = request.status
+        else:
+            status = "available"
+        items.append(
+            {
+                "id": user.id * 10 + index,
+                "key": item["key"],
+                "name": item["name"],
+                "desc": descriptions[item["key"]],
+                "eta": item["eta"],
+                "status": status,
+                "requestedAt": request.requested_at.isoformat() if request else None,
+                "readyAt": request.ready_at.isoformat() if request and request.ready_at else None,
+                "downloadedAt": request.downloaded_at.isoformat() if request and request.downloaded_at else None,
+            }
+        )
+    return items
+
+
+def _event_rows(db: Session, user: User, semester: int, seed: int) -> list[dict]:
+    registrations = {
+        item.event_key: item
+        for item in (
+            db.query(StudentEventRegistration)
+            .filter(StudentEventRegistration.student_id == user.id)
+            .all()
+        )
+    }
+    base = [
+        {
+            "key": "career-connect-week",
+            "title": "Career Connect Workshop",
+            "date": date(2026, 7, 24),
+            "venue": "Innovation Hub",
+            "spots": 80 + seed * 9,
+            "accent": "oklch(0.7 0.25 310)",
+        },
+        {
+            "key": "research-poster-day",
+            "title": "Research Poster Day",
+            "date": date(2026, 8, 4),
+            "venue": "Hall A-201",
+            "spots": 60 + seed * 7,
+            "accent": "oklch(0.82 0.18 200)",
+        },
+        {
+            "key": "semester-townhall",
+            "title": f"Semester {semester} Townhall",
+            "date": date(2026, 8, 12),
+            "venue": "Main Auditorium",
+            "spots": 120 + seed * 14,
+            "accent": "oklch(0.72 0.27 350)",
+        },
+    ]
+    rows: list[dict] = []
+    for index, item in enumerate(base, start=1):
+        registration = registrations.get(item["key"])
+        rows.append(
+            {
+                "id": user.id * 10 + index,
+                "key": item["key"],
+                "title": item["title"],
+                "date": item["date"].strftime("%b %d"),
+                "isoDate": item["date"].isoformat(),
+                "venue": item["venue"],
+                "spots": item["spots"],
+                "accent": item["accent"],
+                "attended": bool(registration and registration.attended),
+                "registered": registration is not None,
+                "registeredAt": registration.registered_at.isoformat() if registration else None,
+                "details": (
+                    "Bring your student ID and arrive 15 minutes early. "
+                    "Registration closes once venue capacity is reached."
+                ),
+            }
+        )
+    return rows
+
+
+def _marketplace_items(user: User, semester: int) -> list[dict]:
+    first_name = user.full_name.split()[0] if user.full_name else "Student"
+    return [
+        {
+            "id": user.id * 10 + 1,
+            "key": "notes-bundle",
+            "name": f"Sem {semester} Notes Bundle",
+            "category": "Notes",
+            "price": "\u20b9 120",
+            "seller": f"{first_name} / Sem {semester}",
+            "tag": "Verified",
+            "description": "Curated lecture notes, summaries, and previous practice sheets.",
+        },
+        {
+            "id": user.id * 10 + 2,
+            "key": "engineering-calculator",
+            "name": "Engineering Calculator",
+            "category": "Hostel",
+            "price": "\u20b9 650",
+            "seller": "Campus verified",
+            "tag": "Like new",
+            "description": "Exam-ready calculator with cover and fresh batteries.",
+        },
+        {
+            "id": user.id * 10 + 3,
+            "key": "reference-book-set",
+            "name": "Reference Book Set",
+            "category": "Books",
+            "price": "\u20b9 480",
+            "seller": "Library circle",
+            "tag": "",
+            "description": "Useful core textbooks for the current semester.",
+        },
+    ]
+
+
+def _fee_history(user_id: int, semester: int, fee_base: int, due_amount: int) -> list[dict]:
+    return [
+        {
+            "id": f"INV-{user_id:03d}6",
+            "semester": f"Sem {semester}",
+            "amount": fee_base,
+            "status": "due" if due_amount else "paid",
+            "date": "Jul 25, 2026" if due_amount else "Jul 05, 2026",
+        },
+        {
+            "id": f"INV-{user_id:03d}5",
+            "semester": f"Sem {max(1, semester - 1)}",
+            "amount": fee_base - 1200,
+            "status": "paid",
+            "date": "Jan 18, 2026",
+        },
+        {
+            "id": f"INV-{user_id:03d}4",
+            "semester": f"Sem {max(1, semester - 2)}",
+            "amount": fee_base - 2500,
+            "status": "paid",
+            "date": "Aug 12, 2025",
+        },
+    ]
+
+
+def _content_disposition(filename: str, download: bool) -> str:
+    disposition = "attachment" if download else "inline"
+    return f"{disposition}; filename*=UTF-8''{quote(filename)}"
+
+
+def _plain_document(filename: str, content: str, download: bool = False) -> Response:
+    data = content.encode("utf-8")
+    return Response(
+        content=data,
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Content-Disposition": _content_disposition(filename, download),
+            "Content-Length": str(len(data)),
+        },
+    )
 
 
 def _split_skills(value: str | None) -> list[str]:
@@ -466,6 +656,18 @@ def _student_dataset(db: Session, user: User) -> dict:
     resource_rows = _resource_rows(db)
     resource_status = f"{len(resource_rows)} uploaded" if resource_rows else "0 uploaded"
     resource_detail = "Notes, slides, previous papers" if resource_rows else "No study resources uploaded yet"
+    certificate_items = _certificate_items(db, user, due_amount, first_name)
+    fee_history = _fee_history(user.id, semester, fee_base, due_amount)
+    event_items = _event_rows(db, user, semester, seed)
+    marketplace_items = _marketplace_items(user, semester)
+    latest_certificate = next(
+        (
+            item
+            for item in certificate_items
+            if item["status"] in {"requested", "ready", "downloaded"}
+        ),
+        None,
+    )
 
     return {
         "user": {
@@ -519,28 +721,28 @@ def _student_dataset(db: Session, user: User) -> dict:
         "fee_summary": {
             "outstanding": due_amount,
             "semester": f"Sem {semester}",
-            "dueDate": "Jul 05, 2026" if due_amount else "Cleared",
+            "dueDate": "Jul 25, 2026" if due_amount else "Cleared",
             "clearance": "Pending" if due_amount else "Cleared",
             "trend": [fee_base - 5200, fee_base - 3000, fee_base - 1200, fee_base, fee_base, fee_base + 900],
         },
-        "fee_history": [
-            {"id": f"INV-{user.id:03d}6", "semester": f"Sem {semester}", "amount": fee_base, "status": "due" if due_amount else "paid", "date": "Jul 05, 2026"},
-            {"id": f"INV-{user.id:03d}5", "semester": f"Sem {max(1, semester - 1)}", "amount": fee_base - 1200, "status": "paid", "date": "Aug 12, 2025"},
-            {"id": f"INV-{user.id:03d}4", "semester": f"Sem {max(1, semester - 2)}", "amount": fee_base - 2500, "status": "paid", "date": "Jan 18, 2025"},
-        ],
+        "fee_history": fee_history,
         "module_health": [
             {"module": "Announcements", "status": f"{1 + seed % 3} unread", "detail": f"Updates for {first_name}'s semester"},
             {"module": "Assignments", "status": f"{2 + seed % 2} pending", "detail": "Submission and grading status"},
             {"module": "Complaints", "status": f"{user.id % 3} open", "detail": "Live request tracking"},
-            {"module": "Certificates", "status": "Available", "detail": "Bonafide and transcript requests"},
+            {
+                "module": "Certificates",
+                "status": latest_certificate["status"].replace("_", " ").title() if latest_certificate else "Available",
+                "detail": "Bonafide and transcript requests",
+            },
             {"module": "Fees", "status": "Pending" if due_amount else "Cleared", "detail": "Payment verification and receipts"},
             {"module": "Resources", "status": resource_status, "detail": resource_detail},
         ],
         "upcoming_deadlines": [
             {"title": f"{first_name}'s assignment checkpoint", "module": "Assignments", "due": "Tomorrow", "risk": "high"},
-            {"title": "Semester fee clearance", "module": "Fees", "due": "Jul 05", "risk": "medium" if due_amount else "low"},
-            {"title": "Mid-Sem examination", "module": "Academics", "due": "Jul 14", "risk": "medium"},
-            {"title": "Campus event registration", "module": "Events", "due": "Jul 18", "risk": "low"},
+            {"title": "Semester fee clearance", "module": "Fees", "due": "Jul 25", "risk": "medium" if due_amount else "low"},
+            {"title": "Mid-Sem examination", "module": "Academics", "due": "Aug 14", "risk": "medium"},
+            {"title": "Campus event registration", "module": "Events", "due": "Jul 24", "risk": "low"},
         ],
         "request_timeline": [
             *(
@@ -562,7 +764,12 @@ def _student_dataset(db: Session, user: User) -> dict:
                     }
                 ]
             ),
-            {"title": "Bonafide Certificate", "kind": "Certificate", "stage": "Ready", "updated": "Yesterday"},
+            {
+                "title": latest_certificate["name"] if latest_certificate else "Bonafide Certificate",
+                "kind": "Certificate",
+                "stage": latest_certificate["status"].replace("_", " ").title() if latest_certificate else "Ready",
+                "updated": "Today" if latest_certificate else "Yesterday",
+            },
             {"title": f"Sem {semester} Fee Receipt", "kind": "Fees", "stage": "Pending" if due_amount else "Cleared", "updated": "2 days ago"},
         ],
         "announcements": [
@@ -577,21 +784,9 @@ def _student_dataset(db: Session, user: User) -> dict:
         ],
         "resource_items": resource_rows,
         "complaint_items": complaint_rows,
-        "certificate_items": [
-            {"id": user.id * 10 + 1, "name": "Bonafide Certificate", "desc": f"Enrollment proof for {first_name}.", "eta": "24 hours", "status": "available"},
-            {"id": user.id * 10 + 2, "name": "Transcript", "desc": "Verified academic record.", "eta": "3 days", "status": "available"},
-            {"id": user.id * 10 + 3, "name": "Fee Clearance Letter", "desc": summary if (summary := ("Pending clearance" if due_amount else "Ready to request")) else "Ready", "eta": "48 hours", "status": "available"},
-        ],
-        "event_items": [
-            {"id": user.id * 10 + 1, "title": f"Semester {semester} Townhall", "date": "Jul 18", "venue": "Main Auditorium", "spots": 120 + seed * 14, "accent": "oklch(0.72 0.27 350)", "attended": False},
-            {"id": user.id * 10 + 2, "title": "Career Connect Workshop", "date": "Jul 22", "venue": "Innovation Hub", "spots": 80 + seed * 9, "accent": "oklch(0.7 0.25 310)", "attended": False},
-            {"id": user.id * 10 + 3, "title": "Research Poster Day", "date": "Aug 04", "venue": "Hall A-201", "spots": 60 + seed * 7, "accent": "oklch(0.82 0.18 200)", "attended": False},
-        ],
-        "marketplace_items": [
-            {"id": user.id * 10 + 1, "name": f"Sem {semester} Notes Bundle", "category": "Notes", "price": "\u20b9 120", "seller": f"{first_name} / Sem {semester}", "tag": "Verified"},
-            {"id": user.id * 10 + 2, "name": "Engineering Calculator", "category": "Hostel", "price": "\u20b9 650", "seller": "Campus verified", "tag": "Like new"},
-            {"id": user.id * 10 + 3, "name": "Reference Book Set", "category": "Books", "price": "\u20b9 480", "seller": "Library circle", "tag": ""},
-        ],
+        "certificate_items": certificate_items,
+        "event_items": event_items,
+        "marketplace_items": marketplace_items,
         "scholarship_items": [
             {"id": user.id * 10 + 1, "name": "Merit Continuation Grant", "amount": "\u20b9 45,000", "status": "approved" if cgpa >= 8.8 else "eligible", "progress": 100 if cgpa >= 8.8 else 30},
             {"id": user.id * 10 + 2, "name": "Research Support Fund", "amount": "\u20b9 30,000", "status": "applied", "progress": 60 + seed * 3},
@@ -976,3 +1171,182 @@ def delete_todo(
     db.delete(todo)
     db.commit()
     return {"ok": True, "id": todo_id, "todos": _todo_rows(db, current_user.id)}
+
+
+@router.post("/certificates/{certificate_key}/request")
+def request_certificate(
+    certificate_key: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    definition = next((item for item in CERTIFICATE_DEFINITIONS if item["key"] == certificate_key), None)
+    if not definition:
+        raise HTTPException(status_code=404, detail="Certificate type not found")
+
+    request_row = (
+        db.query(StudentCertificateRequest)
+        .filter(
+            StudentCertificateRequest.student_id == current_user.id,
+            StudentCertificateRequest.certificate_key == certificate_key,
+        )
+        .first()
+    )
+    moment = datetime.now(timezone.utc)
+    if request_row is None:
+        request_row = StudentCertificateRequest(
+            student_id=current_user.id,
+            certificate_key=certificate_key,
+            certificate_name=definition["name"],
+            status="requested",
+            requested_at=moment,
+            ready_at=moment + timedelta(hours=24 if certificate_key == "bonafide" else 48),
+        )
+        db.add(request_row)
+        message = f"{definition['name']} requested successfully"
+    else:
+        request_row.status = "ready" if request_row.ready_at and request_row.ready_at <= moment else "requested"
+        request_row.updated_at = moment
+        message = f"{definition['name']} is already in progress"
+
+    db.commit()
+    return {"ok": True, "message": message}
+
+
+@router.get("/certificates/{certificate_key}/file")
+def open_certificate_file(
+    certificate_key: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    download: bool = Query(False),
+) -> Response:
+    _require_student(current_user)
+    definition = next((item for item in CERTIFICATE_DEFINITIONS if item["key"] == certificate_key), None)
+    if not definition:
+        raise HTTPException(status_code=404, detail="Certificate type not found")
+
+    request_row = (
+        db.query(StudentCertificateRequest)
+        .filter(
+            StudentCertificateRequest.student_id == current_user.id,
+            StudentCertificateRequest.certificate_key == certificate_key,
+        )
+        .first()
+    )
+    if request_row is None:
+        raise HTTPException(status_code=409, detail="Request this certificate before downloading it")
+
+    moment = datetime.now(timezone.utc)
+    if request_row.ready_at and request_row.ready_at <= moment:
+        request_row.status = "ready"
+    if request_row.status not in {"ready", "downloaded"}:
+        raise HTTPException(status_code=409, detail="This certificate is still being processed")
+
+    request_row.status = "downloaded"
+    request_row.downloaded_at = moment
+    request_row.updated_at = moment
+    db.commit()
+
+    profile = _ensure_student_profile(db, current_user)
+    content = (
+        f"CampusVerse\n"
+        f"{definition['name']}\n\n"
+        f"Student: {current_user.full_name}\n"
+        f"Student Code: {profile.student_code}\n"
+        f"Department: {profile.department}\n"
+        f"Issued On: {moment.astimezone(LOCAL_TIMEZONE).strftime('%d %b %Y, %I:%M %p')}\n\n"
+        f"This document was generated from CampusVerse for academic workflow purposes."
+    )
+    filename = f"{definition['name'].lower().replace(' ', '-')}-{profile.student_code}.txt"
+    return _plain_document(filename, content, download=download)
+
+
+@router.post("/events/{event_key}/register")
+def register_event(
+    event_key: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    profile = _ensure_student_profile(db, current_user)
+    setting = get_campus_attendance_setting(db)
+    semester = resolve_student_semester(
+        profile,
+        current_user,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
+    events = _event_rows(db, current_user, semester, current_user.id % 7)
+    event = next((item for item in events if item["key"] == event_key), None)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if event["registered"]:
+        return {"ok": True, "message": f"Already registered for {event['title']}"}
+
+    db.add(
+        StudentEventRegistration(
+            student_id=current_user.id,
+            event_key=event_key,
+            event_title=event["title"],
+        )
+    )
+    db.commit()
+    return {"ok": True, "message": f"Registered for {event['title']}"}
+
+
+@router.post("/marketplace/{item_key}/inquire")
+def inquire_marketplace_item(
+    item_key: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    note: str | None = Query(default=None, max_length=240),
+) -> dict:
+    _require_student(current_user)
+    profile = _ensure_student_profile(db, current_user)
+    items = _marketplace_items(current_user, profile.semester or 1)
+    item = next((row for row in items if row["key"] == item_key), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Marketplace item not found")
+
+    db.add(
+        StudentMarketplaceInquiry(
+            student_id=current_user.id,
+            item_key=item_key,
+            item_name=item["name"],
+            seller_label=item["seller"],
+            note=(note or "").strip() or None,
+        )
+    )
+    db.commit()
+    return {
+        "ok": True,
+        "message": f"Inquiry saved for {item['name']}. Reach out via Campus Connect or student support to coordinate the exchange.",
+    }
+
+
+@router.get("/fees/invoices/{invoice_id}")
+def open_fee_invoice(
+    invoice_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    download: bool = Query(False),
+) -> Response:
+    _require_student(current_user)
+    data = _student_dataset(db, current_user)
+    invoice = next((item for item in data["fee_history"] if item["id"] == invoice_id), None)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    profile = _ensure_student_profile(db, current_user)
+    content = (
+        f"CampusVerse Fee Invoice\n\n"
+        f"Student: {current_user.full_name}\n"
+        f"Student Code: {profile.student_code}\n"
+        f"Invoice: {invoice['id']}\n"
+        f"Semester: {invoice['semester']}\n"
+        f"Amount: INR {invoice['amount']}\n"
+        f"Status: {invoice['status'].upper()}\n"
+        f"Date: {invoice['date']}\n"
+    )
+    return _plain_document(f"{invoice_id}.txt", content, download=download)

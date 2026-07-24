@@ -1,17 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Award, Clock, Download } from "lucide-react";
+import { Award, Clock, Download, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
-import { useStudentDashboard } from "@/lib/student-session";
+import { getStudentDashboard, openProtectedResource, requestStudentCertificate } from "@/lib/api";
+import { setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
 
 export const Route = createFileRoute("/app/certificates")({ component: CertificatesPage });
 
 function CertificatesPage() {
   const [processing, setProcessing] = useState<number | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const { dashboard } = useStudentDashboard();
   const certificates = dashboard?.certificate_items ?? [];
   const history = dashboard?.request_timeline.filter((item) => item.kind === "Certificate") ?? [];
+
+  async function refreshDashboard() {
+    const next = await getStudentDashboard();
+    setStoredDashboard(next);
+  }
 
   return (
     <PageTransition>
@@ -20,6 +27,12 @@ function CertificatesPage() {
         title="Certificates"
         sub="Request, track, and download - paperwork without the paper."
       />
+
+      {status ? (
+        <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white/70">
+          {status}
+        </div>
+      ) : null}
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
         {certificates.map((c, i) => (
@@ -50,8 +63,18 @@ function CertificatesPage() {
               <div className="mt-4 flex gap-2">
                 <button
                   onClick={() => {
+                    if (!c.key || processing === c.id) return;
                     setProcessing(c.id);
-                    setTimeout(() => setProcessing(null), 2400);
+                    setStatus(null);
+                    void requestStudentCertificate(c.key)
+                      .then(async (response) => {
+                        setStatus(response.message);
+                        await refreshDashboard();
+                      })
+                      .catch((error) =>
+                        setStatus(error instanceof Error ? error.message : "Could not request certificate"),
+                      )
+                      .finally(() => setProcessing(null));
                   }}
                   className="flex-1 relative overflow-hidden rounded-full py-2.5 text-xs uppercase tracking-[0.2em]"
                 >
@@ -61,18 +84,37 @@ function CertificatesPage() {
                   />
                   <span className="absolute inset-px rounded-full bg-[#0a0a0a]/30" />
                   <span className="relative">
-                    {processing === c.id ? "Processing..." : "Request"}
+                    {processing === c.id ? "Processing..." : c.status === "available" ? "Request" : "Refresh"}
                   </span>
                 </button>
-                <button className="size-10 glass rounded-full flex items-center justify-center text-white/60 hover:text-white">
-                  <Download className="size-4" />
+                <button
+                  onClick={() => {
+                    if (!c.key || processing === c.id) return;
+                    setProcessing(c.id);
+                    setStatus(null);
+                    void openProtectedResource(`/api/student/certificates/${c.key}/file?download=true`, {
+                      download: true,
+                      fallbackName: `${c.name}.txt`,
+                    })
+                      .then(async () => {
+                        setStatus(`${c.name} downloaded`);
+                        await refreshDashboard();
+                      })
+                      .catch((error) =>
+                        setStatus(error instanceof Error ? error.message : "Could not download certificate"),
+                      )
+                      .finally(() => setProcessing(null));
+                  }}
+                  className="size-10 glass rounded-full flex items-center justify-center text-white/60 hover:text-white"
+                >
+                  {processing === c.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                 </button>
               </div>
               {processing === c.id && (
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: "100%" }}
-                  transition={{ duration: 2.4 }}
+                  transition={{ duration: 1.2 }}
                   className="mt-3 h-0.5"
                   style={{ background: "var(--grad-aurora)" }}
                 />

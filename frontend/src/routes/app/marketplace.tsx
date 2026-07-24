@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Heart, Search, Filter, ShoppingBag } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Heart, Search, Filter, ShoppingBag, Loader2, ArrowUpDown, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
-import { type StudentDashboard } from "@/lib/api";
+import { inquireMarketplaceItem, type StudentDashboard } from "@/lib/api";
 import { useStudentDashboard } from "@/lib/student-session";
 
 export const Route = createFileRoute("/app/marketplace")({ component: MarketplacePage });
@@ -20,10 +20,40 @@ function MarketplacePage() {
   const [cat, setCat] = useState("All");
   const [q, setQ] = useState("");
   const [active, setActive] = useState<MarketItem | null>(null);
-  const [wishlist, setWishlist] = useState<number[]>([]);
-  const items = marketplace.filter(
-    (m) => (cat === "All" || m.category === cat) && m.name.toLowerCase().includes(q.toLowerCase()),
-  );
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<"default" | "price-asc" | "price-desc">("default");
+  const [wishlistOnly, setWishlistOnly] = useState(false);
+
+  // Persist wishlist in localStorage
+  const [wishlist, setWishlist] = useState<number[]>(() => {
+    try {
+      const stored = localStorage.getItem("cv-marketplace-wishlist");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    localStorage.setItem("cv-marketplace-wishlist", JSON.stringify(wishlist));
+  }, [wishlist]);
+
+  const toggleWishlist = useCallback((id: number) => {
+    setWishlist((w) => (w.includes(id) ? w.filter((x) => x !== id) : [...w, id]));
+  }, []);
+
+  const parsePrice = (p: string) => parseInt(p.replace(/[^\d]/g, ""), 10) || 0;
+
+  const items = useMemo(() => {
+    let filtered = marketplace.filter(
+      (m) => (cat === "All" || m.category === cat) && m.name.toLowerCase().includes(q.toLowerCase()),
+    );
+    if (wishlistOnly) filtered = filtered.filter((m) => wishlist.includes(m.id));
+    if (sortBy === "price-asc") filtered = [...filtered].sort((a, b) => parsePrice(a.price) - parsePrice(b.price));
+    if (sortBy === "price-desc") filtered = [...filtered].sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
+    return filtered;
+  }, [marketplace, cat, q, wishlistOnly, wishlist, sortBy]);
 
   return (
     <PageTransition>
@@ -32,6 +62,12 @@ function MarketplacePage() {
         title="Marketplace"
         sub="Buy, sell, swap. Trusted by your batchmates."
       />
+
+      {status ? (
+        <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white/70">
+          {status}
+        </div>
+      ) : null}
 
       <div className="flex flex-col md:flex-row gap-3 mb-6">
         <div className="flex-1 relative">
@@ -55,10 +91,57 @@ function MarketplacePage() {
             </button>
           ))}
         </div>
-        <button className="glass rounded-full px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/70 hover:text-white flex items-center gap-2">
-          <Filter className="size-3.5" /> Filters
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          className={`glass rounded-full px-4 py-2 text-xs uppercase tracking-[0.2em] flex items-center gap-2 transition ${
+            showFilters ? "text-white border-white/20" : "text-white/70 hover:text-white"
+          }`}
+        >
+          {showFilters ? <X className="size-3.5" /> : <Filter className="size-3.5" />}
+          {showFilters ? "Close" : "Filters"}
         </button>
       </div>
+
+      {showFilters && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="mb-6 glass rounded-2xl p-5 flex flex-wrap gap-4 items-center"
+        >
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="size-3.5 text-white/50" />
+            <span className="text-xs text-white/50 uppercase tracking-widest">Sort</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              className="glass rounded-full px-3 py-1.5 text-xs bg-transparent text-white focus:outline-none cursor-pointer"
+            >
+              <option value="default" className="bg-[#111]">Default</option>
+              <option value="price-asc" className="bg-[#111]">Price: Low → High</option>
+              <option value="price-desc" className="bg-[#111]">Price: High → Low</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer text-xs text-white/60 hover:text-white transition">
+            <input
+              type="checkbox"
+              checked={wishlistOnly}
+              onChange={(e) => setWishlistOnly(e.target.checked)}
+              className="accent-[oklch(0.72_0.27_350)] size-3.5 rounded"
+            />
+            <Heart className="size-3" />
+            Wishlist only ({wishlist.length})
+          </label>
+        </motion.div>
+      )}
+
+      {items.length === 0 && (
+        <div className="glass rounded-2xl p-8 text-center text-white/50 text-sm">
+          {wishlistOnly
+            ? "Your wishlist is empty. Tap the heart icon on any item to save it."
+            : "No items match your current filters."}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {items.map((m, i) => {
@@ -90,14 +173,12 @@ function MarketplacePage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setWishlist((w) =>
-                        w.includes(m.id) ? w.filter((x) => x !== m.id) : [...w, m.id],
-                      );
+                      toggleWishlist(m.id);
                     }}
                     className="absolute top-3 right-3 size-8 rounded-full glass flex items-center justify-center"
                   >
                     <Heart
-                      className={`size-4 ${liked ? "fill-[oklch(0.72_0.27_350)] text-[oklch(0.72_0.27_350)]" : "text-white/70"}`}
+                      className={`size-4 transition ${liked ? "fill-[oklch(0.72_0.27_350)] text-[oklch(0.72_0.27_350)]" : "text-white/70"}`}
                     />
                   </button>
                 </div>
@@ -154,13 +235,32 @@ function MarketplacePage() {
                 >
                   Close
                 </button>
-                <button className="relative overflow-hidden rounded-full px-7 py-2.5 text-xs uppercase tracking-[0.2em]">
+                <button
+                  onClick={() => {
+                    if (!active.key || busyKey === active.key) return;
+                    setBusyKey(active.key);
+                    setStatus(null);
+                    void inquireMarketplaceItem(active.key, { note: `Interested in ${active.name}` })
+                      .then((response) => {
+                        setStatus(response.message);
+                        setActive(null);
+                      })
+                      .catch((error) =>
+                        setStatus(error instanceof Error ? error.message : "Could not send marketplace inquiry"),
+                      )
+                      .finally(() => setBusyKey(null));
+                  }}
+                  className="relative overflow-hidden rounded-full px-7 py-2.5 text-xs uppercase tracking-[0.2em]"
+                >
                   <span
                     className="absolute inset-0 rounded-full"
                     style={{ background: "var(--grad-aurora)" }}
                   />
                   <span className="absolute inset-px rounded-full bg-[#0a0a0a]/30" />
-                  <span className="relative">Message seller</span>
+                  <span className="relative inline-flex items-center gap-2">
+                    {busyKey === active.key ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                    {busyKey === active.key ? "Sending" : "Message seller"}
+                  </span>
                 </button>
               </div>
             </div>

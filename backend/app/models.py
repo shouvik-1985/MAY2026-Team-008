@@ -192,6 +192,56 @@ class StudentTodo(Base):
     )
 
 
+class StudentCertificateRequest(Base):
+    __tablename__ = "student_certificate_requests"
+    __table_args__ = (UniqueConstraint("student_id", "certificate_key", name="uq_student_certificate_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    certificate_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    certificate_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="requested", nullable=False, index=True)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    downloaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class StudentEventRegistration(Base):
+    __tablename__ = "student_event_registrations"
+    __table_args__ = (UniqueConstraint("student_id", "event_key", name="uq_student_event_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    event_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    event_title: Mapped[str] = mapped_column(String(180), nullable=False)
+    registered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    attended: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class StudentMarketplaceInquiry(Base):
+    __tablename__ = "student_marketplace_inquiries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    item_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    item_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    seller_label: Mapped[str] = mapped_column(String(180), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
 class StudentComplaint(Base):
     __tablename__ = "student_complaints"
 

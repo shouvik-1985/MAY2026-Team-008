@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Pin, Search, Bell } from "lucide-react";
+import { Pin, Search, Bell, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 import { type StudentDashboard } from "@/lib/api";
@@ -19,6 +19,7 @@ function AnnouncementsPage() {
   );
   const [cat, setCat] = useState("All");
   const [q, setQ] = useState("");
+  const [active, setActive] = useState<Announcement | null>(null);
   const items = announcements.filter(
     (a) => (cat === "All" || a.category === cat) && a.title.toLowerCase().includes(q.toLowerCase()),
   );
@@ -64,7 +65,7 @@ function AnnouncementsPage() {
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             {pinned.map((a) => (
-              <Card key={a.id} a={a} />
+              <Card key={a.id} a={a} onClick={() => setActive(a)} />
             ))}
           </div>
         </div>
@@ -85,7 +86,7 @@ function AnnouncementsPage() {
                 className="absolute -left-[18px] top-6 size-2.5 rounded-full"
                 style={{ background: a.unread ? "var(--grad-aurora)" : "oklch(0.4 0 0)" }}
               />
-              <Card a={a} />
+              <Card a={a} onClick={() => setActive(a)} />
             </motion.div>
           ))}
           {items.length === 0 && (
@@ -95,13 +96,30 @@ function AnnouncementsPage() {
           )}
         </div>
       </div>
+
+      {active && (
+        <div onClick={() => setActive(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#111] p-7 text-white relative">
+            <button onClick={() => setActive(null)} className="absolute top-7 right-7 text-white/50 hover:text-white transition">
+              <X className="size-6" />
+            </button>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] uppercase tracking-[0.3em] font-medium text-white/40">{active.category}</span>
+              <span className="text-[10px] text-white/30">/</span>
+              <span className="text-[10px] text-white/45">{active.time}</span>
+            </div>
+            <h3 className="font-display text-3xl mb-4">{active.title}</h3>
+            <p className="text-white/70 leading-relaxed whitespace-pre-wrap">{active.body}</p>
+          </div>
+        </div>
+      )}
     </PageTransition>
   );
 }
 
-function Card({ a }: { a: Announcement }) {
+function Card({ a, onClick }: { a: Announcement; onClick?: () => void }) {
   return (
-    <GlassCard hover className="cursor-pointer group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-white/20">
+    <GlassCard hover onClick={onClick} className="cursor-pointer group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-white/20">
       <div className="flex items-start gap-4">
         <div className="size-10 rounded-xl glass flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
           <Bell className="size-4 text-white/60 group-hover:text-white transition-colors" />

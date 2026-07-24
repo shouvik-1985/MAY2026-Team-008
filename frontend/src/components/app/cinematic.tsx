@@ -94,11 +94,13 @@ export function GlassCard({
   className = "",
   glow = false,
   hover = false,
+  onClick,
 }: {
   children: ReactNode;
   className?: string;
   glow?: boolean;
   hover?: boolean;
+  onClick?: () => void;
 }) {
   const lowPerformance = useLowPerformanceMode();
 
@@ -106,6 +108,7 @@ export function GlassCard({
     <motion.div
       whileHover={!lowPerformance && hover ? { y: -3, scale: 1.005 } : undefined}
       transition={{ type: "spring", stiffness: 280, damping: 24 }}
+      onClick={onClick}
       className={`glass-strong rounded-3xl p-6 ${glow ? "glow-purple" : ""} ${className}`}
     >
       {children}
