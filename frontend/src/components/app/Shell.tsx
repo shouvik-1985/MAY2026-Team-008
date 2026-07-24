@@ -267,6 +267,7 @@ function TopBar({
     (studentProfile?.name.trim()
       ? initialsFromName(studentProfile.name)
       : dashboard?.user.avatar) ?? initialsFromName(displayName);
+  const resolvedAvatarUrl = avatarUrl || dashboard?.user.avatarUrl || null;
 
   return (
     <div className="sticky top-0 z-30 px-5 md:px-10 pt-4 pb-3 backdrop-blur-xl bg-[#050505]/60">
@@ -336,7 +337,7 @@ function TopBar({
           className="size-10 rounded-full flex items-center justify-center text-xs font-semibold ml-1 overflow-hidden shrink-0 border border-white/20"
           style={{ background: "var(--grad-aurora)" }}
         >
-          {avatarUrl ? <img src={avatarUrl} alt="User Avatar" className="size-full object-cover" /> : avatar}
+          {resolvedAvatarUrl ? <img src={resolvedAvatarUrl} alt="User Avatar" className="size-full object-cover" /> : avatar}
         </Link>
       </div>
     </div>

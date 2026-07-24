@@ -10,6 +10,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.attendance_flow import checkin_payload, get_campus_attendance_setting, get_today_checkin, today_local
+from app.avatar import avatar_initials, student_avatar_url
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.intake_flow import local_today, resolve_student_semester
@@ -70,7 +71,7 @@ def _student_code(user_id: int) -> str:
 
 
 def _avatar(name: str) -> str:
-    return "".join(part[0] for part in name.split()[:2]).upper() or "CV"
+    return avatar_initials(name, "CV")
 
 
 def _safe_filename(filename: str) -> str:
@@ -198,6 +199,7 @@ def _student_rows(db: Session) -> list[dict]:
                 "blockReason": student.block_reason or "",
                 "blockedAt": student.blocked_at.isoformat() if student.blocked_at else "",
                 "avatar": _avatar(student.full_name),
+                "avatarUrl": student_avatar_url(profile),
                 "biometricCheckIn": checkin_payload(checkin),
                 "biometricVerified": bool(checkin and checkin.biometric_verified),
                 "withinRadius": bool(checkin and checkin.within_radius),

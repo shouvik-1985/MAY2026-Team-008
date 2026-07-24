@@ -12,6 +12,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.attendance_flow import get_campus_attendance_setting
+from app.avatar import avatar_initials, user_avatar_url
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.intake_flow import resolve_student_semester
@@ -54,8 +55,7 @@ def _is_online(user: User) -> bool:
 
 
 def _avatar(name: str) -> str:
-    parts = [part[0] for part in name.split() if part]
-    return "".join(parts[:2]).upper() or "CV"
+    return avatar_initials(name, "CV")
 
 
 def _public_role(role: Role) -> str:
@@ -182,6 +182,7 @@ def _person_out(db: Session, user: User, viewer_id: int) -> dict:
         "status": _relationship_status(relationship, viewer_id),
         "relationshipId": relationship.id if relationship else None,
         "avatar": _avatar(user.full_name),
+        "avatarUrl": user_avatar_url(user),
         "online": _is_online(user),
         "lastSeenAt": user.last_seen_at.isoformat() if user.last_seen_at else None,
         "details": profile["details"],
@@ -257,6 +258,7 @@ def connect_hub(
             "email": current_user.email,
             "role": _public_role(current_user.role),
             "avatar": _avatar(current_user.full_name),
+            "avatarUrl": user_avatar_url(current_user),
         },
         "people": people,
         "counts": {

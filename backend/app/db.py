@@ -82,6 +82,7 @@ def ensure_database_shape() -> None:
         "state": "VARCHAR(120)",
         "linkedin_url": "VARCHAR(255)",
         "github_url": "VARCHAR(255)",
+        "avatar_url": _column_sql("text"),
         "completed_credits": "INTEGER",
         "total_credits": "INTEGER NOT NULL DEFAULT 180",
     }

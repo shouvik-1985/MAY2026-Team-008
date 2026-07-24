@@ -855,7 +855,7 @@ function PlacementManagerPage() {
                           <div key={applicant.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
                               <div className="flex min-w-0 flex-1 gap-3">
-                                <Avatar value={avatarFromName(application.studentName)} />
+                                <Avatar value={avatarFromName(application.studentName)} imageUrl={application.avatarUrl} />
                                 <div className="min-w-0">
                                   <div className="truncate font-semibold text-white" title={application.studentName}>
                                     {application.studentName}
@@ -1012,7 +1012,7 @@ function PlacementManagerPage() {
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <Avatar value={avatarFromName(application.studentName)} />
+                        <Avatar value={avatarFromName(application.studentName)} imageUrl={application.avatarUrl} />
                         <div className="min-w-0">
                           <div className="truncate font-semibold text-white" title={application.studentName}>
                             {application.studentName}
@@ -1052,7 +1052,7 @@ function PlacementManagerPage() {
               <div className="relative overflow-hidden border-b border-white/8 px-5 py-5">
                 <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-fuchsia-400/10 blur-3xl" />
                 <div className="relative flex items-start gap-4">
-                  <Avatar value={avatarFromName(selected.studentName)} large />
+                  <Avatar value={avatarFromName(selected.studentName)} imageUrl={selected.avatarUrl} large />
                   <div className="min-w-0 flex-1">
                     <div className="text-[10px] uppercase tracking-[0.28em] text-white/38">Candidate profile</div>
                     <div className="mt-1 truncate font-display text-2xl text-white" title={selected.studentName}>
@@ -1178,7 +1178,7 @@ function PlacementManagerPage() {
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex min-w-0 items-center gap-3">
-                        <Avatar value={avatarFromName(application.studentName)} />
+                        <Avatar value={avatarFromName(application.studentName)} imageUrl={application.avatarUrl} />
                         <div className="min-w-0">
                           <div className="truncate font-semibold text-white" title={application.studentName}>
                             {application.studentName}
@@ -1203,7 +1203,7 @@ function PlacementManagerPage() {
           {selected ? (
             <div className="p-5">
               <div className="flex items-start gap-4">
-                <Avatar value={avatarFromName(selected.studentName)} large />
+                <Avatar value={avatarFromName(selected.studentName)} imageUrl={selected.avatarUrl} large />
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] uppercase tracking-[0.28em] text-white/38">Selected candidate</div>
                   <div className="mt-1 truncate font-display text-2xl text-white" title={selected.studentName}>
@@ -1496,15 +1496,15 @@ function StatusPill({ status }: { status: PlacementApplication["status"] }) {
   );
 }
 
-function Avatar({ value, large = false }: { value: string; large?: boolean }) {
+function Avatar({ value, imageUrl, large = false }: { value: string; imageUrl?: string | null; large?: boolean }) {
   return (
     <span
-      className={`grid shrink-0 place-items-center rounded-2xl text-sm font-semibold text-white shadow-[0_10px_25px_rgba(0,0,0,0.4)] ${
+      className={`grid shrink-0 place-items-center overflow-hidden rounded-2xl text-sm font-semibold text-white shadow-[0_10px_25px_rgba(0,0,0,0.4)] ${
         large ? "size-14 text-base" : "size-11"
       }`}
       style={{ background: "var(--grad-aurora)" }}
     >
-      {value}
+      {imageUrl ? <img src={imageUrl} alt={value} className="size-full object-cover" /> : value}
     </span>
   );
 }

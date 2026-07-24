@@ -25,8 +25,8 @@ import {
 } from "lucide-react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { getStudentProfile, updateStudentProfile, type StudentProfile } from "@/lib/api";
-import { useUserAvatar } from "@/lib/avatar";
+import { getStudentProfile, updateStudentAvatar, updateStudentProfile, type StudentProfile } from "@/lib/api";
+import { setCustomAvatar, useUserAvatar } from "@/lib/avatar";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { getStoredDashboard, setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
 
@@ -109,11 +109,17 @@ function ProfilePage() {
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const previousAvatar = avatarUrl;
     try {
       setAvatarError(null);
-      await updateAvatar(file);
-      setStatus("Profile photo updated successfully! This photo is now active across your entire app session.");
+      const nextAvatar = await updateAvatar(file);
+      const updated = await updateStudentAvatar({ avatar_url: nextAvatar });
+      setProfile(updated);
+      setDraft(toDraft(updated));
+      syncCachedStudentState(updated);
+      setStatus("Profile photo updated successfully! Your latest avatar is now synced across the app.");
     } catch (err) {
+      setCustomAvatar(previousAvatar ?? null);
       setAvatarError(err instanceof Error ? err.message : "Failed to update profile photo");
     }
   }
@@ -129,6 +135,7 @@ function ProfilePage() {
         if (cancelled) return;
         setProfile(data);
         setDraft(toDraft(data));
+        setCustomAvatar(data.avatarUrl ?? null);
         syncCachedStudentState(data);
       } catch (loadError) {
         if (cancelled) return;
@@ -149,6 +156,22 @@ function ProfilePage() {
     const timer = window.setTimeout(() => setStatus(null), 2800);
     return () => window.clearTimeout(timer);
   }, [status]);
+
+  async function handleAvatarRemove() {
+    const previousAvatar = avatarUrl;
+    try {
+      setAvatarError(null);
+      removeAvatar();
+      const updated = await updateStudentAvatar({ avatar_url: null });
+      setProfile(updated);
+      setDraft(toDraft(updated));
+      syncCachedStudentState(updated);
+      setStatus("Profile photo removed successfully.");
+    } catch (err) {
+      setCustomAvatar(previousAvatar ?? null);
+      setAvatarError(err instanceof Error ? err.message : "Failed to remove profile photo");
+    }
+  }
 
   // Auto-save draft to localStorage
   useEffect(() => {
@@ -216,6 +239,7 @@ function ProfilePage() {
       linkedinUrl: cached?.user.linkedinUrl ?? "",
       githubUrl: cached?.user.githubUrl ?? "",
       avatar: cached?.user.avatar ?? initialsFromName(authUser?.full_name ?? "Student"),
+      avatarUrl: cached?.user.avatarUrl ?? null,
       academicStanding: deriveAcademicStanding(cached?.user.cgpa ?? 0, cached?.user.attendance ?? 0),
       profileCompletion: 20,
       enrollmentDate: null,
@@ -383,8 +407,8 @@ function ProfilePage() {
                 className="group relative flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-[28px] text-4xl font-bold text-white shadow-[0_20px_60px_rgba(0,0,0,0.28)] border border-white/20"
               >
                 <span className="absolute inset-0 bg-[linear-gradient(135deg,#ff41c4_0%,#f11ab9_35%,#6c6cff_72%,#00d4ff_100%)]" />
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt={view.name} className="relative size-full object-cover" />
+                {avatarUrl || view.avatarUrl ? (
+                  <img src={avatarUrl || view.avatarUrl || ""} alt={view.name} className="relative size-full object-cover" />
                 ) : (
                   <span className="relative">{view.avatar || initialsFromName(view.name)}</span>
                 )}
@@ -652,15 +676,15 @@ function ProfilePage() {
               <label className="text-[10px] uppercase tracking-[0.28em] text-white/40">Profile Photo</label>
               <div className="flex items-center gap-4">
                 <div className="size-16 rounded-2xl overflow-hidden bg-white/10 flex items-center justify-center text-xl font-bold border border-white/15 shrink-0">
-                  {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="size-full object-cover" /> : view.avatar || initialsFromName(view.name)}
+                  {avatarUrl || view.avatarUrl ? <img src={avatarUrl || view.avatarUrl || ""} alt="Avatar" className="size-full object-cover" /> : view.avatar || initialsFromName(view.name)}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <label className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white transition hover:bg-white/20">
                     <Camera className="size-3.5" /> Upload Photo
                     <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                   </label>
-                  {avatarUrl && (
-                    <button type="button" onClick={() => removeAvatar()} className="inline-flex items-center gap-2 rounded-full border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-rose-200 transition hover:bg-rose-500/20">
+                  {(avatarUrl || view.avatarUrl) && (
+                    <button type="button" onClick={() => void handleAvatarRemove()} className="inline-flex items-center gap-2 rounded-full border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-rose-200 transition hover:bg-rose-500/20">
                       <Trash2 className="size-3.5" /> Remove Photo
                     </button>
                   )}
@@ -810,6 +834,7 @@ function syncCachedStudentState(profile: StudentProfile) {
         completedCredits: profile.completedCredits,
         totalCredits: profile.totalCredits,
         avatar: profile.avatar,
+        avatarUrl: profile.avatarUrl,
         address: profile.address,
         phone: profile.phone,
         bio: profile.bio,
