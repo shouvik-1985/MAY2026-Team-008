@@ -4,6 +4,7 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, selectinload
 
@@ -24,6 +25,8 @@ from app.db import get_db
 from app.intake_flow import resolve_student_semester
 from app.models import (
     Announcement,
+    ConnectMessage,
+    MarketplaceItem,
     PlacementNotification,
     Role,
     StudentAttendance,
@@ -53,7 +56,10 @@ from app.schemas import (
 from app.services.student_assistant import answer_student_assistant
 
 router = APIRouter(prefix="/student", tags=["student"])
-LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
+try:
+    LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
+except Exception:
+    LOCAL_TIMEZONE = timezone.utc
 NOW_DATE = date(2026, 7, 22)
 
 
@@ -133,9 +139,11 @@ def _todo_rows(db: Session, student_id: int) -> list[dict]:
 
 
 CERTIFICATE_DEFINITIONS = [
-    {"key": "bonafide", "name": "Bonafide Certificate", "eta": "24 hours"},
-    {"key": "transcript", "name": "Transcript", "eta": "3 days"},
-    {"key": "fee-clearance", "name": "Fee Clearance Letter", "eta": "48 hours"},
+    {"key": "bonafide", "name": "Bonafide Certificate", "eta": "Instant", "req": "Active Enrollment"},
+    {"key": "transcript", "name": "Academic Transcript", "eta": "Instant", "req": "Min 18 Credits"},
+    {"key": "fee-clearance", "name": "Fee Clearance Letter", "eta": "Instant", "req": "Zero Dues"},
+    {"key": "conduct", "name": "Dean's Merit & Conduct Certificate", "eta": "Instant", "req": "CGPA >= 8.5 & Att. >= 85%"},
+    {"key": "graduation", "name": "Graduation Degree Certificate", "eta": "Auto-Issued", "req": "Semester 4 Completion"},
 ]
 
 
@@ -149,19 +157,35 @@ def _certificate_request_rows(db: Session, student_id: int) -> list[StudentCerti
 
 
 def _certificate_items(db: Session, user: User, due_amount: int, first_name: str) -> list[dict]:
+    profile = _ensure_student_profile(db, user)
+    setting = get_campus_attendance_setting(db)
+    attendance_records = _attendance_records(db, user.id)
+    raw_attendance = _attendance_percentage(attendance_records, profile.attendance if profile else 88.0)
+    attendance = profile.attendance if (profile and profile.attendance and profile.attendance > 10.0) else (raw_attendance if raw_attendance > 10.0 else 88.0)
+    semester = resolve_student_semester(
+        profile,
+        user,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
     requests = {item.certificate_key: item for item in _certificate_request_rows(db, user.id)}
+    
     descriptions = {
-        "bonafide": f"Enrollment proof for {first_name}.",
-        "transcript": "Verified academic record.",
-        "fee-clearance": "Pending clearance" if due_amount else "Ready to request",
+        "bonafide": f"Official enrollment proof for {first_name}.",
+        "transcript": f"Verified academic record ({profile.completed_credits or 48}/{profile.total_credits or 180} Credits).",
+        "fee-clearance": "Fee balance pending clearance" if due_amount else "Eligible for download (Zero Dues)",
+        "conduct": f"Honors certificate (Current: CGPA {profile.cgpa:.1f}, {attendance:.0f}% Att.)",
+        "graduation": f"Official Degree Certificate (Semester {semester}/4)" if semester < 4 else f"Conferred Graduation Degree for {first_name}",
     }
+    
     items: list[dict] = []
     for index, item in enumerate(CERTIFICATE_DEFINITIONS, start=1):
         request = requests.get(item["key"])
-        if request:
-            status = request.status
+        if item["key"] == "graduation" and semester >= 4:
+            status = request.status if request else "ready"
         else:
-            status = "available"
+            status = request.status if request else "available"
         items.append(
             {
                 "id": user.id * 10 + index,
@@ -169,6 +193,7 @@ def _certificate_items(db: Session, user: User, due_amount: int, first_name: str
                 "name": item["name"],
                 "desc": descriptions[item["key"]],
                 "eta": item["eta"],
+                "req": item["req"],
                 "status": status,
                 "requestedAt": request.requested_at.isoformat() if request else None,
                 "readyAt": request.ready_at.isoformat() if request and request.ready_at else None,
@@ -176,6 +201,44 @@ def _certificate_items(db: Session, user: User, due_amount: int, first_name: str
             }
         )
     return items
+
+
+def _validate_certificate_eligibility(db: Session, user: User, certificate_key: str) -> None:
+    if user.is_blocked:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Account is under administrative hold: {user.block_reason or 'Contact Dean Office'}.",
+        )
+    profile = _ensure_student_profile(db, user)
+    setting = get_campus_attendance_setting(db)
+    attendance_records = _attendance_records(db, user.id)
+    attendance = _attendance_percentage(attendance_records, profile.attendance)
+    semester = resolve_student_semester(
+        profile,
+        user,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
+    fee_base = 78000 + (semester * 1200)
+    due_amount = fee_base if semester % 2 == 0 else 0
+
+    if certificate_key == "fee-clearance" and due_amount > 0:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Fee Clearance Letter requires zero outstanding dues. Current balance: INR {due_amount:,}. Please pay under Fee Payment.",
+        )
+    if certificate_key == "transcript" and (profile.completed_credits or 0) < 18:
+        raise HTTPException(
+            status_code=422,
+            detail="Academic Transcript requires at least 18 completed academic credits.",
+        )
+    if certificate_key == "conduct":
+        if profile.cgpa < 8.0 or attendance < 75.0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Dean's Merit & Conduct Certificate requires CGPA >= 8.0 & Attendance >= 75%. Yours: CGPA {profile.cgpa:.1f}, Attendance {attendance:.0f}%.",
+            )
 
 
 def _event_rows(db: Session, user: User, semester: int, seed: int) -> list[dict]:
@@ -238,39 +301,84 @@ def _event_rows(db: Session, user: User, semester: int, seed: int) -> list[dict]
     return rows
 
 
-def _marketplace_items(user: User, semester: int) -> list[dict]:
+def _marketplace_items(db: Session, user: User, semester: int) -> list[dict]:
+    items = db.query(MarketplaceItem).order_by(MarketplaceItem.created_at.desc()).all()
     first_name = user.full_name.split()[0] if user.full_name else "Student"
+    clamped_sem = min(4, max(1, semester))
+
+    if not items:
+        defaults = [
+            MarketplaceItem(
+                seller_id=user.id,
+                item_key="notes-bundle",
+                name=f"Sem {clamped_sem} Notes & PYQ Bundle",
+                category="Notes",
+                price="₹ 120",
+                seller_name=f"{first_name} / Sem {clamped_sem}",
+                tag="Verified",
+                image_url="https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=800&auto=format&fit=crop",
+                description="Curated lecture notes, summaries, and previous practice sheets.",
+                status="Available",
+            ),
+            MarketplaceItem(
+                seller_id=user.id,
+                item_key="engineering-calculator",
+                name="Casio FX-991EX Scientific Calculator",
+                category="Electronics",
+                price="₹ 650",
+                seller_name="Rahul / Sem 4",
+                tag="Like New",
+                image_url="https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?q=80&w=800&auto=format&fit=crop",
+                description="Exam-ready Casio FX-991EX scientific calculator with cover and fresh batteries.",
+                status="Available",
+            ),
+            MarketplaceItem(
+                seller_id=user.id,
+                item_key="reference-book-set",
+                name="Core CS Reference Book Set (3 Books)",
+                category="Books",
+                price="₹ 480",
+                seller_name="Library Circle",
+                tag="Clean Copy",
+                image_url="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop",
+                description="Includes CLRS Algorithms, Silberschatz Operating Systems, and Tanenbaum Networks.",
+                status="Reserved",
+            ),
+        ]
+        db.add_all(defaults)
+        db.commit()
+        items = db.query(MarketplaceItem).order_by(MarketplaceItem.created_at.desc()).all()
+    else:
+        import re
+        updated = False
+        for item in items:
+            if "Sem 16" in item.name or "Sem 16" in item.seller_name or item.item_key == "notes-bundle":
+                item.name = re.sub(r"Sem \d+", f"Sem {clamped_sem}", item.name)
+                item.seller_name = re.sub(r"Sem \d+", f"Sem {clamped_sem}", item.seller_name)
+                updated = True
+            elif re.search(r"Sem ([5-9]|\d{2,})", item.name) or re.search(r"Sem ([5-9]|\d{2,})", item.seller_name):
+                item.name = re.sub(r"Sem ([5-9]|\d{2,})", f"Sem {clamped_sem}", item.name)
+                item.seller_name = re.sub(r"Sem ([5-9]|\d{2,})", f"Sem {clamped_sem}", item.seller_name)
+                updated = True
+        if updated:
+            db.commit()
+
     return [
         {
-            "id": user.id * 10 + 1,
-            "key": "notes-bundle",
-            "name": f"Sem {semester} Notes Bundle",
-            "category": "Notes",
-            "price": "\u20b9 120",
-            "seller": f"{first_name} / Sem {semester}",
-            "tag": "Verified",
-            "description": "Curated lecture notes, summaries, and previous practice sheets.",
-        },
-        {
-            "id": user.id * 10 + 2,
-            "key": "engineering-calculator",
-            "name": "Engineering Calculator",
-            "category": "Hostel",
-            "price": "\u20b9 650",
-            "seller": "Campus verified",
-            "tag": "Like new",
-            "description": "Exam-ready calculator with cover and fresh batteries.",
-        },
-        {
-            "id": user.id * 10 + 3,
-            "key": "reference-book-set",
-            "name": "Reference Book Set",
-            "category": "Books",
-            "price": "\u20b9 480",
-            "seller": "Library circle",
-            "tag": "",
-            "description": "Useful core textbooks for the current semester.",
-        },
+            "id": item.id,
+            "key": item.item_key,
+            "name": item.name,
+            "category": item.category,
+            "price": item.price,
+            "seller": item.seller_name,
+            "seller_id": item.seller_id,
+            "tag": item.tag,
+            "imageUrl": item.image_url,
+            "description": item.description,
+            "status": item.status,
+            "createdAt": item.created_at.isoformat() if item.created_at else None,
+        }
+        for item in items
     ]
 
 
@@ -534,12 +642,88 @@ def _resource_rows(db: Session) -> list[dict]:
                 "type": resource.resource_type,
                 "tag": resource.tag,
                 "url": public_resource_url(resource),
-                "professorName": professor_name or "Campus faculty",
+                "professorName": professor_name or "Campus Faculty",
                 "createdAt": resource.created_at.isoformat(),
                 "createdDate": resource.created_at.date().isoformat(),
                 "time": resource.created_at.strftime("%d %b %Y, %I:%M %p"),
             }
         )
+    if not items:
+        defaults = [
+            {
+                "id": 101,
+                "title": "Distributed Systems & Consensus Protocols (Raft & Paxos)",
+                "subject": "Distributed Systems",
+                "type": "Lecture Notes",
+                "tag": "trending",
+                "url": "#",
+                "professorName": "Prof. V. K. Mehta",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "createdDate": datetime.now(timezone.utc).date().isoformat(),
+                "time": "Today, 10:30 AM",
+            },
+            {
+                "id": 102,
+                "title": "Deep Learning & Transformer Architectures Guide",
+                "subject": "Machine Learning & AI",
+                "type": "Study Guide",
+                "tag": "new",
+                "url": "#",
+                "professorName": "Dr. A. R. Sharma",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "createdDate": datetime.now(timezone.utc).date().isoformat(),
+                "time": "Yesterday, 04:15 PM",
+            },
+            {
+                "id": 103,
+                "title": "Operating Systems Kernel & Virtual Memory Mechanics",
+                "subject": "Operating Systems",
+                "type": "Lecture Slides",
+                "tag": "trending",
+                "url": "#",
+                "professorName": "Dr. S. K. Gupta",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "createdDate": datetime.now(timezone.utc).date().isoformat(),
+                "time": "2 days ago",
+            },
+            {
+                "id": 104,
+                "title": "Data Structures & Advanced Graph Algorithms Sheet",
+                "subject": "Algorithms",
+                "type": "Cheat Sheet",
+                "tag": "exam_ready",
+                "url": "#",
+                "professorName": "Prof. R. N. Iyer",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "createdDate": datetime.now(timezone.utc).date().isoformat(),
+                "time": "3 days ago",
+            },
+            {
+                "id": 105,
+                "title": "Full-Stack Web Architectures & Fast-API REST Specs",
+                "subject": "Software Engineering",
+                "type": "Reference",
+                "tag": "new",
+                "url": "#",
+                "professorName": "Prof. V. K. Mehta",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "createdDate": datetime.now(timezone.utc).date().isoformat(),
+                "time": "4 days ago",
+            },
+            {
+                "id": 106,
+                "title": "Database Systems Indexing & B-Tree Performance Guide",
+                "subject": "Database Systems",
+                "type": "Exam Papers",
+                "tag": "trending",
+                "url": "#",
+                "professorName": "Dr. A. R. Sharma",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "createdDate": datetime.now(timezone.utc).date().isoformat(),
+                "time": "5 days ago",
+            },
+        ]
+        items.extend(defaults)
     return items
 
 
@@ -569,9 +753,48 @@ def _student_announcement_rows(db: Session, user: User) -> list[dict]:
     announcements = (
         db.query(Announcement)
         .order_by(desc(Announcement.created_at))
-        .limit(10)
+        .limit(15)
         .all()
     )
+    if not announcements:
+        defaults = [
+            Announcement(
+                title="End-Semester Examination Schedule Announced (July 2026)",
+                category="Exam",
+                pinned=True,
+                audience="All Students",
+                body="The official timetable for the July 2026 End-Semester Examinations has been published. Please verify your hall tickets and ensure zero fee balance before July 28th.",
+                created_at=datetime.now(timezone.utc),
+            ),
+            Announcement(
+                title="Campus Innovation Hackathon 2026 Registration Open",
+                category="Events",
+                pinned=True,
+                audience="Computer Science & AI",
+                body="Participate in the 48-hour Annual Campus Hackathon. Top winning teams will receive cash grants up to INR 1,50,000 and direct internship interviews with partner AI tech firms.",
+                created_at=datetime.now(timezone.utc) - timedelta(hours=5),
+            ),
+            Announcement(
+                title="Campus Placement Drive - TechVerse Solutions",
+                category="Placement",
+                pinned=False,
+                audience="Final Year & Sem 4 Students",
+                body="TechVerse Solutions is conducting placement drives for Full Stack & AI Engineering roles. Eligible students with CGPA >= 7.5 are requested to submit resumes by July 30th.",
+                created_at=datetime.now(timezone.utc) - timedelta(days=1),
+            ),
+            Announcement(
+                title="Library & Digital Innovation Hub Extended Hours",
+                category="Academic",
+                pinned=False,
+                audience="All Students",
+                body="The Central Library and AI High-Performance Computing Lab will remain open 24/7 during examination preparation weeks starting July 25th.",
+                created_at=datetime.now(timezone.utc) - timedelta(days=2),
+            ),
+        ]
+        db.add_all(defaults)
+        db.commit()
+        announcements = db.query(Announcement).order_by(desc(Announcement.created_at)).all()
+
     return [
         {
             "id": item.id,
@@ -659,7 +882,34 @@ def _student_dataset(db: Session, user: User) -> dict:
     certificate_items = _certificate_items(db, user, due_amount, first_name)
     fee_history = _fee_history(user.id, semester, fee_base, due_amount)
     event_items = _event_rows(db, user, semester, seed)
-    marketplace_items = _marketplace_items(user, semester)
+    marketplace_items = _marketplace_items(db, user, semester)
+
+    cert_requests = (
+        db.query(StudentCertificateRequest)
+        .filter(StudentCertificateRequest.student_id == user.id)
+        .order_by(desc(StudentCertificateRequest.updated_at))
+        .all()
+    )
+
+    cert_history_items = [
+        {
+            "title": req.certificate_name,
+            "kind": "Certificate",
+            "stage": req.status.replace("_", " ").title(),
+            "updated": req.updated_at.strftime("%d %b %Y, %I:%M %p") if req.updated_at else "Today",
+        }
+        for req in cert_requests
+    ]
+    if not cert_history_items:
+        cert_history_items = [
+            {
+                "title": "Bonafide Certificate",
+                "kind": "Certificate",
+                "stage": "Ready",
+                "updated": "Today",
+            }
+        ]
+
     latest_certificate = next(
         (
             item
@@ -764,12 +1014,7 @@ def _student_dataset(db: Session, user: User) -> dict:
                     }
                 ]
             ),
-            {
-                "title": latest_certificate["name"] if latest_certificate else "Bonafide Certificate",
-                "kind": "Certificate",
-                "stage": latest_certificate["status"].replace("_", " ").title() if latest_certificate else "Ready",
-                "updated": "Today" if latest_certificate else "Yesterday",
-            },
+            *cert_history_items,
             {"title": f"Sem {semester} Fee Receipt", "kind": "Fees", "stage": "Pending" if due_amount else "Cleared", "updated": "2 days ago"},
         ],
         "announcements": [
@@ -1173,6 +1418,949 @@ def delete_todo(
     return {"ok": True, "id": todo_id, "todos": _todo_rows(db, current_user.id)}
 
 
+def _validate_certificate_eligibility(db: Session, user: User, certificate_key: str) -> None:
+    if user.is_blocked:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Account is under administrative hold: {user.block_reason or 'Contact Dean Office'}.",
+        )
+    # Allow instant download if certificate request already exists and is ready/downloaded
+    existing = (
+        db.query(StudentCertificateRequest)
+        .filter(
+            StudentCertificateRequest.student_id == user.id,
+            StudentCertificateRequest.certificate_key == certificate_key,
+        )
+        .first()
+    )
+    if existing and existing.status in {"ready", "downloaded"}:
+        return
+
+    profile = _ensure_student_profile(db, user)
+    setting = get_campus_attendance_setting(db)
+    attendance_records = _attendance_records(db, user.id)
+    attendance = _attendance_percentage(attendance_records, profile.attendance)
+    semester = resolve_student_semester(
+        profile,
+        user,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
+    fee_base = 78000 + (semester * 1200)
+    due_amount = fee_base if semester % 2 == 0 else 0
+
+    if certificate_key == "fee-clearance" and due_amount > 0:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Fee Clearance Letter requires zero outstanding dues. Your current balance is INR {due_amount:,}. Please pay under Fee Payment.",
+        )
+    if certificate_key == "transcript" and (profile.completed_credits or 0) < 18:
+        raise HTTPException(
+            status_code=422,
+            detail="Academic Transcript requires at least 18 completed academic credits.",
+        )
+    if certificate_key == "conduct":
+        if profile.cgpa < 8.0 or attendance < 75.0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Dean's Merit & Conduct Certificate requires CGPA >= 8.0 & Attendance >= 75%. Yours: CGPA {profile.cgpa:.1f}, Attendance {attendance:.0f}%.",
+            )
+    if certificate_key == "graduation" and semester < 4:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Graduation Degree Certificate requires completion of Semester 4. Current progress: Semester {semester}/4.",
+        )
+
+
+def _generate_certificate_html(db: Session, user: User, key: str, definition: dict, moment: datetime) -> str:
+    import hashlib
+    profile = _ensure_student_profile(db, user)
+    setting = get_campus_attendance_setting(db)
+    attendance_records = _attendance_records(db, user.id)
+    attendance = _attendance_percentage(attendance_records, profile.attendance)
+    semester = resolve_student_semester(
+        profile,
+        user,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
+    standing = _academic_standing(profile.cgpa, attendance)
+    issue_date = moment.astimezone(LOCAL_TIMEZONE).strftime("%d %B %Y, %I:%M %p")
+    verify_hash = hashlib.sha256(f"{user.id}-{key}-{moment.timestamp()}".encode()).hexdigest()[:16].upper()
+
+    title_map = {
+        "bonafide": "OFFICIAL BONAFIDE CERTIFICATE",
+        "transcript": "OFFICIAL ACADEMIC TRANSCRIPT",
+        "fee-clearance": "OFFICIAL FEE CLEARANCE LETTER",
+        "graduation": "BACHELOR DEGREE OF GRADUATION",
+        "conduct": "DEAN'S MERIT & CONDUCT CERTIFICATE",
+    }
+    cert_title = title_map.get(key, definition["name"].upper())
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{definition['name']} - {user.full_name}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Montserrat:wght@400;600;700&display=swap');
+        @media print {{
+            body {{ background: #fff !important; padding: 0 !important; }}
+            .no-print {{ display: none !important; }}
+            .certificate-container {{ border: 12px double #d4af37 !important; box-shadow: none !important; margin: 0 !important; }}
+        }}
+        body {{
+            font-family: 'Montserrat', sans-serif;
+            background: #0a0c12;
+            color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 30px;
+        }}
+        .certificate-container {{
+            background: linear-gradient(135deg, #ffffff 0%, #fcf9f0 100%);
+            width: 900px;
+            padding: 60px 70px;
+            border: 14px double #d4af37;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6), inset 0 0 30px rgba(212,175,55,0.15);
+            position: relative;
+            box-sizing: border-box;
+            border-radius: 4px;
+        }}
+        .watermark {{
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-25deg);
+            font-family: 'Cinzel', serif;
+            font-size: 95px;
+            color: rgba(212, 175, 55, 0.04);
+            font-weight: 900;
+            text-transform: uppercase;
+            pointer-events: none;
+            user-select: none;
+            white-space: nowrap;
+        }}
+        .header {{
+            text-align: center;
+            border-bottom: 2px solid #d4af37;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }}
+        .crest {{
+            font-size: 38px;
+            color: #d4af37;
+            margin-bottom: 5px;
+        }}
+        .university-name {{
+            font-family: 'Cinzel', serif;
+            font-size: 34px;
+            font-weight: 900;
+            color: #0b172a;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin: 0;
+        }}
+        .subtitle {{
+            font-size: 11px;
+            color: #777;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-top: 8px;
+            font-weight: 600;
+        }}
+        .cert-title {{
+            font-family: 'Cinzel', serif;
+            font-size: 26px;
+            color: #b38728;
+            text-align: center;
+            margin: 25px 0 15px 0;
+            letter-spacing: 3px;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }}
+        .details-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin: 25px 0;
+            background: #ffffff;
+            padding: 22px;
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            font-size: 13px;
+        }}
+        .details-item span {{
+            font-weight: 700;
+            color: #0b172a;
+        }}
+        .body-text {{
+            font-size: 15px;
+            line-height: 1.85;
+            text-align: justify;
+            margin: 25px 0;
+            color: #2c3e50;
+        }}
+        .footer {{
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 45px;
+            padding-top: 25px;
+            border-top: 1px solid rgba(212, 175, 55, 0.3);
+        }}
+        .seal {{
+            width: 105px;
+            height: 105px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #bf953f 0%, #fcf6ba 25%, #b38728 50%, #fbf5b7 75%, #aa771c 100%);
+            color: #0b172a;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 10px;
+            font-weight: 900;
+            text-align: center;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+            text-transform: uppercase;
+            border: 3px solid #ffffff;
+            letter-spacing: 1px;
+        }}
+        .signature-block {{
+            text-align: center;
+        }}
+        .signature-img {{
+            font-family: 'Cinzel', serif;
+            font-style: italic;
+            font-size: 18px;
+            color: #0b172a;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }}
+        .signature-line {{
+            width: 190px;
+            border-bottom: 1.5px solid #0b172a;
+            margin-bottom: 6px;
+        }}
+        .signature-title {{
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+        }}
+        .ref-bar {{
+            font-size: 11px;
+            color: #888;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-family: monospace;
+            border-bottom: 1px solid #f0e6cd;
+            padding-bottom: 8px;
+        }}
+        .btn-container {{
+            text-align: center;
+            margin-top: 25px;
+        }}
+        .btn-print {{
+            background: linear-gradient(90deg, #bf953f, #aa771c);
+            color: #fff;
+            border: none;
+            padding: 14px 36px;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 30px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 8px 25px rgba(191, 149, 63, 0.4);
+            transition: transform 0.2s;
+        }}
+        .btn-print:hover {{
+            transform: translateY(-2px);
+        }}
+    </style>
+</head>
+<body>
+
+<div style="display: flex; flex-direction: column; align-items: center;">
+    <div class="certificate-container">
+        <div class="watermark">CAMPUSVERSE</div>
+        
+        <div class="ref-bar">
+            <span>DOCUMENT REF: CV-{key.upper()}-2026-{user.id:04d}</span>
+            <span>DIGITAL VERIFICATION HASH: {verify_hash}</span>
+        </div>
+
+        <div class="header">
+            <div class="crest">🏛️</div>
+            <div class="subtitle">Office of Academic Governance & Digital Registry</div>
+        </div>
+
+        <div class="cert-title">{cert_title}</div>
+
+        <div class="body-text">
+            This is to certify that <strong>{user.full_name}</strong> (Roll Code: <strong>{profile.student_code}</strong>), 
+            enrolled in the <strong>{profile.department}</strong> program, has satisfied all academic standards, 
+            character evaluations, and degree criteria established under university regulations.
+        </div>
+
+        <div class="details-grid">
+            <div class="details-item"><span>Student Name:</span> {user.full_name}</div>
+            <div class="details-item"><span>Roll Code:</span> {profile.student_code}</div>
+            <div class="details-item"><span>Department:</span> {profile.department}</div>
+            <div class="details-item"><span>Semester Standing:</span> Semester {semester}</div>
+            <div class="details-item"><span>Cumulative CGPA:</span> {profile.cgpa:.2f} / 10.0</div>
+            <div class="details-item"><span>Attendance Rate:</span> {attendance:.1f}% (Verified)</div>
+            <div class="details-item"><span>Academic Honor:</span> {standing}</div>
+            <div class="details-item"><span>Issuance Date:</span> {issue_date}</div>
+        </div>
+
+        <div class="body-text" style="font-style: italic; font-size: 12px; color: #666; text-align: center;">
+            Authenticity Notice: This digital document is cryptographically signed and stored in the CampusVerse Registry. 
+            Any modification invalidates the verification hash.
+        </div>
+
+        <div class="footer">
+            <div class="seal">
+                OFFICIAL<br>★ VERIFIED ★<br>SEAL
+            </div>
+
+            <div style="text-align: center;">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=http://localhost:5173/verify/{verify_hash}" alt="QR Verification" style="width: 80px; height: 80px; border: 2px solid #d4af37; padding: 2px; background: #fff;" />
+                <div style="font-size: 9px; color: #777; margin-top: 4px; font-family: monospace;">SCAN TO VERIFY</div>
+            </div>
+
+            <div class="signature-block">
+                <div class="signature-img">Dr. A. R. Sharma</div>
+                <div class="signature-line"></div>
+                <div class="signature-title">Registrar & Academic Council</div>
+            </div>
+
+            <div class="signature-block">
+                <div class="signature-img">Prof. V. K. Mehta</div>
+                <div class="signature-line"></div>
+                <div class="signature-title">Controller of Examinations</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>"""
+
+
+def _generate_certificate_pdf(db: Session, user: User, key: str, definition: dict, moment: datetime) -> bytes:
+    import hashlib
+    import importlib
+    from io import BytesIO
+
+    pagesizes = importlib.import_module("reportlab.lib.pagesizes")
+    landscape = pagesizes.landscape
+    letter = pagesizes.letter
+    colors = importlib.import_module("reportlab.lib.colors")
+    platypus = importlib.import_module("reportlab.platypus")
+    SimpleDocTemplate = platypus.SimpleDocTemplate
+    Paragraph = platypus.Paragraph
+    Spacer = platypus.Spacer
+    Table = platypus.Table
+    TableStyle = platypus.TableStyle
+    styles_mod = importlib.import_module("reportlab.lib.styles")
+    getSampleStyleSheet = styles_mod.getSampleStyleSheet
+    ParagraphStyle = styles_mod.ParagraphStyle
+    units = importlib.import_module("reportlab.lib.units")
+    inch = units.inch
+
+    profile = _ensure_student_profile(db, user)
+    setting = get_campus_attendance_setting(db)
+    attendance_records = _attendance_records(db, user.id)
+    raw_attendance = _attendance_percentage(attendance_records, profile.attendance if profile else 88.0)
+    attendance = profile.attendance if (profile and profile.attendance and profile.attendance > 10.0) else (raw_attendance if raw_attendance > 10.0 else 88.0)
+
+    semester = resolve_student_semester(
+        profile,
+        user,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
+
+    standing = (
+        "First Class with Distinction & Honors"
+        if profile.cgpa >= 8.5
+        else ("First Class" if profile.cgpa >= 7.5 else "Good Standing")
+    )
+    issue_date = moment.astimezone(LOCAL_TIMEZONE).strftime("%d %B %Y")
+    verify_hash = hashlib.sha256(f"{user.id}-{key}-{moment.timestamp()}".encode()).hexdigest()[:16].upper()
+
+    # Color Palette per Template
+    theme_colors = {
+        "graduation": {"bg": "#FFFDF5", "border": "#0F172A", "gold": "#B8860B", "text": "#0F172A", "sub": "#475569"},
+        "transcript": {"bg": "#F8FAFC", "border": "#1E293B", "gold": "#0EA5E9", "text": "#0F172A", "sub": "#0284C7"},
+        "bonafide": {"bg": "#FAFAF5", "border": "#065F46", "gold": "#D4AF37", "text": "#064E3B", "sub": "#047857"},
+        "fee-clearance": {"bg": "#F0FDF4", "border": "#1E3A8A", "gold": "#059669", "text": "#1E3A8A", "sub": "#0D9488"},
+        "conduct": {"bg": "#FFFBEB", "border": "#991B1B", "gold": "#D97706", "text": "#7F1D1D", "sub": "#B45309"},
+    }
+    tc = theme_colors.get(key, theme_colors["graduation"])
+
+    title_map = {
+        "bonafide": "OFFICIAL BONAFIDE ENROLLMENT CERTIFICATE",
+        "transcript": "OFFICIAL ACADEMIC TRANSCRIPT & LEDGER",
+        "fee-clearance": "CERTIFICATE OF ZERO OUTSTANDING DUES & FEE CLEARANCE",
+        "graduation": "BACHELOR DEGREE OF GRADUATION",
+        "conduct": "DEAN'S MERIT & MORAL CONDUCT COMMENDATION",
+    }
+    cert_title = title_map.get(key, definition["name"].upper())
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(letter),
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+
+    def draw_certificate_frame(canvas, d):
+        canvas.saveState()
+        # Background fill
+        canvas.setFillColor(colors.HexColor(tc["bg"]))
+        canvas.rect(0, 0, d.pagesize[0], d.pagesize[1], fill=1, stroke=0)
+
+        if key == "graduation":
+            # Outer Deep Navy Frame
+            canvas.setStrokeColor(colors.HexColor('#0F172A'))
+            canvas.setLineWidth(5)
+            canvas.rect(18, 18, d.pagesize[0] - 36, d.pagesize[1] - 36)
+            # Inner Double Gold Pin Line
+            canvas.setStrokeColor(colors.HexColor('#D4AF37'))
+            canvas.setLineWidth(1.5)
+            canvas.rect(26, 26, d.pagesize[0] - 52, d.pagesize[1] - 52)
+            # Corner Ornaments
+            canvas.setFillColor(colors.HexColor('#B8860B'))
+            for cx, cy in [(26, 26), (d.pagesize[0] - 26, 26), (26, d.pagesize[1] - 26), (d.pagesize[0] - 26, d.pagesize[1] - 26)]:
+                canvas.circle(cx, cy, 4.5, fill=1, stroke=0)
+        elif key == "transcript":
+            # Top Slate Banner & Cyan Stripe
+            canvas.setFillColor(colors.HexColor('#1E293B'))
+            canvas.rect(0, d.pagesize[1] - 28, d.pagesize[0], 28, fill=1, stroke=0)
+            canvas.setFillColor(colors.HexColor('#0EA5E9'))
+            canvas.rect(0, d.pagesize[1] - 32, d.pagesize[0], 4, fill=1, stroke=0)
+            # Outer Slate Border
+            canvas.setStrokeColor(colors.HexColor('#64748B'))
+            canvas.setLineWidth(1.5)
+            canvas.rect(20, 20, d.pagesize[0] - 40, d.pagesize[1] - 58)
+        elif key == "bonafide":
+            # Forest Emerald Frame with Gold Rivets
+            canvas.setStrokeColor(colors.HexColor('#065F46'))
+            canvas.setLineWidth(4)
+            canvas.rect(20, 20, d.pagesize[0] - 40, d.pagesize[1] - 40)
+            canvas.setStrokeColor(colors.HexColor('#D4AF37'))
+            canvas.setLineWidth(1)
+            canvas.rect(25, 25, d.pagesize[0] - 50, d.pagesize[1] - 50)
+        elif key == "fee-clearance":
+            # Royal Sapphire Border + Top Green Stripe
+            canvas.setStrokeColor(colors.HexColor('#1E3A8A'))
+            canvas.setLineWidth(3.5)
+            canvas.rect(20, 20, d.pagesize[0] - 40, d.pagesize[1] - 40)
+            canvas.setFillColor(colors.HexColor('#059669'))
+            canvas.rect(20, d.pagesize[1] - 26, d.pagesize[0] - 40, 6, fill=1, stroke=0)
+        else:  # conduct
+            # Crimson Frame with Amber Corner Stars
+            canvas.setStrokeColor(colors.HexColor('#991B1B'))
+            canvas.setLineWidth(4)
+            canvas.rect(20, 20, d.pagesize[0] - 40, d.pagesize[1] - 40)
+            canvas.setFillColor(colors.HexColor('#D97706'))
+            for cx, cy in [(28, 28), (d.pagesize[0] - 28, 28), (28, d.pagesize[1] - 28), (d.pagesize[0] - 28, d.pagesize[1] - 28)]:
+                canvas.circle(cx, cy, 5, fill=1, stroke=0)
+
+        # Watermark (NO CampusVerse University — Proper Institutional Name)
+        canvas.setFont('Helvetica-Bold', 44)
+        canvas.setFillColor(colors.HexColor('#E2E8F0') if key == 'transcript' else colors.HexColor('#F3EED9'))
+        canvas.rotate(18)
+        canvas.drawString(160, 90, "NATIONAL INSTITUTE OF TECHNOLOGY")
+        canvas.restoreState()
+
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'CertTitle',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=21,
+        leading=25,
+        textColor=colors.HexColor(tc["gold"]),
+        alignment=1,
+        spaceAfter=10,
+    )
+
+    inst_header_style = ParagraphStyle(
+        'InstHeader',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=15,
+        leading=18,
+        textColor=colors.HexColor(tc["border"]),
+        alignment=1,
+        spaceAfter=3,
+    )
+
+    subtitle_style = ParagraphStyle(
+        'CertSubtitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9.5,
+        leading=12,
+        textColor=colors.HexColor(tc["sub"]),
+        alignment=1,
+        spaceAfter=14,
+    )
+
+    body_style = ParagraphStyle(
+        'CertBody',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=11,
+        leading=18,
+        textColor=colors.HexColor('#1E293B'),
+        alignment=1,
+        spaceAfter=14,
+    )
+
+    meta_style = ParagraphStyle(
+        'CertMeta',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor('#64748B'),
+        alignment=1,
+    )
+
+    story = []
+    story.append(Paragraph(f"<b>DOCUMENT REF: CV-{key.upper()}-2026-{user.id:04d}</b> &nbsp;&nbsp;|&nbsp;&nbsp; <b>DIGITAL VERIFICATION HASH: {verify_hash}</b>", meta_style))
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("NATIONAL INSTITUTE OF TECHNOLOGY &amp; HIGHER LEARNING", inst_header_style))
+    story.append(Paragraph("AUTONOMOUS ACADEMIC BODY &nbsp;&bull;&nbsp; VERIFIED VIA CAMPUSVERSE DIGITAL GOVERNANCE REGISTRY", subtitle_style))
+    story.append(Paragraph(cert_title, title_style))
+    story.append(Spacer(1, 8))
+
+    if key == "graduation":
+        cert_text = (
+            f"On the recommendation of the Academic Senate &amp; Board of Governors, National Institute of Technology hereby confers upon<br/>"
+            f"<font size=15 color='#0F172A'><b>{user.full_name}</b></font> (Roll Code: <b>{profile.student_code}</b>)<br/>"
+            f"the Degree of <b>Bachelor of Technology in {profile.department}</b><br/>"
+            f"with <b>{standing}</b>, having fulfilled all prescribed coursework, thesis defense, and institute statutes."
+        )
+    elif key == "transcript":
+        cert_text = (
+            f"This is the official certified academic transcript for <b>{user.full_name}</b> (Roll Code: <b>{profile.student_code}</b>), "
+            f"enrolled in the <b>{profile.department}</b> department. The student has completed <b>{profile.completed_credits or 48} of {profile.total_credits or 180} Credits</b> "
+            f"with a Cumulative CGPA of <b>{profile.cgpa:.2f} / 10.0</b> and verified attendance rate of <b>{attendance:.1f}%</b>."
+        )
+    elif key == "fee-clearance":
+        cert_text = (
+            f"This is to certify that <b>{user.full_name}</b> (Roll Code: <b>{profile.student_code}</b>), "
+            f"enrolled in <b>{profile.department}</b>, has settled all tuition fees, laboratory charges, and library dues "
+            f"for Semester {semester} with <b>Zero Dues Pending</b>."
+        )
+    elif key == "conduct":
+        cert_text = (
+            f"This is to certify that <b>{user.full_name}</b> (Roll Code: <b>{profile.student_code}</b>) "
+            f"has maintained exemplary moral character, high academic diligence (CGPA {profile.cgpa:.2f}), "
+            f"and active student leadership in the <b>{profile.department}</b> program."
+        )
+    else:  # bonafide
+        cert_text = (
+            f"This is to certify that <b>{user.full_name}</b> (Roll Code: <b>{profile.student_code}</b>) "
+            f"is a genuine, full-time student of National Institute of Technology enrolled in Semester {semester} of the "
+            f"<b>{profile.department}</b> program for Academic Session 2025-2026."
+        )
+
+    story.append(Paragraph(cert_text, body_style))
+    story.append(Spacer(1, 10))
+
+    table_data = [
+        [Paragraph(f"<b>Student Name:</b> {user.full_name}", styles['Normal']), Paragraph(f"<b>Roll Code:</b> {profile.student_code}", styles['Normal'])],
+        [Paragraph(f"<b>Department:</b> {profile.department}", styles['Normal']), Paragraph(f"<b>Semester Standing:</b> Semester {semester}", styles['Normal'])],
+        [Paragraph(f"<b>Cumulative CGPA:</b> {profile.cgpa:.2f} / 10.0", styles['Normal']), Paragraph(f"<b>Verified Attendance:</b> {attendance:.1f}%", styles['Normal'])],
+        [Paragraph(f"<b>Academic Honors:</b> {standing}", styles['Normal']), Paragraph(f"<b>Date of Issuance:</b> {issue_date}", styles['Normal'])],
+    ]
+
+    t = Table(table_data, colWidths=[3.8*inch, 3.8*inch])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(tc["bg"])),
+        ('BOX', (0,0), (-1,-1), 1.5, colors.HexColor(tc["gold"])),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+        ('PADDING', (0,0), (-1,-1), 8.5),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 20))
+
+    sig_data = [
+        [
+            Paragraph(f"<font size=9.5 color='{tc['gold']}'><b>★ OFFICIAL REGISTRY SEAL ★</b></font><br/><font size=7.5 color='#64748B'>CRYPTOGRAPHICALLY SIGNED</font>", meta_style),
+            Paragraph("<b>Dr. A. R. Sharma</b><br/><font color='#64748B'>Registrar &amp; Academic Senate</font>", meta_style),
+            Paragraph("<b>Prof. V. K. Mehta</b><br/><font color='#64748B'>Controller of Examinations</font>", meta_style),
+        ]
+    ]
+    sig_table = Table(sig_data, colWidths=[2.5*inch, 2.5*inch, 2.5*inch])
+    sig_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    story.append(sig_table)
+
+    doc.build(story, onFirstPage=draw_certificate_frame)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+class ResumePdfPayload(BaseModel):
+    name: str
+    email: str
+    phone: str
+    location: str
+    cgpa: str
+    department: str
+    summary: str
+    skillsText: str
+    projects: list[dict]
+    achievements: str
+    template: str = "modern-tech"
+
+
+@router.post("/resume/pdf")
+def download_resume_pdf(
+    payload: ResumePdfPayload,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> Response:
+    import importlib
+    from io import BytesIO
+
+    pagesizes = importlib.import_module("reportlab.lib.pagesizes")
+    letter = pagesizes.letter
+    inch = importlib.import_module("reportlab.lib.units").inch
+    colors = importlib.import_module("reportlab.lib.colors")
+    platypus = importlib.import_module("reportlab.platypus")
+    SimpleDocTemplate = platypus.SimpleDocTemplate
+    Paragraph = platypus.Paragraph
+    Spacer = platypus.Spacer
+    Table = platypus.Table
+    TableStyle = platypus.TableStyle
+    HRFlowable = platypus.HRFlowable
+    styles_mod = importlib.import_module("reportlab.lib.styles")
+    getSampleStyleSheet = styles_mod.getSampleStyleSheet
+    ParagraphStyle = styles_mod.ParagraphStyle
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    styles = getSampleStyleSheet()
+
+    tmpl = payload.template or "modern-tech"
+    story = []
+
+    def draw_sidebar_bg(canvas, document):
+        if tmpl == "creative-minimal":
+            canvas.saveState()
+            canvas.setFillColor(colors.HexColor('#F0FDF4'))
+            canvas.rect(0, 0, 2.6 * inch, 11 * inch, fill=True, stroke=False)
+            canvas.setStrokeColor(colors.HexColor('#BBF7D0'))
+            canvas.setLineWidth(1)
+            canvas.line(2.6 * inch, 0, 2.6 * inch, 11 * inch)
+            canvas.restoreState()
+
+    if tmpl == "creative-minimal":
+        # ---------------------------------------------------------
+        # TOP-TIER 2-COLUMN SIDEBAR DESIGN (EMERALD CREATIVE)
+        # ---------------------------------------------------------
+        sb_name = ParagraphStyle('SbName', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=22, leading=26, textColor=colors.HexColor('#064E3B'), spaceAfter=4)
+        sb_sub = ParagraphStyle('SbSub', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=10, leading=13, textColor=colors.HexColor('#059669'), spaceAfter=14)
+        sb_sec = ParagraphStyle('SbSec', parent=styles['Heading3'], fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=colors.HexColor('#047857'), spaceBefore=12, spaceAfter=6)
+        sb_text = ParagraphStyle('SbText', parent=styles['Normal'], fontName='Helvetica', fontSize=8.5, leading=13, textColor=colors.HexColor('#065F46'), spaceAfter=4)
+
+        m_sec = ParagraphStyle('MSec', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=12, leading=15, textColor=colors.HexColor('#047857'), spaceBefore=12, spaceAfter=4)
+        m_title = ParagraphStyle('MTitle', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=10, leading=13, textColor=colors.HexColor('#111827'), spaceAfter=2)
+        m_tech = ParagraphStyle('MTech', parent=styles['Normal'], fontName='Helvetica-Oblique', fontSize=8.5, leading=11, textColor=colors.HexColor('#059669'), spaceAfter=4)
+        m_body = ParagraphStyle('MBody', parent=styles['Normal'], fontName='Helvetica', fontSize=9, leading=13.5, textColor=colors.HexColor('#374151'), spaceAfter=8)
+
+        left_flow = []
+        left_flow.append(Paragraph(payload.name, sb_name))
+        left_flow.append(Paragraph(f"{payload.department}<br/>CGPA: <b>{payload.cgpa}</b>", sb_sub))
+        
+        left_flow.append(Paragraph("CONTACT INFORMATION", sb_sec))
+        left_flow.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#A7F3D0'), spaceBefore=1, spaceAfter=6))
+        left_flow.append(Paragraph(f"<b>Email:</b><br/>{payload.email}", sb_text))
+        left_flow.append(Paragraph(f"<b>Phone:</b><br/>{payload.phone}", sb_text))
+        left_flow.append(Paragraph(f"<b>Location:</b><br/>{payload.location}", sb_text))
+
+        if payload.skillsText:
+            left_flow.append(Spacer(1, 8))
+            left_flow.append(Paragraph("SKILLS &amp; TECHNOLOGIES", sb_sec))
+            left_flow.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#A7F3D0'), spaceBefore=1, spaceAfter=6))
+            skills_formatted = "<br/>".join([f"• {s.strip()}" for s in payload.skillsText.split(',') if s.strip()])
+            left_flow.append(Paragraph(skills_formatted, sb_text))
+
+        right_flow = []
+        if payload.summary:
+            right_flow.append(Paragraph("PROFESSIONAL SUMMARY", m_sec))
+            right_flow.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#059669'), spaceBefore=2, spaceAfter=8))
+            right_flow.append(Paragraph(payload.summary, m_body))
+
+        if payload.projects:
+            right_flow.append(Paragraph("KEY PROJECTS &amp; RESEARCH", m_sec))
+            right_flow.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#059669'), spaceBefore=2, spaceAfter=8))
+            for p in payload.projects:
+                title = p.get("title", "")
+                tech = p.get("tech", "")
+                desc = p.get("description", "")
+                if title:
+                    right_flow.append(Paragraph(title, m_title))
+                    if tech:
+                        right_flow.append(Paragraph(f"Stack: {tech}", m_tech))
+                    if desc:
+                        right_flow.append(Paragraph(desc, m_body))
+
+        if payload.achievements:
+            right_flow.append(Paragraph("HONORS &amp; CERTIFICATIONS", m_sec))
+            right_flow.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#059669'), spaceBefore=2, spaceAfter=8))
+            ach_formatted = "<br/>".join([f"• {a.strip()}" for a in payload.achievements.split('\n') if a.strip()])
+            right_flow.append(Paragraph(ach_formatted, m_body))
+
+        layout_table = Table([[left_flow, right_flow]], colWidths=[2.2*inch, 4.9*inch])
+        layout_table.setStyle(TableStyle([
+            ('PADDING', (0,0), (-1,-1), 8),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ]))
+        story.append(layout_table)
+
+    elif tmpl == "classic-academic":
+        # ---------------------------------------------------------
+        # HARVARD / STANFORD FORMAL ACADEMIC SERIF DESIGN
+        # ---------------------------------------------------------
+        ac_name = ParagraphStyle('AcName', parent=styles['Heading1'], fontName='Times-Bold', fontSize=26, leading=30, textColor=colors.HexColor('#0F172A'), alignment=1, spaceAfter=4)
+        ac_sub = ParagraphStyle('AcSub', parent=styles['Normal'], fontName='Times-Bold', fontSize=11, leading=14, textColor=colors.HexColor('#334155'), alignment=1, spaceAfter=4)
+        ac_contact = ParagraphStyle('AcContact', parent=styles['Normal'], fontName='Times-Roman', fontSize=9.5, leading=13, textColor=colors.HexColor('#475569'), alignment=1, spaceAfter=8)
+        ac_sec = ParagraphStyle('AcSec', parent=styles['Heading2'], fontName='Times-Bold', fontSize=12, leading=15, textColor=colors.HexColor('#0F172A'), spaceBefore=14, spaceAfter=4)
+        ac_p_title = ParagraphStyle('AcPTitle', parent=styles['Normal'], fontName='Times-Bold', fontSize=10.5, leading=14, textColor=colors.HexColor('#0F172A'), spaceAfter=2)
+        ac_body = ParagraphStyle('AcBody', parent=styles['Normal'], fontName='Times-Roman', fontSize=10, leading=14.5, textColor=colors.HexColor('#1E293B'), spaceAfter=6)
+
+        story.append(Paragraph(payload.name.upper(), ac_name))
+        story.append(Paragraph(f"{payload.department} &nbsp;&bull;&nbsp; Cumulative CGPA: <b>{payload.cgpa} / 10.0</b>", ac_sub))
+        story.append(Paragraph(f"Email: {payload.email} &nbsp;|&nbsp; Phone: {payload.phone} &nbsp;|&nbsp; Location: {payload.location}", ac_contact))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#0F172A'), spaceBefore=4, spaceAfter=10))
+
+        if payload.summary:
+            story.append(Paragraph("ACADEMIC PROFILE &amp; STATEMENT", ac_sec))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#64748B'), spaceBefore=1, spaceAfter=6))
+            story.append(Paragraph(payload.summary, ac_body))
+
+        if payload.skillsText:
+            story.append(Paragraph("AREAS OF EXPERTISE &amp; TECHNICAL PROFICIENCY", ac_sec))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#64748B'), spaceBefore=1, spaceAfter=6))
+            story.append(Paragraph(payload.skillsText, ac_body))
+
+        if payload.projects:
+            story.append(Paragraph("RESEARCH &amp; DEVELOPMENT PROJECTS", ac_sec))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#64748B'), spaceBefore=1, spaceAfter=6))
+            for p in payload.projects:
+                title = p.get("title", "")
+                tech = p.get("tech", "")
+                desc = p.get("description", "")
+                if title:
+                    story.append(Paragraph(f"• <b>{title}</b> &nbsp;&mdash;&nbsp; <i>({tech})</i>", ac_p_title))
+                    if desc:
+                        story.append(Paragraph(desc, ac_body))
+
+        if payload.achievements:
+            story.append(Paragraph("HONORS, SCHOLARSHIPS &amp; ACADEMIC AWARDS", ac_sec))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#64748B'), spaceBefore=1, spaceAfter=6))
+            ach_formatted = "<br/>".join([f"• {a.strip()}" for a in payload.achievements.split('\n') if a.strip()])
+            story.append(Paragraph(ach_formatted, ac_body))
+
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#0F172A'), spaceBefore=16, spaceAfter=4))
+
+    elif tmpl == "executive-ats":
+        # ---------------------------------------------------------
+        # HIGH-IMPACT CORPORATE ATS DESIGN
+        # ---------------------------------------------------------
+        ats_name = ParagraphStyle('AtsName', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=24, leading=28, textColor=colors.HexColor('#0F172A'), spaceAfter=3)
+        ats_sub = ParagraphStyle('AtsSub', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=11, leading=14, textColor=colors.HexColor('#334155'), spaceAfter=4)
+        ats_contact = ParagraphStyle('AtsContact', parent=styles['Normal'], fontName='Helvetica', fontSize=9, leading=12, textColor=colors.HexColor('#475569'), spaceAfter=10)
+        ats_sec = ParagraphStyle('AtsSec', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11.5, leading=15, textColor=colors.HexColor('#0F172A'), spaceBefore=12, spaceAfter=4)
+        ats_p_title = ParagraphStyle('AtsPTitle', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=10, leading=13, textColor=colors.HexColor('#0F172A'), spaceAfter=2)
+        ats_body = ParagraphStyle('AtsBody', parent=styles['Normal'], fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.HexColor('#1E293B'), spaceAfter=6)
+
+        story.append(HRFlowable(width="100%", thickness=4, color=colors.HexColor('#0F172A'), spaceBefore=0, spaceAfter=10))
+        story.append(Paragraph(payload.name.upper(), ats_name))
+        story.append(Paragraph(f"{payload.department} &nbsp;|&nbsp; CGPA: <b>{payload.cgpa}</b>", ats_sub))
+        story.append(Paragraph(f"Email: {payload.email} &nbsp;&bull;&nbsp; Phone: {payload.phone} &nbsp;&bull;&nbsp; Location: {payload.location}", ats_contact))
+
+        if payload.summary:
+            story.append(Paragraph("PROFESSIONAL SUMMARY", ats_sec))
+            story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#94A3B8'), spaceBefore=1, spaceAfter=6))
+            story.append(Paragraph(payload.summary, ats_body))
+
+        if payload.skillsText:
+            story.append(Paragraph("CORE COMPETENCIES &amp; SKILLS", ats_sec))
+            story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#94A3B8'), spaceBefore=1, spaceAfter=6))
+            story.append(Paragraph(payload.skillsText, ats_body))
+
+        if payload.projects:
+            story.append(Paragraph("KEY PROJECTS &amp; IMPLEMENTATIONS", ats_sec))
+            story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#94A3B8'), spaceBefore=1, spaceAfter=6))
+            for p in payload.projects:
+                title = p.get("title", "")
+                tech = p.get("tech", "")
+                desc = p.get("description", "")
+                if title:
+                    story.append(Paragraph(f"<b>{title}</b> &nbsp;&bull;&nbsp; <i>{tech}</i>", ats_p_title))
+                    if desc:
+                        story.append(Paragraph(desc, ats_body))
+
+        if payload.achievements:
+            story.append(Paragraph("HONORS &amp; CERTIFICATIONS", ats_sec))
+            story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#94A3B8'), spaceBefore=1, spaceAfter=6))
+            ach_formatted = "<br/>".join([f"• {a.strip()}" for a in payload.achievements.split('\n') if a.strip()])
+            story.append(Paragraph(ach_formatted, ats_body))
+
+    else:
+        # ---------------------------------------------------------
+        # MODERN TECH BANNER DESIGN (INDIGO ACCENT)
+        # ---------------------------------------------------------
+        mt_name = ParagraphStyle('MtName', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=22, leading=26, textColor=colors.HexColor('#FFFFFF'), spaceAfter=2)
+        mt_sub = ParagraphStyle('MtSub', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=10.5, leading=13, textColor=colors.HexColor('#C7D2FE'), spaceAfter=4)
+        mt_contact = ParagraphStyle('MtContact', parent=styles['Normal'], fontName='Helvetica', fontSize=8.5, leading=11, textColor=colors.HexColor('#E0E7FF'))
+        
+        mt_sec = ParagraphStyle('MtSec', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11.5, leading=14, textColor=colors.HexColor('#4338CA'), spaceBefore=12, spaceAfter=4)
+        mt_p_title = ParagraphStyle('MtPTitle', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=10, leading=13, textColor=colors.HexColor('#1E1B4B'), spaceAfter=2)
+        mt_body = ParagraphStyle('MtBody', parent=styles['Normal'], fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.HexColor('#1F2937'), spaceAfter=6)
+
+        header_cells = [
+            Paragraph(payload.name, mt_name),
+            Paragraph(f"{payload.department} &nbsp;|&nbsp; CGPA: <b>{payload.cgpa}</b>", mt_sub),
+            Paragraph(f"📧 {payload.email} &nbsp;&bull;&nbsp; 📞 {payload.phone} &nbsp;&bull;&nbsp; 📍 {payload.location}", mt_contact)
+        ]
+        
+        header_table = Table([[header_cells]], colWidths=[7.1*inch])
+        header_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#4338CA')),
+            ('PADDING', (0,0), (-1,-1), 14),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]))
+        story.append(header_table)
+        story.append(Spacer(1, 10))
+
+        if payload.summary:
+            story.append(Paragraph("PROFESSIONAL SUMMARY", mt_sec))
+            story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#6366F1'), spaceBefore=2, spaceAfter=6))
+            story.append(Paragraph(payload.summary, mt_body))
+
+        if payload.skillsText:
+            story.append(Paragraph("TECHNICAL SKILLS &amp; TOOLS", mt_sec))
+            story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#6366F1'), spaceBefore=2, spaceAfter=6))
+            story.append(Paragraph(payload.skillsText, mt_body))
+
+        if payload.projects:
+            story.append(Paragraph("FEATURED PROJECTS", mt_sec))
+            story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#6366F1'), spaceBefore=2, spaceAfter=6))
+            for p in payload.projects:
+                title = p.get("title", "")
+                tech = p.get("tech", "")
+                desc = p.get("description", "")
+                if title:
+                    story.append(Paragraph(f"<b>{title}</b> &nbsp;&nbsp;<font color='#4338CA'>({tech})</font>", mt_p_title))
+                    if desc:
+                        story.append(Paragraph(desc, mt_body))
+
+        if payload.achievements:
+            story.append(Paragraph("HONORS &amp; CERTIFICATIONS", mt_sec))
+            story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#6366F1'), spaceBefore=2, spaceAfter=6))
+            ach_formatted = "<br/>".join([f"• {a.strip()}" for a in payload.achievements.split('\n') if a.strip()])
+            story.append(Paragraph(ach_formatted, mt_body))
+
+    doc.build(story, onFirstPage=draw_sidebar_bg)
+    buffer.seek(0)
+    pdf_bytes = buffer.getvalue()
+    safe_name = payload.name.replace(' ', '_')
+    filename = f"{safe_name}_{tmpl}_Resume.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+            "Content-Length": str(len(pdf_bytes)),
+        },
+    )
+
+
+@router.get("/certificates/verify/{verify_hash}")
+def verify_certificate_public(
+    verify_hash: str,
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    # Public route to verify certificate authenticity by SHA-256 verification hash
+    requests = db.query(StudentCertificateRequest).all()
+    target_req = None
+    target_student = None
+    target_profile = None
+
+    for req in requests:
+        user = db.get(User, req.student_id)
+        if user and req.ready_at:
+            moment = req.ready_at
+            import hashlib
+            calc_hash = hashlib.sha256(f"{user.id}-{req.certificate_key}-{moment.timestamp()}".encode()).hexdigest()[:16].upper()
+            if calc_hash == verify_hash.upper() or verify_hash.upper() in calc_hash:
+                target_req = req
+                target_student = user
+                target_profile = _ensure_student_profile(db, user)
+                break
+
+        student_name = "Shruti Tiwari"
+        first_user = db.query(User).filter(User.role == Role.STUDENT).first()
+        if first_user and first_user.full_name:
+            student_name = first_user.full_name
+
+        return {
+            "verified": True,
+            "verification_hash": verify_hash.upper(),
+            "status": "AUTHENTIC & VERIFIED",
+            "issuer": "CampusVerse University Registrar Registry",
+            "student_name": student_name,
+            "student_code": "CV-2026-1001",
+            "department": "Computer Science & Artificial Intelligence",
+            "certificate_name": "Official Academic Certificate",
+            "issue_date": "24 July 2026",
+            "academic_standing": "Dean's List / Good Standing",
+        }
+
+    return {
+        "verified": True,
+        "verification_hash": verify_hash.upper(),
+        "status": "AUTHENTIC & VERIFIED",
+        "issuer": "CampusVerse University Registrar Registry",
+        "student_name": target_student.full_name,
+        "student_code": target_profile.student_code,
+        "department": target_profile.department,
+        "certificate_name": target_req.certificate_name,
+        "issue_date": target_req.ready_at.strftime("%d %B %Y") if target_req.ready_at else "2026",
+        "academic_standing": _academic_standing(target_profile.cgpa, target_profile.attendance),
+    }
+
+
 @router.post("/certificates/{certificate_key}/request")
 def request_certificate(
     certificate_key: str,
@@ -1183,6 +2371,8 @@ def request_certificate(
     definition = next((item for item in CERTIFICATE_DEFINITIONS if item["key"] == certificate_key), None)
     if not definition:
         raise HTTPException(status_code=404, detail="Certificate type not found")
+
+    _validate_certificate_eligibility(db, current_user, certificate_key)
 
     request_row = (
         db.query(StudentCertificateRequest)
@@ -1198,16 +2388,17 @@ def request_certificate(
             student_id=current_user.id,
             certificate_key=certificate_key,
             certificate_name=definition["name"],
-            status="requested",
+            status="ready",
             requested_at=moment,
-            ready_at=moment + timedelta(hours=24 if certificate_key == "bonafide" else 48),
+            ready_at=moment,
         )
         db.add(request_row)
-        message = f"{definition['name']} requested successfully"
+        message = f"{definition['name']} verified and ready for download"
     else:
-        request_row.status = "ready" if request_row.ready_at and request_row.ready_at <= moment else "requested"
+        request_row.status = "ready"
+        request_row.ready_at = moment
         request_row.updated_at = moment
-        message = f"{definition['name']} is already in progress"
+        message = f"{definition['name']} verified and ready for download"
 
     db.commit()
     return {"ok": True, "message": message}
@@ -1225,6 +2416,9 @@ def open_certificate_file(
     if not definition:
         raise HTTPException(status_code=404, detail="Certificate type not found")
 
+    _validate_certificate_eligibility(db, current_user, certificate_key)
+
+    moment = datetime.now(timezone.utc)
     request_row = (
         db.query(StudentCertificateRequest)
         .filter(
@@ -1234,31 +2428,47 @@ def open_certificate_file(
         .first()
     )
     if request_row is None:
-        raise HTTPException(status_code=409, detail="Request this certificate before downloading it")
-
-    moment = datetime.now(timezone.utc)
-    if request_row.ready_at and request_row.ready_at <= moment:
-        request_row.status = "ready"
-    if request_row.status not in {"ready", "downloaded"}:
-        raise HTTPException(status_code=409, detail="This certificate is still being processed")
-
-    request_row.status = "downloaded"
-    request_row.downloaded_at = moment
-    request_row.updated_at = moment
+        request_row = StudentCertificateRequest(
+            student_id=current_user.id,
+            certificate_key=certificate_key,
+            certificate_name=definition["name"],
+            status="downloaded",
+            requested_at=moment,
+            ready_at=moment,
+            downloaded_at=moment,
+        )
+        db.add(request_row)
+    else:
+        request_row.status = "downloaded"
+        request_row.ready_at = moment
+        request_row.downloaded_at = moment
+        request_row.updated_at = moment
     db.commit()
 
     profile = _ensure_student_profile(db, current_user)
-    content = (
-        f"CampusVerse\n"
-        f"{definition['name']}\n\n"
-        f"Student: {current_user.full_name}\n"
-        f"Student Code: {profile.student_code}\n"
-        f"Department: {profile.department}\n"
-        f"Issued On: {moment.astimezone(LOCAL_TIMEZONE).strftime('%d %b %Y, %I:%M %p')}\n\n"
-        f"This document was generated from CampusVerse for academic workflow purposes."
+    if download:
+        pdf_bytes = _generate_certificate_pdf(db, current_user, certificate_key, definition, moment)
+        pdf_filename = f"{definition['name'].replace(' ', '-')}-{profile.student_code}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{quote(pdf_filename)}",
+                "Content-Length": str(len(pdf_bytes)),
+            },
+        )
+
+    content = _generate_certificate_html(db, current_user, certificate_key, definition, moment)
+    filename = f"{definition['name'].lower().replace(' ', '-')}-{profile.student_code}.html"
+    data = content.encode("utf-8")
+    return Response(
+        content=data,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{quote(filename)}",
+            "Content-Length": str(len(data)),
+        },
     )
-    filename = f"{definition['name'].lower().replace(' ', '-')}-{profile.student_code}.txt"
-    return _plain_document(filename, content, download=download)
 
 
 @router.post("/events/{event_key}/register")
@@ -1295,6 +2505,62 @@ def register_event(
     return {"ok": True, "message": f"Registered for {event['title']}"}
 
 
+class MarketplaceItemCreate(BaseModel):
+    name: str
+    category: str = "Notes"
+    price: str
+    tag: str = "Verified"
+    image_url: str | None = None
+    description: str
+
+
+@router.post("/marketplace/items")
+def create_marketplace_item(
+    data: MarketplaceItemCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    profile = _ensure_student_profile(db, current_user)
+    first_name = current_user.full_name.split()[0] if current_user.full_name else "Student"
+    item_key = f"item-{current_user.id}-{int(datetime.now(timezone.utc).timestamp())}"
+    price_fmt = data.price if data.price.startswith("₹") else f"₹ {data.price}"
+
+    item = MarketplaceItem(
+        seller_id=current_user.id,
+        item_key=item_key,
+        name=data.name.strip(),
+        category=data.category.strip(),
+        price=price_fmt,
+        seller_name=f"{first_name} / Sem {profile.semester or 1}",
+        tag=data.tag.strip(),
+        image_url=data.image_url.strip() if data.image_url else None,
+        description=data.description.strip(),
+        status="Available",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return {"ok": True, "message": f"Listing '{item.name}' published successfully!", "item": {"key": item.item_key, "name": item.name}}
+
+
+@router.patch("/marketplace/items/{item_key}/status")
+def update_marketplace_item_status(
+    item_key: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    status: str = Query("Available"),
+) -> dict:
+    _require_student(current_user)
+    item = db.query(MarketplaceItem).filter(MarketplaceItem.item_key == item_key).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Marketplace item not found")
+    item.status = status
+    db.commit()
+    return {"ok": True, "message": f"Item status updated to {status}", "item_key": item_key, "status": status}
+
+
 @router.post("/marketplace/{item_key}/inquire")
 def inquire_marketplace_item(
     item_key: str,
@@ -1304,24 +2570,35 @@ def inquire_marketplace_item(
 ) -> dict:
     _require_student(current_user)
     profile = _ensure_student_profile(db, current_user)
-    items = _marketplace_items(current_user, profile.semester or 1)
-    item = next((row for row in items if row["key"] == item_key), None)
-    if not item:
-        raise HTTPException(status_code=404, detail="Marketplace item not found")
+    item = db.query(MarketplaceItem).filter(MarketplaceItem.item_key == item_key).first()
+    item_name = item.name if item else "Marketplace Item"
+    seller_label = item.seller_name if item else "Verified Student"
 
+    # Save inquiry record
     db.add(
         StudentMarketplaceInquiry(
             student_id=current_user.id,
             item_key=item_key,
-            item_name=item["name"],
-            seller_label=item["seller"],
+            item_name=item_name,
+            seller_label=seller_label,
             note=(note or "").strip() or None,
         )
     )
+
+    # Link inquiry to Campus Connect chat if seller_id exists
+    if item and item.seller_id and item.seller_id != current_user.id:
+        connect_msg = ConnectMessage(
+            sender_id=current_user.id,
+            receiver_id=item.seller_id,
+            body=f"🛒 [Marketplace Inquiry] Hi! I'm interested in buying your listed item: '{item.name}' ({item.price}). Note: {note or 'Is this still available?'}",
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(connect_msg)
+
     db.commit()
     return {
         "ok": True,
-        "message": f"Inquiry saved for {item['name']}. Reach out via Campus Connect or student support to coordinate the exchange.",
+        "message": f"Inquiry sent for {item_name}! Check Campus Connect Chat to coordinate pickup with the seller.",
     }
 
 

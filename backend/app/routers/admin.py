@@ -1,9 +1,10 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from statistics import mean
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -27,6 +28,7 @@ from app.models import (
     Role,
     StudentAttendance,
     StudentBiometricCheckIn,
+    StudentCertificateRequest,
     StudentComplaint,
     StudentComplaintAttachment,
     StudentProfile,
@@ -640,3 +642,136 @@ def delete_professor_account_legacy(
     _delete_user_records(db, target)
     db.commit()
     return {"ok": True, "id": professor_id}
+
+
+@router.get("/certificates/requests")
+def list_certificate_requests(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    requests = (
+        db.query(StudentCertificateRequest, User)
+        .join(User, StudentCertificateRequest.student_id == User.id)
+        .order_by(StudentCertificateRequest.requested_at.desc())
+        .all()
+    )
+    rows = []
+    for req, student in requests:
+        rows.append(
+            {
+                "id": req.id,
+                "student_id": student.id,
+                "student_name": student.full_name,
+                "student_email": student.email,
+                "certificate_key": req.certificate_key,
+                "certificate_name": req.certificate_name,
+                "status": req.status,
+                "requested_at": req.requested_at.isoformat() if req.requested_at else None,
+                "ready_at": req.ready_at.isoformat() if req.ready_at else None,
+                "downloaded_at": req.downloaded_at.isoformat() if req.downloaded_at else None,
+            }
+        )
+    return {"ok": True, "requests": rows}
+
+
+@router.post("/certificates/{request_id}/approve")
+def approve_certificate_request(
+    request_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    req = db.get(StudentCertificateRequest, request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Certificate request not found")
+    moment = datetime.now(ZoneInfo("UTC"))
+    req.status = "ready"
+    req.ready_at = moment
+    req.updated_at = moment
+    db.commit()
+    return {"ok": True, "message": f"{req.certificate_name} approved for student", "request_id": request_id}
+
+
+@router.post("/certificates/{request_id}/reject")
+def reject_certificate_request(
+    request_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    req = db.get(StudentCertificateRequest, request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Certificate request not found")
+    req.status = "rejected"
+    req.updated_at = datetime.now(ZoneInfo("UTC"))
+    db.commit()
+    return {"ok": True, "message": f"{req.certificate_name} request rejected", "request_id": request_id}
+
+
+class AnnouncementCreate(BaseModel):
+    title: str
+    body: str
+    category: str = "Academic"
+    audience: str = "All students"
+    pinned: bool = False
+
+
+@router.get("/announcements")
+def list_admin_announcements(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    items = db.query(Announcement).order_by(Announcement.created_at.desc()).all()
+    rows = [
+        {
+            "id": item.id,
+            "title": item.title,
+            "body": item.body,
+            "category": item.category,
+            "audience": item.audience,
+            "pinned": item.pinned,
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+        }
+        for item in items
+    ]
+    return {"ok": True, "announcements": rows}
+
+
+@router.post("/announcements")
+def create_announcement(
+    data: AnnouncementCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    item = Announcement(
+        title=data.title.strip(),
+        body=data.body.strip(),
+        category=data.category.strip(),
+        audience=data.audience.strip(),
+        pinned=data.pinned,
+        created_by_id=current_user.id,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return {"ok": True, "message": "Campus announcement published successfully", "announcement": {"id": item.id, "title": item.title}}
+
+
+@router.delete("/announcements/{announcement_id}")
+def delete_announcement(
+    announcement_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    item = db.get(Announcement, announcement_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    db.delete(item)
+    db.commit()
+    return {"ok": True, "message": "Announcement deleted successfully", "id": announcement_id}
+

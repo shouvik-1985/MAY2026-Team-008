@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.models import CampusAttendanceSetting, StudentBiometricCheckIn
 
-LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
+try:
+    LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
+except Exception:
+    LOCAL_TIMEZONE = timezone.utc
 EARTH_RADIUS_METERS = 6_371_000
 
 
