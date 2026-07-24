@@ -16,6 +16,7 @@ from app.attendance_flow import (
     now_utc,
     today_local,
 )
+from app.avatar import avatar_initials, student_avatar_url
 from app.biometric_flow import clear_face_template, has_face_template, save_face_template, verify_face_template
 from app.complaint_flow import complaint_payload
 from app.core.config import get_settings
@@ -42,6 +43,7 @@ from app.schemas import (
     CampusAttendanceSettingsOut,
     StudentAssistantRequest,
     StudentAssistantResponse,
+    StudentAvatarUpdate,
     StudentBiometricVerify,
     StudentDashboard,
     StudentProfileOut,
@@ -79,7 +81,7 @@ def _require_student(user: User) -> None:
 
 
 def _avatar(name: str) -> str:
-    return "".join(part[0] for part in name.split()[:2]).upper() or "CV"
+    return avatar_initials(name, "CV")
 
 
 def _attendance_records(db: Session, user_id: int) -> list[StudentAttendance]:
@@ -414,6 +416,7 @@ def _student_profile_payload(db: Session, user: User) -> dict:
         "linkedinUrl": profile.linkedin_url or "",
         "githubUrl": profile.github_url or "",
         "avatar": _avatar(user.full_name),
+        "avatarUrl": student_avatar_url(profile),
         "academicStanding": _academic_standing(profile.cgpa, attendance),
         "profileCompletion": _profile_completion(user, profile),
         "enrollmentDate": profile.enrollment_date.isoformat() if profile.enrollment_date else None,
@@ -681,6 +684,7 @@ def _student_dataset(db: Session, user: User) -> dict:
             "completedCredits": completed_credits,
             "totalCredits": total_credits,
             "avatar": _avatar(user.full_name),
+            "avatarUrl": student_avatar_url(profile),
             "address": profile.address if profile else "Campus Residence",
             "phone": profile.phone if profile and profile.phone else "",
             "bio": profile.bio if profile and profile.bio else "",
@@ -1042,6 +1046,24 @@ def update_student_profile(
         profile.completed_credits = payload.completed_credits
     if payload.total_credits is not None:
         profile.total_credits = payload.total_credits
+
+    db.commit()
+    db.refresh(current_user)
+    payload_out = _student_profile_payload(db, current_user)
+    db.commit()
+    return StudentProfileOut(**payload_out)
+
+
+@router.put("/profile/avatar", response_model=StudentProfileOut)
+def update_student_avatar(
+    payload: StudentAvatarUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> StudentProfileOut:
+    _require_student(current_user)
+
+    profile = _ensure_student_profile(db, current_user)
+    profile.avatar_url = payload.avatar_url
 
     db.commit()
     db.refresh(current_user)

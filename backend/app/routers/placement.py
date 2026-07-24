@@ -7,6 +7,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session, selectinload
 
 from app.attendance_flow import get_campus_attendance_setting
+from app.avatar import student_avatar_url
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.intake_flow import resolve_student_semester
@@ -107,6 +108,7 @@ def _resume_url(application: PlacementApplication) -> str:
 
 
 def _application_payload(application: PlacementApplication) -> dict:
+    avatar_url = student_avatar_url(application.student.student_profile if application.student else None)
     return {
         "id": application.id,
         "studentId": application.student_id,
@@ -122,6 +124,7 @@ def _application_payload(application: PlacementApplication) -> dict:
         "resumeContentType": application.resume_content_type,
         "resumeFileSize": application.resume_file_size,
         "resumeUrl": _resume_url(application),
+        "avatarUrl": avatar_url,
         "status": application.status,
         "selectionMessage": application.selection_message,
         "selectedAt": application.selected_at.isoformat() if application.selected_at else None,

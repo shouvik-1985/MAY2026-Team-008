@@ -141,6 +141,7 @@ class StudentProfileOut(BaseModel):
     linkedinUrl: str
     githubUrl: str
     avatar: str
+    avatarUrl: str | None = None
     academicStanding: str
     profileCompletion: int
     enrollmentDate: str | None = None
@@ -228,6 +229,22 @@ class StudentProfileUpdate(BaseModel):
             if skill and skill not in cleaned:
                 cleaned.append(skill)
         return cleaned[:12]
+
+
+class StudentAvatarUpdate(BaseModel):
+    avatar_url: str | None = Field(default=None, max_length=8_000_000)
+
+    @field_validator("avatar_url")
+    @classmethod
+    def validate_avatar_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        if not cleaned.startswith("data:image/"):
+            raise ValueError("Avatar must be a valid image data URL")
+        return cleaned
 
 
 class StudentTodoCreate(BaseModel):

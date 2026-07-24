@@ -585,7 +585,7 @@ function AdminDeskPage() {
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-3">
-                          <AvatarBadge value={student.avatar} />
+                          <AvatarBadge value={student.avatar} imageUrl={student.avatarUrl} />
                           <div className="min-w-0">
                             <div className="truncate font-semibold text-white">{student.name}</div>
                             <div className="truncate text-white/45">{student.email}</div>
@@ -631,6 +631,7 @@ function AdminDeskPage() {
             eyebrow="Student details"
             title={selectedStudent?.name ?? "No student selected"}
             avatar={selectedStudent?.avatar}
+            avatarUrl={selectedStudent?.avatarUrl}
             status={
               selectedStudent ? (
                 <StatusPill status={selectedStudent.status} blocked={selectedStudent.isBlocked} />
@@ -1189,7 +1190,7 @@ function AdminDeskPage() {
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-3">
-                          <AvatarBadge value={avatarFromName(complaint.studentName)} />
+                          <AvatarBadge value={avatarFromName(complaint.studentName)} imageUrl={complaint.avatarUrl} />
                           <div className="min-w-0">
                             <div className="truncate font-semibold text-white">{complaint.studentName}</div>
                             <div className="truncate text-white/45">
@@ -1228,6 +1229,7 @@ function AdminDeskPage() {
             eyebrow="Complaint details"
             title={selectedComplaint?.title ?? "No complaint selected"}
             avatar={selectedComplaint ? avatarFromName(selectedComplaint.studentName) : undefined}
+            avatarUrl={selectedComplaint?.avatarUrl}
             status={selectedComplaint ? <ComplaintStatusPill status={selectedComplaint.status} /> : null}
           >
             {selectedComplaint ? (
@@ -1384,6 +1386,7 @@ function DetailPanel({
   eyebrow,
   title,
   avatar,
+  avatarUrl,
   status,
   children,
 }: {
@@ -1391,6 +1394,7 @@ function DetailPanel({
   eyebrow: string;
   title: string;
   avatar?: string;
+  avatarUrl?: string | null;
   status?: ReactNode;
   children: ReactNode;
 }) {
@@ -1403,7 +1407,7 @@ function DetailPanel({
         <div className="min-w-0 flex-1">
           <div className="text-[10px] uppercase tracking-[0.35em] text-white/40">{eyebrow}</div>
           <div className="mt-2 flex items-start gap-3">
-            {avatar ? <AvatarBadge value={avatar} large /> : null}
+            {avatar ? <AvatarBadge value={avatar} imageUrl={avatarUrl} large /> : null}
             <div className="min-w-0 flex-1">
               <h2 className="truncate font-display text-[2rem] leading-none text-white">{title}</h2>
             </div>
@@ -1517,13 +1521,13 @@ function avatarFromName(name: string) {
   );
 }
 
-function AvatarBadge({ value, large = false }: { value: string; large?: boolean }) {
+function AvatarBadge({ value, imageUrl, large = false }: { value: string; imageUrl?: string | null; large?: boolean }) {
   return (
     <div
       className={`flex shrink-0 items-center justify-center rounded-2xl font-semibold text-white ${large ? "size-14 text-base" : "size-11 text-sm"}`}
       style={{ background: "var(--grad-aurora)" }}
     >
-      {value}
+      {imageUrl ? <img src={imageUrl} alt={value} className="size-full rounded-2xl object-cover" /> : value}
     </div>
   );
 }
