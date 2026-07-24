@@ -346,6 +346,18 @@ def _marketplace_items(db: Session, user: User, semester: int) -> list[dict]:
                 description="Includes CLRS Algorithms, Silberschatz Operating Systems, and Tanenbaum Networks.",
                 status="Reserved",
             ),
+            MarketplaceItem(
+                seller_id=user.id,
+                item_key="hostel-desk-lamp",
+                name="Adjustable LED Study Desk Lamp & Organizer",
+                category="Hostel",
+                price="₹ 350",
+                seller_name="Ananya / Sem 3",
+                tag="Excellent",
+                image_url="https://images.unsplash.com/photo-1534073828943-f801091bb18c?q=80&w=800&auto=format&fit=crop",
+                description="Dimmable 3-mode LED desk lamp with built-in pen holder and USB charging port for hostel room study.",
+                status="Available",
+            ),
         ]
         db.add_all(defaults)
         db.commit()

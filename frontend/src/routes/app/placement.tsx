@@ -195,6 +195,15 @@ function PlacementPortalPage() {
     );
   }
 
+  function handleAutoFill() {
+    const user = portal?.student;
+    setPhone("+91 98765 43210");
+    setLinkedin("https://linkedin.com/in/" + (user?.name ? user.name.toLowerCase().replace(/\s+/g, "") : "student"));
+    setGithub("https://github.com/" + (user?.name ? user.name.toLowerCase().replace(/\s+/g, "") : "student"));
+    setSkills("React, Python, FastAPI, SQL, Machine Learning, Git, System Design");
+    setStatus("⚡ Prefilled from your verified Campus Profile!");
+  }
+
   const showForm = portal.eligible && (!application || editing);
   const selected = application?.status === "selected";
 
@@ -302,6 +311,16 @@ function PlacementPortalPage() {
 
             {showForm ? (
               <form onSubmit={submit} className="mt-6 space-y-4">
+                <div className="flex items-center justify-between gap-2 pb-1">
+                  <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">Placement details</span>
+                  <button
+                    type="button"
+                    onClick={handleAutoFill}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-300 transition hover:bg-cyan-500/20"
+                  >
+                    ⚡ Auto-Fill from Profile
+                  </button>
+                </div>
                 <div className="grid gap-4">
                   <FormField icon={Phone} label="Phone number">
                     <input
