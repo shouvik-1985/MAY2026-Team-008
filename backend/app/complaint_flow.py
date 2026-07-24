@@ -1,6 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from app.avatar import student_avatar_url
 from app.intake_flow import resolve_student_semester
 from app.models import StudentComplaint, StudentComplaintAttachment, StudentProfile, User
 
@@ -104,5 +105,6 @@ def complaint_payload(
         "studentCode": resolved_profile.student_code if resolved_profile else "",
         "department": resolved_profile.department if resolved_profile else "",
         "semester": semester,
+        "avatarUrl": student_avatar_url(resolved_profile),
         "attachments": [complaint_attachment_payload(attachment) for attachment in complaint.attachments],
     }

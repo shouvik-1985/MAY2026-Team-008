@@ -9,6 +9,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.attendance_flow import campus_setting_payload, get_campus_attendance_setting, now_utc
+from app.avatar import avatar_initials, student_avatar_url
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.intake_flow import resolve_student_semester, slot_batches_payload
@@ -56,7 +57,7 @@ def _require_admin(user: User) -> None:
 
 
 def _avatar(name: str) -> str:
-    return "".join(part[0] for part in name.split()[:2]).upper() or "CA"
+    return avatar_initials(name, "CA")
 
 
 def _today() -> date:
@@ -129,6 +130,7 @@ def _student_rows(db: Session) -> list[dict]:
                 "createdAt": student.created_at.astimezone(LOCAL_TIMEZONE).isoformat() if student.created_at else "",
                 "lastSeenAt": student.last_seen_at.astimezone(LOCAL_TIMEZONE).isoformat() if student.last_seen_at else "",
                 "avatar": _avatar(student.full_name),
+                "avatarUrl": student_avatar_url(profile),
                 "authProvider": student.auth_provider.value,
                 "slotBatchName": slot_batches.get(profile.slot_batch_id) if profile and profile.slot_batch_id else "",
                 "enrollmentDate": profile.enrollment_date.isoformat() if profile and profile.enrollment_date else "",

@@ -88,6 +88,7 @@ export type StudentDashboard = {
     completedCredits?: number;
     totalCredits?: number;
     avatar: string;
+    avatarUrl?: string | null;
     address?: string;
     phone?: string;
     bio?: string;
@@ -281,6 +282,7 @@ export type StudentProfile = {
   linkedinUrl: string;
   githubUrl: string;
   avatar: string;
+  avatarUrl?: string | null;
   academicStanding: string;
   profileCompletion: number;
   enrollmentDate?: string | null;
@@ -303,6 +305,7 @@ export type PlacementApplication = {
   resumeContentType: string;
   resumeFileSize: number;
   resumeUrl: string;
+  avatarUrl?: string | null;
   status: "submitted" | "selected" | string;
   selectionMessage: string | null;
   selectedAt: string | null;
@@ -449,6 +452,7 @@ export type ComplaintItem = {
   studentCode: string;
   department: string;
   semester: number | null;
+  avatarUrl?: string | null;
   attachments: ComplaintAttachment[];
 };
 
@@ -522,6 +526,7 @@ export type AdminDashboard = {
     createdAt: string;
     lastSeenAt: string;
     avatar: string;
+    avatarUrl?: string | null;
     authProvider: string;
     slotBatchName?: string;
     enrollmentDate?: string;
@@ -618,6 +623,7 @@ export type ProfessorDashboard = {
     blockReason: string;
     blockedAt: string;
     avatar: string;
+    avatarUrl?: string | null;
     biometricCheckIn: StudentBiometricCheckIn | null;
     biometricVerified: boolean;
     withinRadius: boolean;
@@ -728,6 +734,7 @@ export type ConnectPerson = {
   status: ConnectStatus;
   relationshipId: number | null;
   avatar: string;
+  avatarUrl?: string | null;
   online: boolean;
   lastSeenAt: string | null;
   details: Record<string, string>;
@@ -762,6 +769,7 @@ export type ConnectHubData = {
     email: string;
     role: ConnectRole;
     avatar: string;
+    avatarUrl?: string | null;
   };
   people: ConnectPerson[];
   counts: {
@@ -954,6 +962,13 @@ export function updateStudentProfile(payload: {
   total_credits?: number;
 }) {
   return request<StudentProfile>("/student/profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateStudentAvatar(payload: { avatar_url: string | null }) {
+  return request<StudentProfile>("/student/profile/avatar", {
     method: "PUT",
     body: JSON.stringify(payload),
   });

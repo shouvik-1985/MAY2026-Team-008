@@ -877,7 +877,7 @@ function PresenceAvatar({ person, large = false }: { person: ConnectPerson; larg
   const online = presenceForPerson(person) === "Online";
   return (
     <span className="relative inline-flex shrink-0">
-      <Avatar label={person.avatar} large={large} />
+      <Avatar label={person.avatar} imageUrl={person.avatarUrl} large={large} />
       <span
         className={`absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-[#111] ${
           large ? "size-4" : "size-3"
@@ -887,13 +887,13 @@ function PresenceAvatar({ person, large = false }: { person: ConnectPerson; larg
   );
 }
 
-function Avatar({ label, large = false }: { label: string; large?: boolean }) {
+function Avatar({ label, imageUrl, large = false }: { label: string; imageUrl?: string | null; large?: boolean }) {
   return (
     <span
-      className={`${large ? "size-20 text-xl" : "size-11 text-sm"} flex shrink-0 items-center justify-center rounded-2xl font-semibold`}
+      className={`${large ? "size-20 text-xl" : "size-11 text-sm"} flex shrink-0 items-center justify-center overflow-hidden rounded-2xl font-semibold`}
       style={{ background: "var(--grad-aurora)" }}
     >
-      {label}
+      {imageUrl ? <img src={imageUrl} alt={label} className="size-full object-cover" /> : label}
     </span>
   );
 }

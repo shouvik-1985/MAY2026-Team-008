@@ -79,6 +79,7 @@ class StudentProfile(Base):
     state: Mapped[str | None] = mapped_column(String(120), nullable=True)
     linkedin_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     github_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     completed_credits: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_credits: Mapped[int] = mapped_column(Integer, default=180, nullable=False)
     semester: Mapped[int] = mapped_column(Integer, default=1)
