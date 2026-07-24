@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { Bookmark, ChevronDown, Download, Eye, FileText, Search, TrendingUp, User } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 import { resolveResourceUrl } from "@/lib/api";
 import { useStudentDashboard } from "@/lib/student-session";
@@ -12,6 +12,24 @@ export const Route = createFileRoute("/app/resources")({ component: ResourcesPag
 function ResourcesPage() {
   const { dashboard } = useStudentDashboard();
   const resources = dashboard?.resource_items ?? [];
+
+  const [bookmarks, setBookmarks] = useState<any[]>(() => {
+    try {
+      const stored = localStorage.getItem("cv-resource-bookmarks");
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("cv-resource-bookmarks", JSON.stringify(bookmarks));
+  }, [bookmarks]);
+
+  const toggleBookmark = (id: any) => {
+    setBookmarks((prev) =>
+      prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]
+    );
+  };
+
   const professorOptions = useMemo(
     () => ["All professors", ...Array.from(new Set(resources.map((r) => r.professorName).filter(Boolean)))],
     [resources],
@@ -127,7 +145,7 @@ function ResourcesPage() {
               <div className="mt-4 flex items-center gap-2">
                 <IconAction icon={Eye} label="Open" href={resolveResourceUrl(r.url)} />
                 <IconAction icon={Download} label="Download" href={resolveResourceUrl(r.url)} download />
-                <IconAction icon={Bookmark} label="Save" active={r.tag === "bookmarked"} />
+                <IconAction icon={Bookmark} label={bookmarks.includes(r.id) ? "Saved" : "Save"} active={bookmarks.includes(r.id)} onClick={() => toggleBookmark(r.id)} />
               </div>
             </GlassCard>
           </motion.div>
@@ -245,12 +263,14 @@ function IconAction({
   active,
   href,
   download,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   active?: boolean;
   href?: string;
   download?: boolean;
+  onClick?: () => void;
 }) {
   const className = `flex-1 glass rounded-full py-2 text-xs flex items-center justify-center gap-1.5 hover:border-white/30 transition ${
     active ? "text-white" : href === "" ? "text-white/30 pointer-events-none" : "text-white/60"
@@ -266,7 +286,7 @@ function IconAction({
   }
 
   return (
-    <button className={className}>
+    <button className={className} onClick={onClick}>
       <Icon className="size-3.5" /> {label}
     </button>
   );

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { Upload, Clock, CheckCircle2 } from "lucide-react";
@@ -12,9 +13,20 @@ type Assignment = StudentDashboard["assignment_items"][number];
 function AssignmentsPage() {
   const { dashboard } = useStudentDashboard();
   const assignments = dashboard?.assignment_items ?? [];
+  const [status, setStatus] = useState<string | null>(null);
 
   return (
     <PageTransition>
+      {status && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-4 glass rounded-xl border border-white/10 text-sm text-white/80"
+        >
+          {status}
+        </motion.div>
+      )}
+
       <SectionHeading
         eyebrow="Workspace"
         title="Assignments"
@@ -55,9 +67,28 @@ function AssignmentsPage() {
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <div className="text-xs text-white/45">{a.progress}% complete</div>
-                <button className="text-xs uppercase tracking-[0.2em] text-white/70 hover:text-white inline-flex items-center gap-2 glass rounded-full px-3 py-1.5">
-                  <Upload className="size-3.5" /> Upload
-                </button>
+                {a.status === "graded" ? (
+                  <button
+                    disabled
+                    className="text-xs uppercase tracking-[0.2em] text-white/30 inline-flex items-center gap-2 glass rounded-full px-3 py-1.5 cursor-not-allowed"
+                  >
+                    Submitted ✓
+                  </button>
+                ) : a.status === "pending" ? (
+                  <button
+                    onClick={() => setStatus("Assignment submissions are coordinated through your professor's portal. Check with your faculty for the upload link.")}
+                    className="text-xs uppercase tracking-[0.2em] text-white/70 hover:text-white inline-flex items-center gap-2 glass rounded-full px-3 py-1.5"
+                  >
+                    Start
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setStatus("Assignment submissions are coordinated through your professor's portal. Check with your faculty for the upload link.")}
+                    className="text-xs uppercase tracking-[0.2em] text-white/70 hover:text-white inline-flex items-center gap-2 glass rounded-full px-3 py-1.5"
+                  >
+                    <Upload className="size-3.5" /> Upload
+                  </button>
+                )}
               </div>
             </GlassCard>
           </motion.div>

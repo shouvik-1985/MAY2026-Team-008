@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Camera, Globe, Eye, Loader2, Lock, Palette, RefreshCw, ShieldCheck, Smartphone } from "lucide-react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 import { resetStudentBiometric } from "@/lib/api";
@@ -47,7 +47,17 @@ const DEFAULT_ON = new Set([
 
 function SettingsPage() {
   const { dashboard } = useStudentDashboard();
-  const [state, setState] = useState<Record<string, boolean>>({});
+  const [state, setState] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem("cv-settings-preferences");
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("cv-settings-preferences", JSON.stringify(state));
+  }, [state]);
+
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricStatus, setBiometricStatus] = useState<string | null>(null);
 

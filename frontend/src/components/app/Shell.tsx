@@ -1,3 +1,4 @@
+import { useUserAvatar } from "@/lib/avatar";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -256,6 +257,7 @@ function TopBar({
     window.addEventListener(studentProfileEventName(), onProfileUpdate);
     return () => window.removeEventListener(studentProfileEventName(), onProfileUpdate);
   }, []);
+  const { avatarUrl } = useUserAvatar();
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const displayName =
@@ -331,10 +333,10 @@ function TopBar({
         </IconBtn>
         <Link
           to="/app/profile"
-          className="size-10 rounded-full flex items-center justify-center text-xs font-semibold ml-1"
+          className="size-10 rounded-full flex items-center justify-center text-xs font-semibold ml-1 overflow-hidden shrink-0 border border-white/20"
           style={{ background: "var(--grad-aurora)" }}
         >
-          {avatar}
+          {avatarUrl ? <img src={avatarUrl} alt="User Avatar" className="size-full object-cover" /> : avatar}
         </Link>
       </div>
     </div>

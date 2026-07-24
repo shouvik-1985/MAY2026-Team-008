@@ -172,27 +172,38 @@ export type StudentDashboard = {
   complaint_items: ComplaintItem[];
   certificate_items: {
     id: number;
+    key?: string;
     name: string;
     desc: string;
     eta: string;
     status: string;
+    requestedAt?: string | null;
+    readyAt?: string | null;
+    downloadedAt?: string | null;
   }[];
   event_items: {
     id: number;
+    key?: string;
     title: string;
     date: string;
+    isoDate?: string;
     venue: string;
     spots: number;
     accent: string;
     attended: boolean;
+    registered?: boolean;
+    registeredAt?: string | null;
+    details?: string;
   }[];
   marketplace_items: {
     id: number;
+    key?: string;
     name: string;
     category: string;
     price: string;
     seller: string;
     tag: string;
+    description?: string;
   }[];
   scholarship_items: {
     id: number;
@@ -876,6 +887,25 @@ export function logoutAccount() {
 
 export function getStudentDashboard() {
   return request<StudentDashboard>("/student/dashboard");
+}
+
+export function requestStudentCertificate(certificateKey: string) {
+  return request<{ ok: boolean; message: string }>(`/student/certificates/${certificateKey}/request`, {
+    method: "POST",
+  });
+}
+
+export function registerStudentEvent(eventKey: string) {
+  return request<{ ok: boolean; message: string }>(`/student/events/${eventKey}/register`, {
+    method: "POST",
+  });
+}
+
+export function inquireMarketplaceItem(itemKey: string, payload?: { note?: string }) {
+  const query = payload?.note ? `?note=${encodeURIComponent(payload.note)}` : "";
+  return request<{ ok: boolean; message: string }>(`/student/marketplace/${itemKey}/inquire${query}`, {
+    method: "POST",
+  });
 }
 
 export function sendStudentAssistantMessage(payload: {

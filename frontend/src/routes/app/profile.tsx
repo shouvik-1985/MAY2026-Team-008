@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Award,
   BookOpen,
+  Camera,
   Edit3,
   Github,
   GraduationCap,
@@ -15,7 +16,9 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
+  Trash2,
   TrendingUp,
+  Upload,
   UserRound,
   AlertCircle,
   CheckCircle2,
@@ -23,6 +26,7 @@ import {
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getStudentProfile, updateStudentProfile, type StudentProfile } from "@/lib/api";
+import { useUserAvatar } from "@/lib/avatar";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { getStoredDashboard, setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
 
@@ -90,6 +94,8 @@ function validateURL(url: string, type: "linkedin" | "github"): string | null {
 
 function ProfilePage() {
   const { dashboard, loading: dashboardLoading } = useStudentDashboard();
+  const { avatarUrl, updateAvatar, removeAvatar } = useUserAvatar();
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -99,6 +105,18 @@ function ProfilePage() {
   const [draft, setDraft] = useState<DraftProfile>(emptyDraft());
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [autoSaveDraft, setAutoSaveDraft] = useState<DraftProfile | null>(null);
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setAvatarError(null);
+      await updateAvatar(file);
+      setStatus("Profile photo updated successfully! This photo is now active across your entire app session.");
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "Failed to update profile photo");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -362,10 +380,19 @@ function ProfilePage() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.92 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="relative flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-[28px] text-4xl font-bold text-white shadow-[0_20px_60px_rgba(0,0,0,0.28)]"
+                className="group relative flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-[28px] text-4xl font-bold text-white shadow-[0_20px_60px_rgba(0,0,0,0.28)] border border-white/20"
               >
                 <span className="absolute inset-0 bg-[linear-gradient(135deg,#ff41c4_0%,#f11ab9_35%,#6c6cff_72%,#00d4ff_100%)]" />
-                <span className="relative">{view.avatar || initialsFromName(view.name)}</span>
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={view.name} className="relative size-full object-cover" />
+                ) : (
+                  <span className="relative">{view.avatar || initialsFromName(view.name)}</span>
+                )}
+                <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-black/65 opacity-0 transition-opacity group-hover:opacity-100 backdrop-blur-sm">
+                  <Camera className="size-6 text-white" />
+                  <span className="mt-1 text-[9px] font-semibold uppercase tracking-wider text-white">Upload</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                </label>
               </motion.div>
 
               <div className="min-w-0 flex-1">
@@ -620,6 +647,27 @@ function ProfilePage() {
                 </div>
               </div>
             )}
+            
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+              <label className="text-[10px] uppercase tracking-[0.28em] text-white/40">Profile Photo</label>
+              <div className="flex items-center gap-4">
+                <div className="size-16 rounded-2xl overflow-hidden bg-white/10 flex items-center justify-center text-xl font-bold border border-white/15 shrink-0">
+                  {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="size-full object-cover" /> : view.avatar || initialsFromName(view.name)}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white transition hover:bg-white/20">
+                    <Camera className="size-3.5" /> Upload Photo
+                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                  </label>
+                  {avatarUrl && (
+                    <button type="button" onClick={() => removeAvatar()} className="inline-flex items-center gap-2 rounded-full border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-rose-200 transition hover:bg-rose-500/20">
+                      <Trash2 className="size-3.5" /> Remove Photo
+                    </button>
+                  )}
+                </div>
+              </div>
+              {avatarError && <div className="text-xs text-rose-400">{avatarError}</div>}
+            </div>
             
             <div className="grid gap-4 md:grid-cols-2">
               <Field 
@@ -954,6 +1002,7 @@ function Field({
   onChange,
   error,
   maxLength,
+  placeholder,
   type = "text",
 }: {
   label: string;
@@ -961,6 +1010,7 @@ function Field({
   onChange: (value: string) => void;
   error?: string;
   maxLength?: number;
+  placeholder?: string;
   type?: string;
 }) {
   const max = maxLength || FIELD_MAX_LENGTHS[label.toLowerCase().replace(/ /g, "")] || 255;
@@ -979,6 +1029,7 @@ function Field({
         value={value}
         onChange={(event) => onChange(event.target.value.slice(0, max))}
         maxLength={max}
+        placeholder={placeholder}
         aria-label={label}
         aria-invalid={!!error}
         aria-describedby={error ? `${label}-error` : undefined}

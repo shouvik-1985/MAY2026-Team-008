@@ -1,13 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { Download } from "lucide-react";
+import { useState } from "react";
 import { GlassCard, PageTransition, SectionHeading, Counter } from "@/components/app/cinematic";
+import { openProtectedResource } from "@/lib/api";
 import { useStudentDashboard } from "@/lib/student-session";
 
 export const Route = createFileRoute("/app/fees")({ component: FeesPage });
 
 function FeesPage() {
   const { dashboard } = useStudentDashboard();
+  const [status, setStatus] = useState<string | null>(null);
   const summary = dashboard?.fee_summary ?? {
     outstanding: 0,
     semester: "Syncing",
@@ -27,6 +30,12 @@ function FeesPage() {
         title="Fee Payment"
         sub="Clear, secure, and beautifully transparent."
       />
+
+      {status ? (
+        <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white/70">
+          {status}
+        </div>
+      ) : null}
 
       <div className="grid lg:grid-cols-3 gap-5 mb-8">
         <GlassCard glow className="lg:col-span-2 relative overflow-hidden">
@@ -48,12 +57,32 @@ function FeesPage() {
             <div className="mt-6 flex gap-3">
               <button
                 disabled={!hasDue}
+                onClick={() => {
+                  if (!history[0]) return;
+                  setStatus("CampusVerse has generated the current invoice. Complete payment through your finance desk or linked payment flow.");
+                  void openProtectedResource(`/api/student/fees/invoices/${history[0].id}?download=true`, {
+                    download: true,
+                    fallbackName: `${history[0].id}.txt`,
+                  }).catch((error) =>
+                    setStatus(error instanceof Error ? error.message : "Could not open payment invoice"),
+                  );
+                }}
                 className="relative overflow-hidden px-7 py-3 rounded-full text-xs uppercase tracking-[0.25em] disabled:opacity-55"
               >
                 <span className="absolute inset-0 rounded-full bg-white text-black" />
                 <span className="relative text-black">{hasDue ? "Pay now" : "Cleared"}</span>
               </button>
-              <button className="glass rounded-full px-7 py-3 text-xs uppercase tracking-[0.25em] text-white/80">
+              <button
+                onClick={() => {
+                  if (!history[0]) return;
+                  void openProtectedResource(`/api/student/fees/invoices/${history[0].id}`, {
+                    fallbackName: `${history[0].id}.txt`,
+                  }).catch((error) =>
+                    setStatus(error instanceof Error ? error.message : "Could not view invoice"),
+                  );
+                }}
+                className="glass rounded-full px-7 py-3 text-xs uppercase tracking-[0.25em] text-white/80"
+              >
                 View invoice
               </button>
             </div>
@@ -115,7 +144,17 @@ function FeesPage() {
                     {f.status}
                   </div>
                 </div>
-                <button className="size-9 glass rounded-full flex items-center justify-center text-white/60 hover:text-white">
+                <button
+                  onClick={() =>
+                    void openProtectedResource(`/api/student/fees/invoices/${f.id}?download=true`, {
+                      download: true,
+                      fallbackName: `${f.id}.txt`,
+                    }).catch((error) =>
+                      setStatus(error instanceof Error ? error.message : "Could not download receipt"),
+                    )
+                  }
+                  className="size-9 glass rounded-full flex items-center justify-center text-white/60 hover:text-white"
+                >
                   <Download className="size-4" />
                 </button>
               </div>

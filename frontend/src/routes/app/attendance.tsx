@@ -17,6 +17,14 @@ function AttendancePage() {
     ? Math.round(markedWeekly.reduce((sum, item) => sum + item.attendance, 0) / markedWeekly.length)
     : overall;
   const predicted = Math.min(100, overall + 1.4).toFixed(1);
+
+  let monthlyChangeText = "Current semester";
+  if (monthly.length >= 2) {
+    const lastMonth = monthly[monthly.length - 1].attendance;
+    const prevMonth = monthly[monthly.length - 2].attendance;
+    const diff = Math.round(lastMonth - prevMonth);
+    monthlyChangeText = diff > 0 ? `+${diff}% vs last month` : `${diff}% vs last month`;
+  }
   return (
     <PageTransition>
       <SectionHeading
@@ -30,7 +38,7 @@ function AttendancePage() {
           <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Overall</div>
           <Ring pct={overall} />
           <div className="text-xs text-white/55 mt-2 flex items-center gap-1">
-            <TrendingUp className="size-3" /> +3% vs last month
+            <TrendingUp className="size-3" /> {monthlyChangeText}
           </div>
           <div className="text-xs text-white/55 mt-1">
             Prediction at semester end: <span className="text-white font-medium">{predicted}%</span>
