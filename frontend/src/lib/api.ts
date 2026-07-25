@@ -21,12 +21,12 @@ function inferDownloadName(disposition: string | null, fallback: string) {
 
 export async function openProtectedResource(
   url: string,
-  options: { download?: boolean; fallbackName?: string } = {},
+  options: { download?: boolean; openAndDownload?: boolean; fallbackName?: string } = {},
 ) {
   const token = getAuthToken();
   if (!token) {
     clearAuthSession();
-    throw new Error("Your login session expired");
+    throw new Error("Your login session expired. Please log in again.");
   }
 
   const response = await fetch(resolveResourceUrl(url), {
@@ -40,12 +40,12 @@ export async function openProtectedResource(
   }
 
   if (!response.ok) {
-    let message = `File request failed with ${response.status}`;
+    let message = `File request failed (${response.status})`;
     try {
       const body = await response.json();
       message = body.detail ?? message;
     } catch {
-      // Keep the default message.
+      // Fallback
     }
     throw new Error(message);
   }
@@ -57,19 +57,23 @@ export async function openProtectedResource(
     options.fallbackName ?? "download",
   );
 
-  if (options.download) {
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = name;
-    link.click();
-  } else {
-    const nextWindow = window.open(objectUrl, "_blank", "noopener,noreferrer");
-    if (!nextWindow) {
-      window.location.assign(objectUrl);
-    }
+  const shouldDownload = options.download || options.openAndDownload;
+  const shouldOpenTab = !options.download || options.openAndDownload;
+
+  if (shouldDownload) {
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  if (shouldOpenTab) {
+    window.open(objectUrl, "_blank");
+  }
+
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 15000);
 }
 
 export type StudentDashboard = {
@@ -176,6 +180,7 @@ export type StudentDashboard = {
     key?: string;
     name: string;
     desc: string;
+    req?: string;
     eta: string;
     status: string;
     requestedAt?: string | null;
@@ -203,8 +208,12 @@ export type StudentDashboard = {
     category: string;
     price: string;
     seller: string;
+    seller_id?: number;
     tag: string;
     description?: string;
+    imageUrl?: string;
+    status?: "Available" | "Reserved" | "Sold" | string;
+    createdAt?: string | null;
   }[];
   scholarship_items: {
     id: number;

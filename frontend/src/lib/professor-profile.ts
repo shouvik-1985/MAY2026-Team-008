@@ -11,6 +11,7 @@ export type EditableProfessorProfile = {
   expertiseField: string;
   highestEducation: string;
   licenseDocumentName: string;
+  avatarUrl?: string | null;
   skills: string[];
 };
 

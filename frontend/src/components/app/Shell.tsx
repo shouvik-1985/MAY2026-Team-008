@@ -1,4 +1,5 @@
 import { useUserAvatar } from "@/lib/avatar";
+import { NotificationCenter } from "@/components/app/NotificationCenter";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -222,7 +223,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <Fab open={openFab} setOpen={setOpenFab} currentPath={pathname} />
 
       {/* Notifications drawer */}
-      <NotifDrawer open={openNotif} onClose={() => setOpenNotif(false)} />
+      <NotificationCenter open={openNotif} onClose={() => setOpenNotif(false)} />
 
       {/* Global search */}
       <SearchPalette open={openSearch} onClose={() => setOpenSearch(false)} />

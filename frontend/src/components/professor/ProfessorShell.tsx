@@ -27,6 +27,7 @@ import {
   type EditableProfessorProfile,
 } from "@/lib/professor-profile";
 import { clearStoredDashboard } from "@/lib/student-session";
+import { NotificationCenter } from "@/components/app/NotificationCenter";
 import { clearStoredRole } from "@/lib/use-role";
 
 const NAV = [
@@ -100,6 +101,9 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
       navigate({ to: "/login", replace: true });
     }
   }
+
+  const [openNotif, setOpenNotif] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(3);
 
   return (
     <div className="relative min-h-screen text-white">
@@ -214,20 +218,36 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
             >
               {dark ? <Moon className="size-4" /> : <Sun className="size-4" />}
             </button>
-            <button className="relative size-10 rounded-full glass flex items-center justify-center text-white/70 hover:text-white hover:border-white/20 transition">
+            <button
+              onClick={() => setOpenNotif(true)}
+              className="relative size-10 rounded-full glass flex items-center justify-center text-white/70 hover:text-white hover:border-white/20 transition"
+              aria-label="Campus Notifications"
+            >
               <Bell className="size-4" />
-              <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[oklch(0.72_0.27_350)]" />
+              {unreadNotifCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-rose-500 pulse-glow" />
+              )}
             </button>
             <span
-              className="size-10 rounded-full flex items-center justify-center text-xs font-semibold ml-1"
+              className="size-10 rounded-full flex items-center justify-center text-xs font-semibold ml-1 overflow-hidden border border-white/20 shrink-0"
               style={{ background: "var(--grad-aurora)" }}
             >
-              {avatar}
+              {profile?.avatarUrl ? (
+                <img src={profile.avatarUrl} alt="Professor Avatar" className="size-full object-cover" />
+              ) : (
+                avatar
+              )}
             </span>
           </div>
         </header>
         <main className="px-5 md:px-10 py-6 pb-32 max-w-[1500px] mx-auto">{children}</main>
       </div>
+
+      <NotificationCenter
+        open={openNotif}
+        onClose={() => setOpenNotif(false)}
+        onUnreadCountChange={setUnreadNotifCount}
+      />
     </div>
   );
 }

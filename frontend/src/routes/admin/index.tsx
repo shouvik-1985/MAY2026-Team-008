@@ -143,16 +143,21 @@ function AdminDeskPage() {
     };
   }, []);
 
+  const [studentFilter, setStudentFilter] = useState<"all" | "watchlist" | "risk" | "blocked">("all");
+
   const query = searchQuery.trim().toLowerCase();
   const filteredStudents = useMemo(() => {
     return (dashboard?.students ?? []).filter((student) => {
+      if (studentFilter === "watchlist" && student.attendance >= 75) return false;
+      if (studentFilter === "risk" && student.cgpa >= 7.5) return false;
+      if (studentFilter === "blocked" && !student.isBlocked) return false;
       if (!query) return true;
       return [student.name, student.email, student.studentCode, student.address, student.department, `sem ${student.semester}`]
         .join(" ")
         .toLowerCase()
         .includes(query);
     });
-  }, [dashboard?.students, query]);
+  }, [dashboard?.students, query, studentFilter]);
 
   const filteredProfessors = useMemo(() => {
     return (dashboard?.professors ?? []).filter((professor) => {
@@ -558,7 +563,28 @@ function AdminDeskPage() {
 
         <div className="grid gap-5 xl:grid-cols-[1.35fr_0.95fr]">
           <Panel icon={GraduationCap} eyebrow="Student tab" title="All students">
-            <div className="mb-5">
+            <div className="mb-5 space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: "all", label: `All (${dashboard?.students.length ?? 0})` },
+                  { key: "watchlist", label: `⚠️ Attendance Watchlist (<75%)` },
+                  { key: "risk", label: `📉 Academic Risk (<7.5 CGPA)` },
+                  { key: "blocked", label: `🚫 Blocked (${blockedStudents})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setStudentFilter(tab.key as any)}
+                    className={`rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.16em] transition ${
+                      studentFilter === tab.key
+                        ? "border border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
+                        : "border border-white/10 bg-white/[0.04] text-white/50 hover:text-white"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
               <InlineSearch
                 value={searchQuery}
                 onChange={setSearchQuery}

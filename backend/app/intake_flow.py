@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 from app.attendance_flow import get_campus_attendance_setting
 from app.models import IntakeSlotBatch, StudentProfile, User
 
-LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
+try:
+    LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")
+except Exception:
+    LOCAL_TIMEZONE = timezone.utc
 DEFAULT_SEMESTER_DURATION_MONTHS = 6
 DEFAULT_SEMESTER_DURATION_DAYS = 180
 
@@ -58,9 +61,11 @@ def resolve_student_semester(
     enrolled_on = student_enrollment_date(profile, user)
     if semester_duration_unit(duration_unit) == "days":
         elapsed_days = max(0, (target_date - enrolled_on).days)
-        return max(1, 1 + (elapsed_days // semester_duration_days(duration_days)))
+        calculated = max(1, 1 + (elapsed_days // semester_duration_days(duration_days)))
+        return min(4, calculated)
     months = _elapsed_months(enrolled_on, target_date)
-    return max(1, 1 + (months // semester_duration_months(duration_months)))
+    calculated = max(1, 1 + (months // semester_duration_months(duration_months)))
+    return min(4, calculated)
 
 
 def ensure_current_student_semester(

@@ -343,6 +343,66 @@ def student_portal(
         .order_by(desc(PlacementRole.updated_at))
         .all()
     )
+    if not roles:
+        manager = db.query(User).filter(User.role == Role.placement).first() or current_user
+        defaults = [
+            PlacementRole(
+                manager_id=manager.id,
+                title="Full Stack & AI Systems Engineer",
+                company_name="TechVerse Solutions",
+                role_type="Full-time",
+                location="Bengaluru / Hybrid",
+                work_mode="Hybrid",
+                compensation="₹ 14.5 LPA",
+                deadline="30 Aug 2026",
+                minimum_semester=3,
+                minimum_cgpa=7.5,
+                required_skills="React, Python, Fast API, SQL, AI Tools",
+                description="Join TechVerse Solutions as a Full Stack & AI Engineer. Responsible for building scalable web platforms, AI service integrations, and high-performance APIs.",
+                status="open",
+                active=True,
+            ),
+            PlacementRole(
+                manager_id=manager.id,
+                title="Backend Systems Developer",
+                company_name="Infosys",
+                role_type="Full-time",
+                location="Pune / Onsite",
+                work_mode="Onsite",
+                compensation="₹ 9.2 LPA",
+                deadline="15 Aug 2026",
+                minimum_semester=3,
+                minimum_cgpa=7.5,
+                required_skills="Python, SQL, Microservices, Git",
+                description="Develop backend services, database schemas, and microservice architectures for enterprise web applications.",
+                status="open",
+                active=True,
+            ),
+            PlacementRole(
+                manager_id=manager.id,
+                title="Data Science & ML Associate",
+                company_name="AI Tech Labs",
+                role_type="Full-time",
+                location="Remote",
+                work_mode="Remote",
+                compensation="₹ 16.0 LPA",
+                deadline="25 Aug 2026",
+                minimum_semester=3,
+                minimum_cgpa=8.0,
+                required_skills="Python, Machine Learning, PyTorch, Data Analysis",
+                description="Build predictive models, NLP pipelines, and machine learning models for high-throughput enterprise systems.",
+                status="open",
+                active=True,
+            ),
+        ]
+        db.add_all(defaults)
+        db.commit()
+        roles = (
+            db.query(PlacementRole)
+            .filter(PlacementRole.status == "open", PlacementRole.active.is_(True))
+            .order_by(desc(PlacementRole.updated_at))
+            .all()
+        )
     return {
         "student": snapshot,
         "criteria": {

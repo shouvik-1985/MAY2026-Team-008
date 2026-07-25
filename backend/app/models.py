@@ -555,3 +555,22 @@ class RevokedToken(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
+
+class MarketplaceItem(Base):
+    __tablename__ = "marketplace_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    seller_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    item_key: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(180), nullable=False)
+    category: Mapped[str] = mapped_column(String(80), default="Notes", nullable=False)
+    price: Mapped[str] = mapped_column(String(40), nullable=False)
+    seller_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    tag: Mapped[str] = mapped_column(String(80), default="Verified", nullable=False)
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="Available", nullable=False)  # Available, Reserved, Sold
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )

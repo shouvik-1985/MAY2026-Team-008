@@ -20,6 +20,7 @@ import { Route as ProfessorIndexRouteImport } from './routes/professor/index'
 import { Route as PlacementIndexRouteImport } from './routes/placement/index'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as VerifyHashRouteImport } from './routes/verify/$hash'
 import { Route as AppSettingsRouteImport } from './routes/app/settings'
 import { Route as AppScholarshipsRouteImport } from './routes/app/scholarships'
 import { Route as AppResourcesRouteImport } from './routes/app/resources'
@@ -90,6 +91,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const VerifyHashRoute = VerifyHashRouteImport.update({
+  id: '/verify/$hash',
+  path: '/verify/$hash',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/app/resources': typeof AppResourcesRoute
   '/app/scholarships': typeof AppScholarshipsRoute
   '/app/settings': typeof AppSettingsRoute
+  '/verify/$hash': typeof VerifyHashRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/placement/': typeof PlacementIndexRoute
@@ -214,6 +221,7 @@ export interface FileRoutesByTo {
   '/app/resources': typeof AppResourcesRoute
   '/app/scholarships': typeof AppScholarshipsRoute
   '/app/settings': typeof AppSettingsRoute
+  '/verify/$hash': typeof VerifyHashRoute
   '/admin': typeof AdminIndexRoute
   '/app': typeof AppIndexRoute
   '/placement': typeof PlacementIndexRoute
@@ -243,6 +251,7 @@ export interface FileRoutesById {
   '/app/resources': typeof AppResourcesRoute
   '/app/scholarships': typeof AppScholarshipsRoute
   '/app/settings': typeof AppSettingsRoute
+  '/verify/$hash': typeof VerifyHashRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/placement/': typeof PlacementIndexRoute
@@ -273,6 +282,7 @@ export interface FileRouteTypes {
     | '/app/resources'
     | '/app/scholarships'
     | '/app/settings'
+    | '/verify/$hash'
     | '/admin/'
     | '/app/'
     | '/placement/'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/app/resources'
     | '/app/scholarships'
     | '/app/settings'
+    | '/verify/$hash'
     | '/admin'
     | '/app'
     | '/placement'
@@ -325,6 +336,7 @@ export interface FileRouteTypes {
     | '/app/resources'
     | '/app/scholarships'
     | '/app/settings'
+    | '/verify/$hash'
     | '/admin/'
     | '/app/'
     | '/placement/'
@@ -339,6 +351,7 @@ export interface RootRouteChildren {
   ProfessorRouteRoute: typeof ProfessorRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
   RoleRoute: typeof RoleRoute
+  VerifyHashRoute: typeof VerifyHashRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -419,6 +432,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/verify/$hash': {
+      id: '/verify/$hash'
+      path: '/verify/$hash'
+      fullPath: '/verify/$hash'
+      preLoaderRoute: typeof VerifyHashRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/app/settings': {
       id: '/app/settings'
@@ -614,6 +634,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfessorRouteRoute: ProfessorRouteRouteWithChildren,
   LoginRoute: LoginRoute,
   RoleRoute: RoleRoute,
+  VerifyHashRoute: VerifyHashRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

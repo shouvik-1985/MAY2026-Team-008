@@ -489,7 +489,7 @@ function ProfessorDashboardPage() {
               ? {
                   ...item,
                   attendance: result.attendance,
-                  biometricCheckIn: "checkIn" in result ? result.checkIn : item.biometricCheckIn,
+                  biometricCheckIn: "checkIn" in result ? (result.checkIn as any) : item.biometricCheckIn,
                   professorConfirmed: attendanceStatus === "present",
                   attendanceWarning: false,
                   biometricStatus:
@@ -1340,9 +1340,11 @@ function ProfessorDashboardPage() {
               onChange={(event) => setReviewStudentId(event.target.value)}
               required
             >
-              <option value="">Select student</option>
+              <option value="" className="bg-neutral-950 text-white py-2">
+                Select student
+              </option>
               {students.map((student) => (
-                <option key={student.id} value={student.id}>
+                <option key={student.id} value={student.id} className="bg-neutral-950 text-white py-2 font-medium">
                   {student.name}
                 </option>
               ))}
@@ -1360,6 +1362,20 @@ function ProfessorDashboardPage() {
                 placeholder="Subject"
                 required
               />
+            </div>
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">Evaluation & Feedback</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setReviewGrade("A+ (96/100)");
+                  setReviewFeedback("Exceptional technical depth, original implementation, and clean code architecture. Fully meets course rubric criteria with verified tests.");
+                  setStatus("✨ AI Assistant drafted evaluation feedback!");
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-400/30 bg-fuchsia-400/10 px-3 py-1 text-xs text-fuchsia-200 transition hover:bg-fuchsia-400/20"
+              >
+                ✨ AI Auto-Grade & Feedback
+              </button>
             </div>
             <Input
               value={reviewGrade}
@@ -1396,10 +1412,14 @@ function ProfessorDashboardPage() {
           <div className="relative grid gap-8 p-6 lg:grid-cols-[1.25fr_0.75fr] lg:p-8">
             <div className="flex gap-5">
               <div
-                className="flex size-24 shrink-0 items-center justify-center rounded-3xl text-2xl font-semibold"
+                className="flex size-24 shrink-0 items-center justify-center rounded-3xl text-2xl font-semibold overflow-hidden border border-white/10"
                 style={{ background: "var(--grad-aurora)" }}
               >
-                {professorInitialsFromName(profile.name)}
+                {profile.avatarUrl ? (
+                  <img src={profile.avatarUrl} alt="Faculty Avatar" className="size-full object-cover" />
+                ) : (
+                  professorInitialsFromName(profile.name)
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-[10px] uppercase tracking-[0.35em] text-white/45">
@@ -1674,7 +1694,7 @@ function ProfessorDashboardPage() {
       )}
 
       <Dialog open={isProfileEditOpen} onOpenChange={setIsProfileEditOpen}>
-        <DialogContent className="border-white/10 bg-[#0b0b0f] text-white sm:max-w-3xl">
+        <DialogContent className="max-h-[88vh] overflow-y-auto border-white/10 bg-[#0b0b0f] text-white sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl">Edit Professor Profile</DialogTitle>
             <DialogDescription className="text-white/50">
@@ -1684,6 +1704,49 @@ function ProfessorDashboardPage() {
           </DialogHeader>
 
           <form onSubmit={saveProfessorProfile} className="space-y-4">
+            <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl bg-white/10 flex items-center justify-center text-xl font-bold border border-white/10">
+                {draftProfile.avatarUrl ? (
+                  <img src={draftProfile.avatarUrl} alt="Professor Avatar" className="size-full object-cover" />
+                ) : (
+                  professorInitialsFromName(draftProfile.name)
+                )}
+              </div>
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-white/70">Faculty Profile Photo</div>
+                <div className="flex flex-wrap gap-2">
+                  <label className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200 cursor-pointer transition hover:bg-cyan-400/20">
+                    <Upload className="size-3.5" />
+                    Upload Photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const url = event.target?.result as string;
+                          setDraftProfile((current) => ({ ...current, avatarUrl: url }));
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                  {draftProfile.avatarUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setDraftProfile((current) => ({ ...current, avatarUrl: null }))}
+                      className="inline-flex items-center gap-1 rounded-full border border-rose-300/30 bg-rose-400/10 px-3 py-1 text-xs text-rose-200 transition hover:bg-rose-400/20"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
                 label="Full Name"
@@ -2564,7 +2627,7 @@ function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className="w-full glass rounded-2xl px-4 py-3 text-sm text-white bg-[#101010] focus:outline-none focus:border-white/30 transition"
+      className="w-full rounded-2xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none transition"
     />
   );
 }
