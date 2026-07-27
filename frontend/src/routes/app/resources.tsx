@@ -15,16 +15,318 @@ import {
   ShieldCheck,
   HelpCircle,
   Star,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
-import { type StudentDashboard } from "@/lib/api";
+import {
+  fetchProtectedResourceBlob,
+  generateStudentResourceAiSummary,
+  openProtectedResource,
+  type StudentDashboard,
+  type StudentResourceAiSummary,
+} from "@/lib/api";
 import { useStudentDashboard } from "@/lib/student-session";
 import { STUDY_SUBJECTS } from "@/lib/subjects";
 
 export const Route = createFileRoute("/app/resources")({ component: ResourcesPage });
 
 type ResourceItem = StudentDashboard["resource_items"][number];
+type PreviewFileState = {
+  status: "idle" | "loading" | "ready" | "error";
+  objectUrl: string;
+  contentType: string;
+  fileName: string;
+  message: string;
+};
+type AiSummaryState = {
+  status: "idle" | "loading" | "ready" | "error";
+  data: StudentResourceAiSummary | null;
+  message: string;
+};
+
+const EMPTY_PREVIEW_FILE: PreviewFileState = {
+  status: "idle",
+  objectUrl: "",
+  contentType: "",
+  fileName: "",
+  message: "",
+};
+const EMPTY_AI_SUMMARY: AiSummaryState = {
+  status: "idle",
+  data: null,
+  message: "",
+};
+
+function hasUploadedMaterial(item: ResourceItem) {
+  return Boolean(item.url?.trim() && item.url !== "#");
+}
+
+function withDownloadFlag(url: string) {
+  return `${url}${url.includes("?") ? "&" : "?"}download=true`;
+}
+
+function resourceFallbackName(item: ResourceItem) {
+  return item.title?.trim() || "study-resource";
+}
+
+function pdfFileName(title: string) {
+  const base =
+    title
+      .trim()
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[^a-z0-9_-]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "study-resource";
+
+  return `${base}-ai-explanation.pdf`;
+}
+
+const PDF_TEXT_REPLACEMENTS: Record<string, string> = {
+  "\u2018": "'",
+  "\u2019": "'",
+  "\u201c": '"',
+  "\u201d": '"',
+  "\u2013": "-",
+  "\u2014": "-",
+  "\u2022": "-",
+  "\u00b7": "-",
+  "\u2192": "->",
+  "\u2190": "<-",
+  "\u2194": "<->",
+  "\u2264": "<=",
+  "\u2265": ">=",
+  "\u00d7": "x",
+  "\u00f7": "/",
+};
+
+function normalizePdfText(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, (char) => PDF_TEXT_REPLACEMENTS[char] ?? " ");
+}
+
+function escapePdfText(value: string) {
+  return normalizePdfText(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)")
+    .replace(/\r/g, "");
+}
+
+function wrapPdfLine(text: string, maxChars: number) {
+  const words = normalizePdfText(text).replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+
+  words.forEach((word) => {
+    if (word.length > maxChars) {
+      if (line) {
+        lines.push(line);
+        line = "";
+      }
+      for (let index = 0; index < word.length; index += maxChars) {
+        lines.push(word.slice(index, index + maxChars));
+      }
+      return;
+    }
+
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length > maxChars) {
+      if (line) lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  });
+
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+function buildAiExplanationPdf(item: ResourceItem, data: StudentResourceAiSummary) {
+  const encoder = new TextEncoder();
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const margin = 44;
+  const contentWidth = pageWidth - margin * 2;
+  const pdfTextColor = "0 0 0 rg";
+  const pages: string[][] = [[]];
+  let y = pageHeight - margin;
+
+  const byteLength = (value: string) => encoder.encode(value).length;
+  const currentPage = () => pages[pages.length - 1];
+  const addPage = () => {
+    pages.push([]);
+    y = pageHeight - margin;
+  };
+  const addGap = (amount: number) => {
+    y -= amount;
+  };
+  const addLine = (
+    text: string,
+    options: { font?: "F1" | "F2"; size?: number; color?: string; indent?: number; gapAfter?: number } = {},
+  ) => {
+    const size = options.size ?? 11;
+    const indent = options.indent ?? 0;
+    const lineHeight = size * 1.42;
+
+    if (y < margin + lineHeight) addPage();
+
+    currentPage().push(
+      `${options.color ?? pdfTextColor} BT /${options.font ?? "F1"} ${size} Tf ${(margin + indent).toFixed(
+        2,
+      )} ${y.toFixed(2)} Td (${escapePdfText(text)}) Tj ET`,
+    );
+    y -= lineHeight + (options.gapAfter ?? 0);
+  };
+  const addWrapped = (
+    text: string,
+    options: { font?: "F1" | "F2"; size?: number; color?: string; indent?: number; gapAfter?: number } = {},
+  ) => {
+    const size = options.size ?? 11;
+    const indent = options.indent ?? 0;
+    const maxChars = Math.max(32, Math.floor((contentWidth - indent) / (size * 0.52)));
+    const paragraphs = normalizePdfText(text).split(/\n+/).map((part) => part.trim()).filter(Boolean);
+
+    if (!paragraphs.length) {
+      addLine("", options);
+      return;
+    }
+
+    paragraphs.forEach((paragraph, paragraphIndex) => {
+      wrapPdfLine(paragraph, maxChars).forEach((line) => addLine(line, { ...options, gapAfter: 0 }));
+      if (paragraphIndex < paragraphs.length - 1) addGap(size * 0.7);
+    });
+    addGap(options.gapAfter ?? 7);
+  };
+  const addSection = (title: string) => {
+    addGap(6);
+    addWrapped(title.toUpperCase(), {
+      font: "F2",
+      size: 10,
+      color: pdfTextColor,
+      gapAfter: 5,
+    });
+  };
+  const conceptSections = data.conceptExplanations?.length ? data.conceptExplanations : data.detailedExplanation;
+  const importantPoints = data.importantPoints?.length ? data.importantPoints : data.keyTakeaways;
+  const practiceGuidance = data.practiceGuidance?.length ? data.practiceGuidance : data.revisionFocus;
+
+  addWrapped(data.title || item.title, { font: "F2", size: 22, color: pdfTextColor, gapAfter: 4 });
+  addWrapped(`Subject: ${data.subject || item.subject}`, { size: 10, color: pdfTextColor, gapAfter: 0 });
+  addWrapped(`Generated by CampusVerse AI Tutor | Model: ${data.model || "gpt-5.4-mini"}`, {
+    size: 9,
+    color: pdfTextColor,
+    gapAfter: 12,
+  });
+
+  addSection("Full AI Explanation");
+  addWrapped(data.fullExplanation || data.summary, { size: 11, color: pdfTextColor, gapAfter: 12 });
+
+  if (conceptSections.length) {
+    addSection("Concept-by-Concept Explanation");
+    conceptSections.forEach((section, index) => {
+      addWrapped(`${index + 1}. ${section.heading}`, { font: "F2", size: 12, color: pdfTextColor, gapAfter: 2 });
+      addWrapped(section.explanation, { size: 10.5, color: pdfTextColor, indent: 12, gapAfter: 3 });
+      if (section.example) {
+        addWrapped(`Example: ${section.example}`, { size: 10, color: pdfTextColor, indent: 12, gapAfter: 8 });
+      }
+    });
+  }
+
+  if (importantPoints.length) {
+    addSection("Important Points");
+    importantPoints.forEach((point) => addWrapped(`- ${point}`, { size: 10.5, indent: 10, gapAfter: 3 }));
+  }
+
+  if (practiceGuidance.length) {
+    addSection("Practice With This");
+    practiceGuidance.forEach((guidance) => addWrapped(`- ${guidance}`, { size: 10.5, indent: 10, gapAfter: 3 }));
+  }
+
+  if (data.quiz.length) {
+    addSection("Practice Exam Quiz");
+    data.quiz.forEach((item, index) => {
+      addWrapped(`Q${index + 1}. ${item.question}`, { font: "F2", size: 10.5, color: pdfTextColor, gapAfter: 2 });
+      addWrapped(`Answer: ${item.answer}`, { size: 10, color: pdfTextColor, indent: 12, gapAfter: 7 });
+    });
+  }
+
+  if (data.sourceNote && data.sourceStatus !== "extracted") {
+    addSection("Source Note");
+    addWrapped(data.sourceNote, { size: 9.5, color: pdfTextColor, gapAfter: 6 });
+  }
+
+  pages.forEach((page, index) => {
+    page.unshift(`1 1 1 rg 0 0 ${pageWidth} ${pageHeight} re f`);
+    page.push(`${pdfTextColor} BT /F1 8 Tf ${margin.toFixed(2)} 24 Td (CampusVerse AI Tutor) Tj ET`);
+    page.push(
+      `${pdfTextColor} BT /F1 8 Tf ${(pageWidth - margin - 54).toFixed(2)} 24 Td (Page ${index + 1} of ${
+        pages.length
+      }) Tj ET`,
+    );
+  });
+
+  const pageIds = pages.map((_, index) => 5 + index * 2);
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+  ];
+
+  pages.forEach((page, index) => {
+    const pageId = 5 + index * 2;
+    const contentId = pageId + 1;
+    const stream = `${page.join("\n")}\n`;
+
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`,
+    );
+    objects.push(`<< /Length ${byteLength(stream)} >>\nstream\n${stream}endstream`);
+  });
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+
+  objects.forEach((object, index) => {
+    offsets[index + 1] = byteLength(pdf);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+
+  const xrefOffset = byteLength(pdf);
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += "0000000000 65535 f \n";
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+  return new Blob([pdf], { type: "application/pdf" });
+}
+
+function previewKind(file: PreviewFileState, item: ResourceItem) {
+  const contentType = file.contentType.toLowerCase();
+  const fileName = file.fileName.toLowerCase();
+  const label = `${item.type} ${item.url} ${fileName}`.toLowerCase();
+
+  if (contentType.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(label)) return "image";
+  if (contentType.startsWith("video/") || /\.(mp4|webm|ogg|mov|m4v)$/i.test(label)) return "video";
+  if (contentType.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(label)) return "audio";
+  if (
+    contentType.includes("pdf") ||
+    contentType.startsWith("text/") ||
+    contentType.includes("json") ||
+    contentType.includes("xml") ||
+    /\.(pdf|txt|csv|md|json|xml|log)$/i.test(label)
+  ) {
+    return "frame";
+  }
+  return "file";
+}
 
 function ResourcesPage() {
   const { dashboard } = useStudentDashboard();
@@ -118,12 +420,102 @@ function ResourcesPage() {
 
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [activePreview, setActivePreview] = useState<ResourceItem | null>(null);
+  const [previewFile, setPreviewFile] = useState<PreviewFileState>(EMPTY_PREVIEW_FILE);
   const [aiSummaryModal, setAiSummaryModal] = useState<ResourceItem | null>(null);
+  const [aiSummaryState, setAiSummaryState] = useState<AiSummaryState>(EMPTY_AI_SUMMARY);
   const [activeTab, setActiveTab] = useState("All");
 
   useEffect(() => {
     localStorage.setItem("cv-resource-bookmarks", JSON.stringify(bookmarks));
   }, [bookmarks]);
+
+  useEffect(() => {
+    let canceled = false;
+    let objectUrl = "";
+
+    if (!activePreview) {
+      setPreviewFile(EMPTY_PREVIEW_FILE);
+      return;
+    }
+
+    if (!hasUploadedMaterial(activePreview)) {
+      setPreviewFile({
+        ...EMPTY_PREVIEW_FILE,
+        status: "error",
+        message: "No uploaded material is attached to this resource.",
+      });
+      return;
+    }
+
+    setPreviewFile({ ...EMPTY_PREVIEW_FILE, status: "loading" });
+
+    fetchProtectedResourceBlob(activePreview.url, resourceFallbackName(activePreview))
+      .then((file) => {
+        objectUrl = file.objectUrl;
+        if (canceled) {
+          URL.revokeObjectURL(file.objectUrl);
+          return;
+        }
+        setPreviewFile({
+          status: "ready",
+          objectUrl: file.objectUrl,
+          contentType: file.contentType,
+          fileName: file.name,
+          message: "",
+        });
+      })
+      .catch((error) => {
+        if (canceled) return;
+        setPreviewFile({
+          ...EMPTY_PREVIEW_FILE,
+          status: "error",
+          message: error instanceof Error ? error.message : "Could not load the uploaded material.",
+        });
+      });
+
+    return () => {
+      canceled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [activePreview]);
+
+  useEffect(() => {
+    let canceled = false;
+
+    if (!aiSummaryModal) {
+      setAiSummaryState(EMPTY_AI_SUMMARY);
+      return;
+    }
+
+    if (!hasUploadedMaterial(aiSummaryModal)) {
+      setAiSummaryState({
+        status: "error",
+        data: null,
+        message: "No uploaded material is attached to this resource.",
+      });
+      return;
+    }
+
+    setAiSummaryState({ status: "loading", data: null, message: "" });
+
+    generateStudentResourceAiSummary(aiSummaryModal.id)
+      .then((data) => {
+        if (canceled) return;
+        setAiSummaryState({ status: "ready", data, message: "" });
+      })
+      .catch((error) => {
+        if (canceled) return;
+        setAiSummaryState({
+          status: "error",
+          data: null,
+          message: error instanceof Error ? error.message : "Could not generate the AI summary.",
+        });
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [aiSummaryModal]);
 
   const toggleBookmark = (id: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -174,16 +566,43 @@ function ResourcesPage() {
 
   const trending = rawResources.filter((r: ResourceItem) => r.tag === "trending" || r.tag === "new").slice(0, 4);
 
-  function handleDownloadResource(item: ResourceItem) {
-    const text = `OFFICIAL CAMPUSVERSE STUDY RESOURCE\n\nTitle: ${item.title}\nSubject: ${item.subject}\nFaculty Author: ${item.professorName}\nType: ${item.type}\nPublished: ${item.time}\n\n1. COURSE SUMMARY & OVERVIEW\nThis document covers comprehensive lecture notes, problem sets, and architectural diagrams for ${item.subject}.\n\n2. KEY CONCEPTS & THEOREMS\n- Core System Design & State Transitions\n- Algorithmic Complexity & Optimization\n- Practical Case Studies & Examination Questions\n\nVerified Digital Copy &bull; CampusVerse Library Registry`;
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${item.title.replace(/\s+/g, "_")}_Notes.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setStatusMsg(`✓ Downloaded "${item.title}" successfully!`);
+  async function handleDownloadResource(item: ResourceItem) {
+    if (!hasUploadedMaterial(item)) {
+      setStatusMsg("No uploaded material is attached to this resource.");
+      setTimeout(() => setStatusMsg(null), 3000);
+      return;
+    }
+
+    try {
+      await openProtectedResource(withDownloadFlag(item.url), {
+        download: true,
+        fallbackName: resourceFallbackName(item),
+      });
+      setStatusMsg(`Downloading "${item.title}" from the uploaded material.`);
+    } catch (error) {
+      setStatusMsg(error instanceof Error ? error.message : "Could not download the uploaded material.");
+    }
+    setTimeout(() => setStatusMsg(null), 3000);
+  }
+
+  function handleDownloadAiExplanationPdf() {
+    if (!aiSummaryModal || aiSummaryState.status !== "ready" || !aiSummaryState.data) {
+      setStatusMsg("AI explanation is still being prepared.");
+      setTimeout(() => setStatusMsg(null), 3000);
+      return;
+    }
+
+    const pdf = buildAiExplanationPdf(aiSummaryModal, aiSummaryState.data);
+    const objectUrl = URL.createObjectURL(pdf);
+    const anchor = document.createElement("a");
+
+    anchor.href = objectUrl;
+    anchor.download = pdfFileName(aiSummaryModal.title);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    setStatusMsg(`Downloading AI explanation for "${aiSummaryModal.title}".`);
     setTimeout(() => setStatusMsg(null), 3000);
   }
 
@@ -392,7 +811,7 @@ function ResourcesPage() {
                     <Sparkles className="size-4" />
                   </button>
                   <button
-                    onClick={() => handleDownloadResource(item)}
+                    onClick={() => void handleDownloadResource(item)}
                     title="Download Material"
                     className="glass p-2 rounded-xl text-sky-300 hover:text-white border border-sky-500/30 hover:bg-sky-500/10 transition"
                   >
@@ -430,7 +849,7 @@ function ResourcesPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-2xl rounded-3xl border border-white/15 bg-[#11131a] p-7 text-white relative shadow-2xl space-y-5"
+              className="w-full max-w-5xl max-h-[90vh] rounded-3xl border border-white/15 bg-[#11131a] p-5 md:p-7 text-white relative shadow-2xl space-y-5 overflow-hidden flex flex-col"
             >
               <button
                 onClick={() => setActivePreview(null)}
@@ -448,19 +867,12 @@ function ResourcesPage() {
 
               <div>
                 <h3 className="font-display text-2xl md:text-3xl font-bold leading-snug">{activePreview.title}</h3>
-                <p className="text-xs text-white/50 mt-1">Document Format: PDF / Verified Course Note &bull; {activePreview.time}</p>
+                <p className="text-xs text-white/50 mt-1">
+                  Document Format: {activePreview.type || "Uploaded File"} &bull; {activePreview.time}
+                </p>
               </div>
 
-              <div className="glass p-5 rounded-2xl border border-white/10 space-y-3 text-xs text-white/80 leading-relaxed max-h-60 overflow-y-auto">
-                <div className="font-bold text-amber-300 uppercase tracking-wider text-[11px]">CHAPTER 1: COURSE OVERVIEW &amp; CORE PRINCIPLES</div>
-                <p>
-                  This official academic reference module covers state transitions, algorithmic complexity, and high-level architectural patterns for {activePreview.subject}.
-                </p>
-                <div className="font-bold text-amber-300 uppercase tracking-wider text-[11px] pt-2">CHAPTER 2: EXPERIMENTAL &amp; EXAM SPECIFICATIONS</div>
-                <p>
-                  Key problem sets include memory hierarchy benchmarks, concurrency synchronization primitives, and distributed ledger state machines.
-                </p>
-              </div>
+              <ResourcePreviewPanel item={activePreview} previewFile={previewFile} onDownload={handleDownloadResource} />
 
               <div className="flex items-center justify-between pt-2 border-t border-white/10">
                 <button
@@ -475,7 +887,7 @@ function ResourcesPage() {
                 </button>
 
                 <button
-                  onClick={() => handleDownloadResource(activePreview)}
+                  onClick={() => void handleDownloadResource(activePreview)}
                   className="bg-[var(--grad-aurora)] px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider text-white shadow-lg flex items-center gap-2 hover:opacity-90 transition"
                 >
                   <Download className="size-3.5" /> Download Full Material
@@ -501,7 +913,7 @@ function ResourcesPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-xl rounded-3xl border border-purple-500/30 bg-[#11131a] p-7 text-white relative shadow-2xl space-y-5"
+              className="relative flex max-h-[92vh] w-full max-w-5xl flex-col gap-5 overflow-hidden rounded-3xl border border-purple-500/30 bg-[#11131a] p-5 text-white shadow-2xl md:p-7"
             >
               <button
                 onClick={() => setAiSummaryModal(null)}
@@ -510,45 +922,35 @@ function ResourcesPage() {
                 <X className="size-5" />
               </button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 pr-12">
                 <Sparkles className="size-5 text-purple-400" />
                 <span className="text-xs uppercase tracking-widest font-bold text-purple-300">
-                  AI Revision Suite &bull; 30-Sec Summary &amp; Exam Quiz
+                  AI Tutor &bull; Full Explanation, Examples &amp; Quiz
                 </span>
               </div>
 
-              <div>
-                <h3 className="font-display text-2xl font-bold">{aiSummaryModal.title}</h3>
+              <div className="pr-12">
+                <h3 className="font-display text-2xl font-bold md:text-3xl">{aiSummaryModal.title}</h3>
                 <p className="text-xs text-white/50 mt-1">Generated for {aiSummaryModal.subject}</p>
               </div>
 
-              <div className="glass p-4 rounded-2xl border border-purple-500/20 space-y-2 text-xs text-white/80">
-                <div className="font-bold text-purple-300 uppercase tracking-wider text-[10px]">⚡ 30-Second AI Key Takeaway</div>
-                <p className="leading-relaxed">
-                  Focuses on core architectural invariants, synchronization locks, and algorithm state complexity. Master Raft leader election and log replication for full exam credit.
-                </p>
-              </div>
+              <AiSummaryContent state={aiSummaryState} />
 
-              <div className="glass p-4 rounded-2xl border border-white/10 space-y-3 text-xs text-white/80">
-                <div className="font-bold text-amber-300 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                  <HelpCircle className="size-3.5" /> Practice Exam Quiz (3 Questions)
-                </div>
-                <div className="space-y-2">
-                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
-                    <div className="font-semibold text-white">Q1. What guarantees safety in log replication?</div>
-                    <div className="text-emerald-400 mt-1 text-[11px]">Answer: Majority consensus quorum (N/2 + 1 votes).</div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
-                    <div className="font-semibold text-white">Q2. What is the time complexity of B-Tree lookup?</div>
-                    <div className="text-emerald-400 mt-1 text-[11px]">Answer: O(log_m N) where m is the B-Tree order.</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-2">
+              <div className="flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                {aiSummaryState.status === "ready" && aiSummaryState.data ? (
+                  <button
+                    onClick={handleDownloadAiExplanationPdf}
+                    className="glass inline-flex items-center justify-center gap-2 rounded-full border border-purple-400/25 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-purple-100 transition hover:border-purple-300/50 hover:text-white"
+                  >
+                    <Download className="size-3.5" />
+                    Download PDF
+                  </button>
+                ) : (
+                  <div />
+                )}
                 <button
                   onClick={() => setAiSummaryModal(null)}
-                  className="bg-[var(--grad-aurora)] px-6 py-2 rounded-full text-xs font-bold uppercase tracking-wider text-white shadow-lg"
+                  className="bg-[var(--grad-aurora)] px-7 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider text-white shadow-lg"
                 >
                   Got It, Ready for Exams
                 </button>
@@ -558,6 +960,232 @@ function ResourcesPage() {
         )}
       </AnimatePresence>
     </PageTransition>
+  );
+}
+
+function AiSummaryContent({ state }: { state: AiSummaryState }) {
+  if (state.status === "loading") {
+    return (
+      <div className="glass min-h-[360px] rounded-2xl border border-purple-500/20 flex flex-col items-center justify-center gap-3 text-sm text-white/60">
+        <Loader2 className="size-7 animate-spin text-purple-300" />
+        <span>Explaining the uploaded study material in detail...</span>
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <div className="glass min-h-[320px] rounded-2xl border border-rose-400/20 flex flex-col items-center justify-center gap-3 p-6 text-center">
+        <Sparkles className="size-9 text-white/30" />
+        <div>
+          <div className="text-sm font-semibold text-white/80">AI explanation unavailable</div>
+          <p className="mt-2 max-w-md text-xs leading-5 text-white/50">{state.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.status !== "ready" || !state.data) {
+    return null;
+  }
+
+  const data = state.data;
+  const conceptSections = data.conceptExplanations?.length ? data.conceptExplanations : data.detailedExplanation;
+  const importantPoints = data.importantPoints?.length ? data.importantPoints : data.keyTakeaways;
+  const practiceGuidance = data.practiceGuidance?.length ? data.practiceGuidance : data.revisionFocus;
+
+  return (
+    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1 md:pr-2">
+      <div className="glass p-4 md:p-5 rounded-2xl border border-purple-500/20 space-y-2 text-xs text-white/80">
+        <div className="font-bold text-purple-300 uppercase tracking-wider text-[10px]">
+          Full AI Explanation
+        </div>
+        <p className="leading-relaxed md:text-[13px]">{data.fullExplanation || data.summary}</p>
+        <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">
+          Model: {data.model || "gpt-5.4-mini"}
+        </div>
+      </div>
+
+      {conceptSections.length > 0 && (
+        <div className="glass p-4 md:p-5 rounded-2xl border border-white/10 space-y-3 text-xs text-white/80">
+          <div className="font-bold text-purple-300 uppercase tracking-wider text-[10px]">
+            Concept-by-Concept Explanation
+          </div>
+          <div className="space-y-3">
+            {conceptSections.map((section, index) => (
+              <div key={`${section.heading}-${index}`} className="rounded-xl border border-white/10 bg-white/5 p-3 md:p-4">
+                <div className="text-sm font-semibold text-white">{section.heading}</div>
+                <p className="mt-1.5 leading-relaxed text-white/75 md:text-[13px]">{section.explanation}</p>
+                {section.example && (
+                  <div className="mt-3 rounded-xl border border-emerald-400/15 bg-emerald-400/8 p-2.5 md:p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300">
+                      Example
+                    </div>
+                    <p className="mt-1 leading-relaxed text-emerald-50/80 md:text-[13px]">{section.example}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {importantPoints.length > 0 && (
+        <div className="glass p-4 md:p-5 rounded-2xl border border-white/10 space-y-3 text-xs text-white/80">
+          <div className="font-bold text-emerald-300 uppercase tracking-wider text-[10px]">
+            Important Points
+          </div>
+          <div className="grid gap-2 lg:grid-cols-2">
+            {importantPoints.map((point, index) => (
+              <div key={`${point}-${index}`} className="rounded-xl border border-white/10 bg-white/5 p-2.5 md:p-3 leading-relaxed md:text-[13px]">
+                {point}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {practiceGuidance.length > 0 && (
+        <div className="glass p-4 md:p-5 rounded-2xl border border-white/10 space-y-3 text-xs text-white/80">
+          <div className="font-bold text-sky-300 uppercase tracking-wider text-[10px]">
+            Practice With This
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {practiceGuidance.map((guidance, index) => (
+              <div key={`${guidance}-${index}`} className="rounded-xl border border-white/10 bg-white/5 p-2.5 md:p-3 leading-relaxed md:text-[13px]">
+                {guidance}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="glass p-4 md:p-5 rounded-2xl border border-white/10 space-y-3 text-xs text-white/80">
+        <div className="font-bold text-amber-300 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+          <HelpCircle className="size-3.5" /> Practice Exam Quiz ({data.quiz.length} Questions)
+        </div>
+        <div className="space-y-2">
+          {data.quiz.map((item, index) => (
+            <div key={`${item.question}-${index}`} className="p-2.5 md:p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="font-semibold text-white">Q{index + 1}. {item.question}</div>
+              <div className="text-emerald-400 mt-1 text-[11px]">Answer: {item.answer}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {data.sourceNote && data.sourceStatus !== "extracted" && (
+        <div className="rounded-2xl border border-amber-300/20 bg-amber-400/8 p-3 text-[11px] leading-5 text-amber-100/80">
+          {data.sourceNote}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResourcePreviewPanel({
+  item,
+  previewFile,
+  onDownload,
+}: {
+  item: ResourceItem;
+  previewFile: PreviewFileState;
+  onDownload: (item: ResourceItem) => void | Promise<void>;
+}) {
+  if (previewFile.status === "loading") {
+    return (
+      <div className="glass min-h-[360px] flex-1 rounded-2xl border border-white/10 flex flex-col items-center justify-center gap-3 text-sm text-white/60">
+        <Loader2 className="size-7 animate-spin text-emerald-300" />
+        <span>Loading uploaded material...</span>
+      </div>
+    );
+  }
+
+  if (previewFile.status === "error") {
+    return (
+      <div className="glass min-h-[320px] flex-1 rounded-2xl border border-white/10 flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <FileText className="size-10 text-white/30" />
+        <div>
+          <div className="text-sm font-semibold text-white/80">Preview unavailable</div>
+          <p className="mt-2 max-w-md text-xs leading-5 text-white/50">{previewFile.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (previewFile.status !== "ready") {
+    return null;
+  }
+
+  const kind = previewKind(previewFile, item);
+  const fileName = previewFile.fileName || resourceFallbackName(item);
+
+  if (kind === "image") {
+    return (
+      <div className="glass min-h-[360px] flex-1 rounded-2xl border border-white/10 overflow-hidden bg-black/30 flex items-center justify-center">
+        <img src={previewFile.objectUrl} alt={item.title} className="max-h-[58vh] w-full object-contain" />
+      </div>
+    );
+  }
+
+  if (kind === "video") {
+    return (
+      <div className="glass min-h-[360px] flex-1 rounded-2xl border border-white/10 overflow-hidden bg-black/30 flex items-center justify-center">
+        <video src={previewFile.objectUrl} controls className="max-h-[58vh] w-full" />
+      </div>
+    );
+  }
+
+  if (kind === "audio") {
+    return (
+      <div className="glass min-h-[260px] flex-1 rounded-2xl border border-white/10 flex flex-col items-center justify-center gap-5 p-6">
+        <FileText className="size-10 text-sky-200" />
+        <div className="max-w-full truncate text-sm font-semibold text-white/85">{fileName}</div>
+        <audio src={previewFile.objectUrl} controls className="w-full max-w-xl" />
+      </div>
+    );
+  }
+
+  if (kind === "frame") {
+    return (
+      <div className="glass min-h-[420px] flex-1 rounded-2xl border border-white/10 overflow-hidden bg-black/30">
+        <iframe src={previewFile.objectUrl} title={fileName} className="h-[58vh] min-h-[420px] w-full bg-white" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass min-h-[320px] flex-1 rounded-2xl border border-white/10 flex flex-col items-center justify-center gap-5 p-6 text-center">
+      <FileText className="size-12 text-cyan-200" />
+      <div className="max-w-full">
+        <div className="truncate text-base font-semibold text-white">{fileName}</div>
+        <p className="mt-2 max-w-md text-xs leading-5 text-white/50">
+          This uploaded file type may not render inside the browser preview.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            void openProtectedResource(item.url, { fallbackName: fileName }).catch(() => {
+              window.open(previewFile.objectUrl, "_blank", "noopener,noreferrer");
+            })
+          }
+          className="glass rounded-full px-4 py-2 text-xs font-semibold text-white/80 border border-white/10 hover:text-white hover:border-white/25 transition inline-flex items-center gap-1.5"
+        >
+          <ExternalLink className="size-3.5" />
+          Open File
+        </button>
+        <button
+          type="button"
+          onClick={() => void onDownload(item)}
+          className="bg-[var(--grad-aurora)] rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-lg inline-flex items-center gap-1.5 hover:opacity-90 transition"
+        >
+          <Download className="size-3.5" />
+          Download
+        </button>
+      </div>
+    </div>
   );
 }
 

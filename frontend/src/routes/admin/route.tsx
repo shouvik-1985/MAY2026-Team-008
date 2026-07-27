@@ -2,7 +2,9 @@ import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-
 import { motion } from "framer-motion";
 import {
   AlertCircle,
+  Award,
   Building2,
+  CreditCard,
   Gauge,
   GraduationCap,
   LayoutDashboard,
@@ -49,6 +51,8 @@ const ADMIN_NAV: { href: string; label: string; icon: ComponentType<{ className?
   { href: "#professor", label: "Professors", icon: Building2 },
   { href: "#management", label: "Management", icon: Gauge },
   { href: "#complaints", label: "Complaints", icon: AlertCircle },
+  { href: "#fees", label: "Fee Management", icon: CreditCard },
+  { href: "#certificate", label: "Certificate", icon: Award },
 ];
 
 function normalizeAdminHash(hash: string) {
@@ -58,6 +62,9 @@ function normalizeAdminHash(hash: string) {
     students: "student",
     professors: "professor",
     complaint: "complaints",
+    fees: "fees",
+    "fee-management": "fees",
+    certificates: "certificate",
   };
   return aliases[raw] ?? raw;
 }

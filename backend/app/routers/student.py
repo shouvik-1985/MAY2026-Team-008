@@ -1,13 +1,16 @@
 from datetime import date, datetime, timedelta, timezone
+import json
+from pathlib import Path
 from typing import Annotated
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, selectinload
 
+from app.assignment_ai import grade_from_score, normalize_grade_code, review_digital_submission, review_file_submission
 from app.attendance_flow import (
     campus_setting_payload,
     checkin_payload,
@@ -23,9 +26,12 @@ from app.complaint_flow import complaint_payload
 from app.core.config import get_settings
 from app.dependencies import get_current_user
 from app.db import get_db
+from app.fee_flow import create_razorpay_order, student_fee_data, verify_razorpay_payment
 from app.intake_flow import resolve_student_semester
 from app.models import (
     Announcement,
+    Assignment,
+    AssignmentSubmission,
     ConnectMessage,
     MarketplaceItem,
     PlacementNotification,
@@ -41,8 +47,10 @@ from app.models import (
     StudyResource,
     User,
 )
+from app.resource_ai import build_study_resource_ai_summary
 from app.resource_files import public_resource_url
 from app.schemas import (
+    AssignmentDigitalSubmissionCreate,
     CampusAttendanceSettingsOut,
     StudentAssistantRequest,
     StudentAssistantResponse,
@@ -141,12 +149,12 @@ def _todo_rows(db: Session, student_id: int) -> list[dict]:
 
 
 CERTIFICATE_DEFINITIONS = [
-    {"key": "bonafide", "name": "Bonafide Certificate", "eta": "Instant", "req": "Active Enrollment"},
-    {"key": "transcript", "name": "Academic Transcript", "eta": "Instant", "req": "Min 18 Credits"},
-    {"key": "fee-clearance", "name": "Fee Clearance Letter", "eta": "Instant", "req": "Zero Dues"},
-    {"key": "conduct", "name": "Dean's Merit & Conduct Certificate", "eta": "Instant", "req": "CGPA >= 8.5 & Att. >= 85%"},
+    {"key": "bonafide", "name": "Bonafide Certificate", "eta": "Admin Review", "req": "Active Enrollment"},
+    {"key": "conduct", "name": "Dean's Merit & Conduct Certificate", "eta": "Admin Review", "req": "CGPA >= 8.5 & Att. >= 85%"},
     {"key": "graduation", "name": "Graduation Degree Certificate", "eta": "Auto-Issued", "req": "Semester 4 Completion"},
 ]
+
+MANUAL_CERTIFICATE_KEYS = {"bonafide", "conduct"}
 
 
 def _certificate_request_rows(db: Session, student_id: int) -> list[StudentCertificateRequest]:
@@ -156,6 +164,61 @@ def _certificate_request_rows(db: Session, student_id: int) -> list[StudentCerti
         .order_by(desc(StudentCertificateRequest.updated_at))
         .all()
     )
+
+
+def _find_certificate_request(db: Session, student_id: int, certificate_key: str) -> StudentCertificateRequest | None:
+    return (
+        db.query(StudentCertificateRequest)
+        .filter(
+            StudentCertificateRequest.student_id == student_id,
+            StudentCertificateRequest.certificate_key == certificate_key,
+        )
+        .first()
+    )
+
+
+def _ensure_graduation_certificate_request(
+    db: Session,
+    user: User,
+    profile: StudentProfile,
+    semester: int,
+) -> StudentCertificateRequest | None:
+    if semester < 4:
+        return None
+
+    definition = next((item for item in CERTIFICATE_DEFINITIONS if item["key"] == "graduation"), None)
+    if not definition:
+        return None
+
+    request = _find_certificate_request(db, user.id, "graduation")
+    moment = datetime.now(timezone.utc)
+    if request is None:
+        request = StudentCertificateRequest(
+            student_id=user.id,
+            certificate_key="graduation",
+            certificate_name=definition["name"],
+            status="ready",
+            purpose="Degree completion",
+            certificate_body=(
+                f"{user.full_name} has completed Semester 4 of the {profile.department} program and has "
+                "fulfilled the academic requirements for graduation."
+            ),
+            signatory_name="Dr. A. R. Sharma",
+            signatory_title="Registrar & Academic Senate",
+            requested_at=moment,
+            ready_at=moment,
+        )
+        db.add(request)
+        db.commit()
+        db.refresh(request)
+    elif request.status not in {"ready", "downloaded"}:
+        request.status = "ready"
+        request.ready_at = request.ready_at or moment
+        request.updated_at = moment
+        db.commit()
+        db.refresh(request)
+
+    return request
 
 
 def _certificate_items(db: Session, user: User, due_amount: int, first_name: str) -> list[dict]:
@@ -171,12 +234,11 @@ def _certificate_items(db: Session, user: User, due_amount: int, first_name: str
         setting.semester_duration_unit,
         setting.semester_duration_days,
     )
+    _ensure_graduation_certificate_request(db, user, profile, semester)
     requests = {item.certificate_key: item for item in _certificate_request_rows(db, user.id)}
     
     descriptions = {
-        "bonafide": f"Official enrollment proof for {first_name}.",
-        "transcript": f"Verified academic record ({profile.completed_credits or 48}/{profile.total_credits or 180} Credits).",
-        "fee-clearance": "Fee balance pending clearance" if due_amount else "Eligible for download (Zero Dues)",
+        "bonafide": f"Enrollment proof for {first_name}, issued after admin verification.",
         "conduct": f"Honors certificate (Current: CGPA {profile.cgpa:.1f}, {attendance:.0f}% Att.)",
         "graduation": f"Official Degree Certificate (Semester {semester}/4)" if semester < 4 else f"Conferred Graduation Degree for {first_name}",
     }
@@ -186,6 +248,8 @@ def _certificate_items(db: Session, user: User, due_amount: int, first_name: str
         request = requests.get(item["key"])
         if item["key"] == "graduation" and semester >= 4:
             status = request.status if request else "ready"
+        elif item["key"] == "graduation":
+            status = "locked"
         else:
             status = request.status if request else "available"
         items.append(
@@ -222,19 +286,6 @@ def _validate_certificate_eligibility(db: Session, user: User, certificate_key: 
         setting.semester_duration_unit,
         setting.semester_duration_days,
     )
-    fee_base = 78000 + (semester * 1200)
-    due_amount = fee_base if semester % 2 == 0 else 0
-
-    if certificate_key == "fee-clearance" and due_amount > 0:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Fee Clearance Letter requires zero outstanding dues. Current balance: INR {due_amount:,}. Please pay under Fee Payment.",
-        )
-    if certificate_key == "transcript" and (profile.completed_credits or 0) < 18:
-        raise HTTPException(
-            status_code=422,
-            detail="Academic Transcript requires at least 18 completed academic credits.",
-        )
     if certificate_key == "conduct":
         if profile.cgpa < 8.0 or attendance < 75.0:
             raise HTTPException(
@@ -855,6 +906,104 @@ def _complaint_rows(
     ]
 
 
+def _json_loads(value: str | None, fallback):
+    if not value:
+        return fallback
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _student_assignment_items(
+    db: Session,
+    user: User,
+    first_name: str,
+    department: str,
+    seed: int,
+    cgpa: float,
+) -> list[dict]:
+    assignments = (
+        db.query(Assignment)
+        .filter(Assignment.status == "published")
+        .order_by(desc(Assignment.created_at))
+        .limit(50)
+        .all()
+    )
+    if not assignments:
+        return []
+
+    submissions = {
+        item.assignment_id: item
+        for item in db.query(AssignmentSubmission).filter(AssignmentSubmission.student_id == user.id).all()
+    }
+    rows: list[dict] = []
+    for item in assignments:
+        content = _json_loads(item.content_json, {})
+        rubric = _json_loads(item.rubric_json, [])
+        questions = content.get("questions", []) if isinstance(content, dict) else []
+        submission = submissions.get(item.id)
+        status = "pending"
+        progress = 0
+        grade = None
+        professor_grade = None
+        review_finalized = False
+        if submission:
+            status = "graded"
+            progress = 100
+            ai_grade = (
+                grade_from_score((submission.ai_score / max(1, item.total_points)) * 100)
+                if submission.ai_score is not None
+                else submission.ai_grade
+            )
+            stored_professor_grade = normalize_grade_code(submission.professor_grade)
+            professor_grade = (
+                stored_professor_grade
+                if stored_professor_grade
+                else grade_from_score((submission.professor_score / max(1, item.total_points)) * 100)
+                if submission.professor_score is not None
+                else None
+            )
+            grade = professor_grade or ai_grade or "Submitted"
+            review_finalized = bool(
+                submission.professor_score is not None
+                or professor_grade
+                or submission.professor_feedback
+            )
+        rows.append(
+            {
+                "id": item.id,
+                "title": item.title,
+                "subject": item.subject,
+                "due": item.due_label,
+                "progress": progress,
+                "status": status,
+                "grade": grade,
+                "assignmentType": item.assignment_type,
+                "sourceKind": item.source_kind,
+                "sourceTitle": item.source_title,
+                "instructions": content.get("instructions", "") if isinstance(content, dict) else "",
+                "questions": questions if isinstance(questions, list) else [],
+                "rubric": rubric if isinstance(rubric, list) else [],
+                "allowedFileTypes": content.get("allowedFileTypes", []) if isinstance(content, dict) else [],
+                "totalPoints": item.total_points,
+                "submittedAt": submission.submitted_at.isoformat() if submission else None,
+                "aiGrade": ai_grade if submission else None,
+                "aiScore": submission.ai_score if submission else None,
+                "aiFeedback": submission.ai_feedback if submission else None,
+                "aiReview": _json_loads(submission.ai_review_json, {}) if submission else None,
+                "professorScore": submission.professor_score if submission else None,
+                "professorGrade": professor_grade if submission else None,
+                "professorFeedback": submission.professor_feedback if submission else None,
+                "reviewFinalized": review_finalized,
+                "reviewStatus": "faculty_final" if review_finalized else "ai_reviewed" if submission else "not_submitted",
+                "reviewLabel": "Faculty final grade" if review_finalized else "AI provisional review" if submission else "Not submitted",
+                "fileName": submission.filename if submission else None,
+            }
+        )
+    return rows
+
+
 def _student_dataset(db: Session, user: User) -> dict:
     profile = _ensure_student_profile(db, user)
     setting = get_campus_attendance_setting(db)
@@ -888,16 +1037,25 @@ def _student_dataset(db: Session, user: User) -> dict:
         setting.semester_duration_unit,
         setting.semester_duration_days,
     )
-    fee_base = 78000 + (semester * 1200)
-    due_amount = fee_base if semester % 2 == 0 else 0
+    fee_data = student_fee_data(db, user, semester)
+    due_amount = fee_data["summary"]["outstanding"]
     first_name = user.full_name.split()[0] if user.full_name else "Student"
     resource_rows = _resource_rows(db)
     resource_status = f"{len(resource_rows)} uploaded" if resource_rows else "0 uploaded"
     resource_detail = "Notes, slides, previous papers" if resource_rows else "No study resources uploaded yet"
     certificate_items = _certificate_items(db, user, due_amount, first_name)
-    fee_history = _fee_history(user.id, semester, fee_base, due_amount)
+    fee_history = fee_data["history"]
     event_items = _event_rows(db, user, semester, seed)
     marketplace_items = _marketplace_items(db, user, semester)
+    assignment_items = _student_assignment_items(db, user, first_name, department, seed, cgpa)
+    pending_assignment_count = len(
+        [item for item in assignment_items if item.get("status") in {"pending", "ongoing"}]
+    )
+    graded_assignment_count = len([item for item in assignment_items if item.get("status") == "graded"])
+    next_assignment = next(
+        (item for item in assignment_items if item.get("status") in {"pending", "ongoing"}),
+        assignment_items[0] if assignment_items else None,
+    )
 
     cert_requests = (
         db.query(StudentCertificateRequest)
@@ -915,15 +1073,6 @@ def _student_dataset(db: Session, user: User) -> dict:
         }
         for req in cert_requests
     ]
-    if not cert_history_items:
-        cert_history_items = [
-            {
-                "title": "Bonafide Certificate",
-                "kind": "Certificate",
-                "stage": "Ready",
-                "updated": "Today",
-            }
-        ]
 
     latest_certificate = next(
         (
@@ -984,29 +1133,43 @@ def _student_dataset(db: Session, user: User) -> dict:
             for item in attendance_timeline[-6:]
         ],
         "attendance_monthly": monthly_attendance,
-        "fee_summary": {
-            "outstanding": due_amount,
-            "semester": f"Sem {semester}",
-            "dueDate": "Jul 25, 2026" if due_amount else "Cleared",
-            "clearance": "Pending" if due_amount else "Cleared",
-            "trend": [fee_base - 5200, fee_base - 3000, fee_base - 1200, fee_base, fee_base, fee_base + 900],
-        },
+        "fee_summary": fee_data["summary"],
         "fee_history": fee_history,
         "module_health": [
             {"module": "Announcements", "status": f"{1 + seed % 3} unread", "detail": f"Updates for {first_name}'s semester"},
-            {"module": "Assignments", "status": f"{2 + seed % 2} pending", "detail": "Submission and grading status"},
+            {
+                "module": "Assignments",
+                "status": f"{pending_assignment_count} pending",
+                "detail": f"{graded_assignment_count} AI-reviewed or faculty-graded",
+            },
             {"module": "Complaints", "status": f"{user.id % 3} open", "detail": "Live request tracking"},
             {
                 "module": "Certificates",
                 "status": latest_certificate["status"].replace("_", " ").title() if latest_certificate else "Available",
-                "detail": "Bonafide and transcript requests",
+                "detail": "Bonafide, conduct, and auto graduation certificates",
             },
             {"module": "Fees", "status": "Pending" if due_amount else "Cleared", "detail": "Payment verification and receipts"},
             {"module": "Resources", "status": resource_status, "detail": resource_detail},
         ],
         "upcoming_deadlines": [
-            {"title": f"{first_name}'s assignment checkpoint", "module": "Assignments", "due": "Tomorrow", "risk": "high"},
-            {"title": "Semester fee clearance", "module": "Fees", "due": "Jul 25", "risk": "medium" if due_amount else "low"},
+            *(
+                [
+                    {
+                        "title": next_assignment["title"],
+                        "module": "Assignments",
+                        "due": next_assignment["due"],
+                        "risk": "high" if pending_assignment_count else "low",
+                    }
+                ]
+                if next_assignment
+                else []
+            ),
+            {
+                "title": "Semester fee clearance",
+                "module": "Fees",
+                "due": fee_data["summary"]["dueDate"] if due_amount else "Cleared",
+                "risk": "medium" if due_amount else "low",
+            },
             {"title": "Mid-Sem examination", "module": "Academics", "due": "Aug 14", "risk": "medium"},
             {"title": "Campus event registration", "module": "Events", "due": "Jul 24", "risk": "low"},
         ],
@@ -1031,18 +1194,18 @@ def _student_dataset(db: Session, user: User) -> dict:
                 ]
             ),
             *cert_history_items,
-            {"title": f"Sem {semester} Fee Receipt", "kind": "Fees", "stage": "Pending" if due_amount else "Cleared", "updated": "2 days ago"},
+            {
+                "title": f"Sem {semester} Fee Receipt",
+                "kind": "Fees",
+                "stage": "Pending" if due_amount else "Cleared",
+                "updated": fee_history[0]["date"] if fee_history else "Today",
+            },
         ],
         "announcements": [
             *_placement_notification_rows(db, user.id),
             *_student_announcement_rows(db, user),
         ],
-        "assignment_items": [
-            {"id": user.id * 10 + 1, "title": f"{first_name}'s Research Brief", "subject": "Research", "due": "tomorrow", "progress": min(98, 55 + seed * 5), "status": "ongoing"},
-            {"id": user.id * 10 + 2, "title": "Distributed Systems Lab", "subject": "Systems", "due": "in 5 days", "progress": min(90, 25 + seed * 8), "status": "ongoing"},
-            {"id": user.id * 10 + 3, "title": "Academic Writing Checkpoint", "subject": "Communication", "due": "in 9 days", "progress": seed * 6, "status": "pending"},
-            {"id": user.id * 10 + 4, "title": "Semester Portfolio Review", "subject": department.split()[0], "due": "completed", "progress": 100, "status": "graded", "grade": "A" if cgpa >= 8.8 else "B+"},
-        ],
+        "assignment_items": assignment_items,
         "resource_items": resource_rows,
         "complaint_items": complaint_rows,
         "certificate_items": certificate_items,
@@ -1336,6 +1499,7 @@ def dashboard(
 ) -> StudentDashboard:
     _require_student(current_user)
     data = _student_dataset(db, current_user)
+    db.commit()
 
     return StudentDashboard(
         user=data["user"],
@@ -1365,6 +1529,155 @@ def dashboard(
         nav_modules=STUDENT_NAV,
         student_todos=data["student_todos"],
     )
+
+
+@router.post("/resources/{resource_id}/ai-summary")
+def generate_resource_ai_summary(
+    resource_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    item = db.get(StudyResource, resource_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Study resource not found")
+
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="OpenAI key is not configured.")
+
+    try:
+        return build_study_resource_ai_summary(
+            item=item,
+            api_key=settings.openai_api_key.get_secret_value(),
+            model=settings.openai_model or "gpt-5.4-mini",
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+def _require_published_assignment(db: Session, assignment_id: int) -> Assignment:
+    assignment = db.get(Assignment, assignment_id)
+    if not assignment or assignment.status != "published":
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    return assignment
+
+
+def _upsert_submission(
+    db: Session,
+    assignment: Assignment,
+    student: User,
+    submission_type: str,
+) -> AssignmentSubmission:
+    item = (
+        db.query(AssignmentSubmission)
+        .filter(
+            AssignmentSubmission.assignment_id == assignment.id,
+            AssignmentSubmission.student_id == student.id,
+        )
+        .first()
+    )
+    if item:
+        item.submission_type = submission_type
+        item.submitted_at = datetime.now(timezone.utc)
+        item.updated_at = datetime.now(timezone.utc)
+        item.status = "ai_reviewed"
+        item.professor_score = None
+        item.professor_grade = None
+        item.professor_feedback = None
+        item.reviewed_by_id = None
+        item.reviewed_at = None
+        return item
+
+    item = AssignmentSubmission(
+        assignment_id=assignment.id,
+        student_id=student.id,
+        submission_type=submission_type,
+        status="ai_reviewed",
+    )
+    db.add(item)
+    return item
+
+
+@router.post("/assignments/{assignment_id}/digital-submit")
+def submit_digital_assignment(
+    assignment_id: int,
+    payload: AssignmentDigitalSubmissionCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    assignment = _require_published_assignment(db, assignment_id)
+    if assignment.assignment_type not in {"mcq", "qa"}:
+        raise HTTPException(status_code=422, detail="This assignment expects a file upload")
+
+    content = _json_loads(assignment.content_json, {})
+    review = review_digital_submission(
+        assignment_type=assignment.assignment_type,
+        content=content,
+        answers=payload.answers,
+        total_points=assignment.total_points,
+    )
+    item = _upsert_submission(db, assignment, current_user, assignment.assignment_type)
+    item.answers_json = json.dumps(payload.answers)
+    item.notes = payload.notes
+    item.filename = None
+    item.content_type = None
+    item.file_size = None
+    item.file_data = None
+    item.ai_grade = review["grade"]
+    item.ai_score = float(review["score"])
+    item.ai_feedback = review["feedback"]
+    item.ai_review_json = json.dumps(review)
+    db.commit()
+    db.refresh(item)
+    return {"ok": True, "submissionId": item.id, "review": review}
+
+
+@router.post("/assignments/{assignment_id}/file-submit")
+def submit_file_assignment(
+    assignment_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    file: Annotated[UploadFile, File(...)],
+    notes: Annotated[str, Form()] = "",
+) -> dict:
+    _require_student(current_user)
+    assignment = _require_published_assignment(db, assignment_id)
+    if assignment.assignment_type != "file":
+        raise HTTPException(status_code=422, detail="This assignment must be completed in the portal")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Please choose a PDF or Word document")
+
+    filename = Path(file.filename).name
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if extension not in {"pdf", "doc", "docx"}:
+        raise HTTPException(status_code=422, detail="File submission assignments accept PDF, DOC, or DOCX only")
+
+    file_bytes = file.file.read()
+    if len(file_bytes) > 15_000_000:
+        raise HTTPException(status_code=413, detail="Assignment file must be 15 MB or smaller")
+
+    review = review_file_submission(
+        filename=filename,
+        notes=notes,
+        file_size=len(file_bytes),
+        total_points=assignment.total_points,
+    )
+    item = _upsert_submission(db, assignment, current_user, "file")
+    item.answers_json = None
+    item.notes = notes.strip() or None
+    item.filename = filename[:255]
+    item.content_type = (file.content_type or "application/octet-stream")[:120]
+    item.file_size = len(file_bytes)
+    item.file_data = file_bytes
+    item.ai_grade = review["grade"]
+    item.ai_score = float(review["score"])
+    item.ai_feedback = review["feedback"]
+    item.ai_review_json = json.dumps(review)
+    db.commit()
+    db.refresh(item)
+    return {"ok": True, "submissionId": item.id, "review": review}
 
 
 @router.post("/assistant/chat", response_model=StudentAssistantResponse)
@@ -1481,19 +1794,6 @@ def _validate_certificate_eligibility(db: Session, user: User, certificate_key: 
         setting.semester_duration_unit,
         setting.semester_duration_days,
     )
-    fee_base = 78000 + (semester * 1200)
-    due_amount = fee_base if semester % 2 == 0 else 0
-
-    if certificate_key == "fee-clearance" and due_amount > 0:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Fee Clearance Letter requires zero outstanding dues. Your current balance is INR {due_amount:,}. Please pay under Fee Payment.",
-        )
-    if certificate_key == "transcript" and (profile.completed_credits or 0) < 18:
-        raise HTTPException(
-            status_code=422,
-            detail="Academic Transcript requires at least 18 completed academic credits.",
-        )
     if certificate_key == "conduct":
         if profile.cgpa < 8.0 or attendance < 75.0:
             raise HTTPException(
@@ -1509,6 +1809,8 @@ def _validate_certificate_eligibility(db: Session, user: User, certificate_key: 
 
 def _generate_certificate_html(db: Session, user: User, key: str, definition: dict, moment: datetime) -> str:
     import hashlib
+    from html import escape
+
     profile = _ensure_student_profile(db, user)
     setting = get_campus_attendance_setting(db)
     attendance_records = _attendance_records(db, user.id)
@@ -1523,11 +1825,24 @@ def _generate_certificate_html(db: Session, user: User, key: str, definition: di
     standing = _academic_standing(profile.cgpa, attendance)
     issue_date = moment.astimezone(LOCAL_TIMEZONE).strftime("%d %B %Y, %I:%M %p")
     verify_hash = hashlib.sha256(f"{user.id}-{key}-{moment.timestamp()}".encode()).hexdigest()[:16].upper()
+    request_row = _find_certificate_request(db, user.id, key)
+    purpose = escape((request_row.purpose if request_row else None) or "Official academic verification")
+    signatory_name = escape((request_row.signatory_name if request_row else None) or "Dr. A. R. Sharma")
+    signatory_title = escape((request_row.signatory_title if request_row else None) or "Registrar & Academic Council")
+    default_body_html = (
+        f"This is to certify that <strong>{escape(user.full_name)}</strong> (Roll Code: "
+        f"<strong>{escape(profile.student_code)}</strong>), enrolled in the "
+        f"<strong>{escape(profile.department)}</strong> program, has satisfied all academic standards, "
+        "character evaluations, and degree criteria established under university regulations."
+    )
+    issued_body_html = (
+        escape(request_row.certificate_body).replace("\n", "<br>")
+        if request_row and request_row.certificate_body
+        else default_body_html
+    )
 
     title_map = {
         "bonafide": "OFFICIAL BONAFIDE CERTIFICATE",
-        "transcript": "OFFICIAL ACADEMIC TRANSCRIPT",
-        "fee-clearance": "OFFICIAL FEE CLEARANCE LETTER",
         "graduation": "BACHELOR DEGREE OF GRADUATION",
         "conduct": "DEAN'S MERIT & CONDUCT CERTIFICATE",
     }
@@ -1745,15 +2060,14 @@ def _generate_certificate_html(db: Session, user: User, key: str, definition: di
         <div class="cert-title">{cert_title}</div>
 
         <div class="body-text">
-            This is to certify that <strong>{user.full_name}</strong> (Roll Code: <strong>{profile.student_code}</strong>), 
-            enrolled in the <strong>{profile.department}</strong> program, has satisfied all academic standards, 
-            character evaluations, and degree criteria established under university regulations.
+            {issued_body_html}
         </div>
 
         <div class="details-grid">
             <div class="details-item"><span>Student Name:</span> {user.full_name}</div>
             <div class="details-item"><span>Roll Code:</span> {profile.student_code}</div>
             <div class="details-item"><span>Department:</span> {profile.department}</div>
+            <div class="details-item"><span>Purpose:</span> {purpose}</div>
             <div class="details-item"><span>Semester Standing:</span> Semester {semester}</div>
             <div class="details-item"><span>Cumulative CGPA:</span> {profile.cgpa:.2f} / 10.0</div>
             <div class="details-item"><span>Attendance Rate:</span> {attendance:.1f}% (Verified)</div>
@@ -1777,9 +2091,9 @@ def _generate_certificate_html(db: Session, user: User, key: str, definition: di
             </div>
 
             <div class="signature-block">
-                <div class="signature-img">Dr. A. R. Sharma</div>
+                <div class="signature-img">{signatory_name}</div>
                 <div class="signature-line"></div>
-                <div class="signature-title">Registrar & Academic Council</div>
+                <div class="signature-title">{signatory_title}</div>
             </div>
 
             <div class="signature-block">
@@ -1798,6 +2112,7 @@ def _generate_certificate_html(db: Session, user: User, key: str, definition: di
 def _generate_certificate_pdf(db: Session, user: User, key: str, definition: dict, moment: datetime) -> bytes:
     import hashlib
     import importlib
+    from html import escape
     from io import BytesIO
 
     pagesizes = importlib.import_module("reportlab.lib.pagesizes")
@@ -1837,21 +2152,26 @@ def _generate_certificate_pdf(db: Session, user: User, key: str, definition: dic
     )
     issue_date = moment.astimezone(LOCAL_TIMEZONE).strftime("%d %B %Y")
     verify_hash = hashlib.sha256(f"{user.id}-{key}-{moment.timestamp()}".encode()).hexdigest()[:16].upper()
+    request_row = _find_certificate_request(db, user.id, key)
+    purpose = (request_row.purpose if request_row else None) or "Official academic verification"
+    signatory_name = escape((request_row.signatory_name if request_row else None) or "Dr. A. R. Sharma")
+    signatory_title = escape((request_row.signatory_title if request_row else None) or "Registrar & Academic Senate")
+    custom_body = (
+        escape(request_row.certificate_body).replace("\n", "<br/>")
+        if request_row and request_row.certificate_body
+        else None
+    )
 
     # Color Palette per Template
     theme_colors = {
         "graduation": {"bg": "#FFFDF5", "border": "#0F172A", "gold": "#B8860B", "text": "#0F172A", "sub": "#475569"},
-        "transcript": {"bg": "#F8FAFC", "border": "#1E293B", "gold": "#0EA5E9", "text": "#0F172A", "sub": "#0284C7"},
         "bonafide": {"bg": "#FAFAF5", "border": "#065F46", "gold": "#D4AF37", "text": "#064E3B", "sub": "#047857"},
-        "fee-clearance": {"bg": "#F0FDF4", "border": "#1E3A8A", "gold": "#059669", "text": "#1E3A8A", "sub": "#0D9488"},
         "conduct": {"bg": "#FFFBEB", "border": "#991B1B", "gold": "#D97706", "text": "#7F1D1D", "sub": "#B45309"},
     }
     tc = theme_colors.get(key, theme_colors["graduation"])
 
     title_map = {
         "bonafide": "OFFICIAL BONAFIDE ENROLLMENT CERTIFICATE",
-        "transcript": "OFFICIAL ACADEMIC TRANSCRIPT & LEDGER",
-        "fee-clearance": "CERTIFICATE OF ZERO OUTSTANDING DUES & FEE CLEARANCE",
         "graduation": "BACHELOR DEGREE OF GRADUATION",
         "conduct": "DEAN'S MERIT & MORAL CONDUCT COMMENDATION",
     }
@@ -1886,16 +2206,6 @@ def _generate_certificate_pdf(db: Session, user: User, key: str, definition: dic
             canvas.setFillColor(colors.HexColor('#B8860B'))
             for cx, cy in [(26, 26), (d.pagesize[0] - 26, 26), (26, d.pagesize[1] - 26), (d.pagesize[0] - 26, d.pagesize[1] - 26)]:
                 canvas.circle(cx, cy, 4.5, fill=1, stroke=0)
-        elif key == "transcript":
-            # Top Slate Banner & Cyan Stripe
-            canvas.setFillColor(colors.HexColor('#1E293B'))
-            canvas.rect(0, d.pagesize[1] - 28, d.pagesize[0], 28, fill=1, stroke=0)
-            canvas.setFillColor(colors.HexColor('#0EA5E9'))
-            canvas.rect(0, d.pagesize[1] - 32, d.pagesize[0], 4, fill=1, stroke=0)
-            # Outer Slate Border
-            canvas.setStrokeColor(colors.HexColor('#64748B'))
-            canvas.setLineWidth(1.5)
-            canvas.rect(20, 20, d.pagesize[0] - 40, d.pagesize[1] - 58)
         elif key == "bonafide":
             # Forest Emerald Frame with Gold Rivets
             canvas.setStrokeColor(colors.HexColor('#065F46'))
@@ -1904,13 +2214,6 @@ def _generate_certificate_pdf(db: Session, user: User, key: str, definition: dic
             canvas.setStrokeColor(colors.HexColor('#D4AF37'))
             canvas.setLineWidth(1)
             canvas.rect(25, 25, d.pagesize[0] - 50, d.pagesize[1] - 50)
-        elif key == "fee-clearance":
-            # Royal Sapphire Border + Top Green Stripe
-            canvas.setStrokeColor(colors.HexColor('#1E3A8A'))
-            canvas.setLineWidth(3.5)
-            canvas.rect(20, 20, d.pagesize[0] - 40, d.pagesize[1] - 40)
-            canvas.setFillColor(colors.HexColor('#059669'))
-            canvas.rect(20, d.pagesize[1] - 26, d.pagesize[0] - 40, 6, fill=1, stroke=0)
         else:  # conduct
             # Crimson Frame with Amber Corner Stars
             canvas.setStrokeColor(colors.HexColor('#991B1B'))
@@ -1922,7 +2225,7 @@ def _generate_certificate_pdf(db: Session, user: User, key: str, definition: dic
 
         # Watermark (NO CampusVerse University — Proper Institutional Name)
         canvas.setFont('Helvetica-Bold', 44)
-        canvas.setFillColor(colors.HexColor('#E2E8F0') if key == 'transcript' else colors.HexColor('#F3EED9'))
+        canvas.setFillColor(colors.HexColor('#F3EED9'))
         canvas.rotate(18)
         canvas.drawString(160, 90, "NATIONAL INSTITUTE OF TECHNOLOGY")
         canvas.restoreState()
@@ -1991,24 +2294,14 @@ def _generate_certificate_pdf(db: Session, user: User, key: str, definition: dic
     story.append(Paragraph(cert_title, title_style))
     story.append(Spacer(1, 8))
 
-    if key == "graduation":
+    if custom_body:
+        cert_text = custom_body
+    elif key == "graduation":
         cert_text = (
             f"On the recommendation of the Academic Senate &amp; Board of Governors, National Institute of Technology hereby confers upon<br/>"
             f"<font size=15 color='#0F172A'><b>{user.full_name}</b></font> (Roll Code: <b>{profile.student_code}</b>)<br/>"
             f"the Degree of <b>Bachelor of Technology in {profile.department}</b><br/>"
             f"with <b>{standing}</b>, having fulfilled all prescribed coursework, thesis defense, and institute statutes."
-        )
-    elif key == "transcript":
-        cert_text = (
-            f"This is the official certified academic transcript for <b>{user.full_name}</b> (Roll Code: <b>{profile.student_code}</b>), "
-            f"enrolled in the <b>{profile.department}</b> department. The student has completed <b>{profile.completed_credits or 48} of {profile.total_credits or 180} Credits</b> "
-            f"with a Cumulative CGPA of <b>{profile.cgpa:.2f} / 10.0</b> and verified attendance rate of <b>{attendance:.1f}%</b>."
-        )
-    elif key == "fee-clearance":
-        cert_text = (
-            f"This is to certify that <b>{user.full_name}</b> (Roll Code: <b>{profile.student_code}</b>), "
-            f"enrolled in <b>{profile.department}</b>, has settled all tuition fees, laboratory charges, and library dues "
-            f"for Semester {semester} with <b>Zero Dues Pending</b>."
         )
     elif key == "conduct":
         cert_text = (
@@ -2030,7 +2323,8 @@ def _generate_certificate_pdf(db: Session, user: User, key: str, definition: dic
         [Paragraph(f"<b>Student Name:</b> {user.full_name}", styles['Normal']), Paragraph(f"<b>Roll Code:</b> {profile.student_code}", styles['Normal'])],
         [Paragraph(f"<b>Department:</b> {profile.department}", styles['Normal']), Paragraph(f"<b>Semester Standing:</b> Semester {semester}", styles['Normal'])],
         [Paragraph(f"<b>Cumulative CGPA:</b> {profile.cgpa:.2f} / 10.0", styles['Normal']), Paragraph(f"<b>Verified Attendance:</b> {attendance:.1f}%", styles['Normal'])],
-        [Paragraph(f"<b>Academic Honors:</b> {standing}", styles['Normal']), Paragraph(f"<b>Date of Issuance:</b> {issue_date}", styles['Normal'])],
+        [Paragraph(f"<b>Academic Honors:</b> {standing}", styles['Normal']), Paragraph(f"<b>Purpose:</b> {escape(purpose)}", styles['Normal'])],
+        [Paragraph(f"<b>Date of Issuance:</b> {issue_date}", styles['Normal']), Paragraph("<b>Registry Status:</b> Verified and digitally issued", styles['Normal'])],
     ]
 
     t = Table(table_data, colWidths=[3.8*inch, 3.8*inch])
@@ -2046,7 +2340,7 @@ def _generate_certificate_pdf(db: Session, user: User, key: str, definition: dic
     sig_data = [
         [
             Paragraph(f"<font size=9.5 color='{tc['gold']}'><b>★ OFFICIAL REGISTRY SEAL ★</b></font><br/><font size=7.5 color='#64748B'>CRYPTOGRAPHICALLY SIGNED</font>", meta_style),
-            Paragraph("<b>Dr. A. R. Sharma</b><br/><font color='#64748B'>Registrar &amp; Academic Senate</font>", meta_style),
+            Paragraph(f"<b>{signatory_name}</b><br/><font color='#64748B'>{signatory_title}</font>", meta_style),
             Paragraph("<b>Prof. V. K. Mehta</b><br/><font color='#64748B'>Controller of Examinations</font>", meta_style),
         ]
     ]
@@ -2082,6 +2376,7 @@ def download_resume_pdf(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     import importlib
+    from html import escape
     from io import BytesIO
 
     pagesizes = importlib.import_module("reportlab.lib.pagesizes")
@@ -2103,8 +2398,36 @@ def download_resume_pdf(
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     styles = getSampleStyleSheet()
 
-    tmpl = payload.template or "modern-tech"
+    allowed_templates = {"modern-tech", "classic-academic", "creative-minimal", "executive-ats"}
+    tmpl = payload.template if payload.template in allowed_templates else "modern-tech"
     story = []
+
+    def pdf_text(value: object) -> str:
+        return escape(str(value or ""), quote=False).replace("\n", "<br/>")
+
+    def safe_filename_part(value: str) -> str:
+        cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value.strip())
+        return cleaned.strip("_") or "Student"
+
+    name = pdf_text(payload.name)
+    name_upper = pdf_text(payload.name.upper())
+    email = pdf_text(payload.email)
+    phone = pdf_text(payload.phone)
+    location = pdf_text(payload.location)
+    cgpa = pdf_text(payload.cgpa)
+    department = pdf_text(payload.department)
+    summary = pdf_text(payload.summary)
+    skills_text = pdf_text(payload.skillsText)
+    skill_items = [pdf_text(skill.strip()) for skill in payload.skillsText.split(",") if skill.strip()]
+    achievement_items = [pdf_text(item.strip()) for item in payload.achievements.split("\n") if item.strip()]
+    project_items = [
+        {
+            "title": pdf_text(project.get("title", "")),
+            "tech": pdf_text(project.get("tech", "")),
+            "description": pdf_text(project.get("description", "")),
+        }
+        for project in payload.projects
+    ]
 
     def draw_sidebar_bg(canvas, document):
         if tmpl == "creative-minimal":
@@ -2131,35 +2454,35 @@ def download_resume_pdf(
         m_body = ParagraphStyle('MBody', parent=styles['Normal'], fontName='Helvetica', fontSize=9, leading=13.5, textColor=colors.HexColor('#374151'), spaceAfter=8)
 
         left_flow = []
-        left_flow.append(Paragraph(payload.name, sb_name))
-        left_flow.append(Paragraph(f"{payload.department}<br/>CGPA: <b>{payload.cgpa}</b>", sb_sub))
+        left_flow.append(Paragraph(name, sb_name))
+        left_flow.append(Paragraph(f"{department}<br/>CGPA: <b>{cgpa}</b>", sb_sub))
         
         left_flow.append(Paragraph("CONTACT INFORMATION", sb_sec))
         left_flow.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#A7F3D0'), spaceBefore=1, spaceAfter=6))
-        left_flow.append(Paragraph(f"<b>Email:</b><br/>{payload.email}", sb_text))
-        left_flow.append(Paragraph(f"<b>Phone:</b><br/>{payload.phone}", sb_text))
-        left_flow.append(Paragraph(f"<b>Location:</b><br/>{payload.location}", sb_text))
+        left_flow.append(Paragraph(f"<b>Email:</b><br/>{email}", sb_text))
+        left_flow.append(Paragraph(f"<b>Phone:</b><br/>{phone}", sb_text))
+        left_flow.append(Paragraph(f"<b>Location:</b><br/>{location}", sb_text))
 
-        if payload.skillsText:
+        if skills_text:
             left_flow.append(Spacer(1, 8))
             left_flow.append(Paragraph("SKILLS &amp; TECHNOLOGIES", sb_sec))
             left_flow.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#A7F3D0'), spaceBefore=1, spaceAfter=6))
-            skills_formatted = "<br/>".join([f"• {s.strip()}" for s in payload.skillsText.split(',') if s.strip()])
+            skills_formatted = "<br/>".join([f"• {skill}" for skill in skill_items])
             left_flow.append(Paragraph(skills_formatted, sb_text))
 
         right_flow = []
-        if payload.summary:
+        if summary:
             right_flow.append(Paragraph("PROFESSIONAL SUMMARY", m_sec))
             right_flow.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#059669'), spaceBefore=2, spaceAfter=8))
-            right_flow.append(Paragraph(payload.summary, m_body))
+            right_flow.append(Paragraph(summary, m_body))
 
-        if payload.projects:
+        if project_items:
             right_flow.append(Paragraph("KEY PROJECTS &amp; RESEARCH", m_sec))
             right_flow.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#059669'), spaceBefore=2, spaceAfter=8))
-            for p in payload.projects:
-                title = p.get("title", "")
-                tech = p.get("tech", "")
-                desc = p.get("description", "")
+            for p in project_items:
+                title = p["title"]
+                tech = p["tech"]
+                desc = p["description"]
                 if title:
                     right_flow.append(Paragraph(title, m_title))
                     if tech:
@@ -2167,10 +2490,10 @@ def download_resume_pdf(
                     if desc:
                         right_flow.append(Paragraph(desc, m_body))
 
-        if payload.achievements:
+        if achievement_items:
             right_flow.append(Paragraph("HONORS &amp; CERTIFICATIONS", m_sec))
             right_flow.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#059669'), spaceBefore=2, spaceAfter=8))
-            ach_formatted = "<br/>".join([f"• {a.strip()}" for a in payload.achievements.split('\n') if a.strip()])
+            ach_formatted = "<br/>".join([f"• {achievement}" for achievement in achievement_items])
             right_flow.append(Paragraph(ach_formatted, m_body))
 
         layout_table = Table([[left_flow, right_flow]], colWidths=[2.2*inch, 4.9*inch])
@@ -2191,37 +2514,37 @@ def download_resume_pdf(
         ac_p_title = ParagraphStyle('AcPTitle', parent=styles['Normal'], fontName='Times-Bold', fontSize=10.5, leading=14, textColor=colors.HexColor('#0F172A'), spaceAfter=2)
         ac_body = ParagraphStyle('AcBody', parent=styles['Normal'], fontName='Times-Roman', fontSize=10, leading=14.5, textColor=colors.HexColor('#1E293B'), spaceAfter=6)
 
-        story.append(Paragraph(payload.name.upper(), ac_name))
-        story.append(Paragraph(f"{payload.department} &nbsp;&bull;&nbsp; Cumulative CGPA: <b>{payload.cgpa} / 10.0</b>", ac_sub))
-        story.append(Paragraph(f"Email: {payload.email} &nbsp;|&nbsp; Phone: {payload.phone} &nbsp;|&nbsp; Location: {payload.location}", ac_contact))
+        story.append(Paragraph(name_upper, ac_name))
+        story.append(Paragraph(f"{department} &nbsp;&bull;&nbsp; Cumulative CGPA: <b>{cgpa} / 10.0</b>", ac_sub))
+        story.append(Paragraph(f"Email: {email} &nbsp;|&nbsp; Phone: {phone} &nbsp;|&nbsp; Location: {location}", ac_contact))
         story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#0F172A'), spaceBefore=4, spaceAfter=10))
 
-        if payload.summary:
+        if summary:
             story.append(Paragraph("ACADEMIC PROFILE &amp; STATEMENT", ac_sec))
             story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#64748B'), spaceBefore=1, spaceAfter=6))
-            story.append(Paragraph(payload.summary, ac_body))
+            story.append(Paragraph(summary, ac_body))
 
-        if payload.skillsText:
+        if skills_text:
             story.append(Paragraph("AREAS OF EXPERTISE &amp; TECHNICAL PROFICIENCY", ac_sec))
             story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#64748B'), spaceBefore=1, spaceAfter=6))
-            story.append(Paragraph(payload.skillsText, ac_body))
+            story.append(Paragraph(skills_text, ac_body))
 
-        if payload.projects:
+        if project_items:
             story.append(Paragraph("RESEARCH &amp; DEVELOPMENT PROJECTS", ac_sec))
             story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#64748B'), spaceBefore=1, spaceAfter=6))
-            for p in payload.projects:
-                title = p.get("title", "")
-                tech = p.get("tech", "")
-                desc = p.get("description", "")
+            for p in project_items:
+                title = p["title"]
+                tech = p["tech"]
+                desc = p["description"]
                 if title:
                     story.append(Paragraph(f"• <b>{title}</b> &nbsp;&mdash;&nbsp; <i>({tech})</i>", ac_p_title))
                     if desc:
                         story.append(Paragraph(desc, ac_body))
 
-        if payload.achievements:
+        if achievement_items:
             story.append(Paragraph("HONORS, SCHOLARSHIPS &amp; ACADEMIC AWARDS", ac_sec))
             story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#64748B'), spaceBefore=1, spaceAfter=6))
-            ach_formatted = "<br/>".join([f"• {a.strip()}" for a in payload.achievements.split('\n') if a.strip()])
+            ach_formatted = "<br/>".join([f"• {achievement}" for achievement in achievement_items])
             story.append(Paragraph(ach_formatted, ac_body))
 
         story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#0F172A'), spaceBefore=16, spaceAfter=4))
@@ -2238,36 +2561,36 @@ def download_resume_pdf(
         ats_body = ParagraphStyle('AtsBody', parent=styles['Normal'], fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.HexColor('#1E293B'), spaceAfter=6)
 
         story.append(HRFlowable(width="100%", thickness=4, color=colors.HexColor('#0F172A'), spaceBefore=0, spaceAfter=10))
-        story.append(Paragraph(payload.name.upper(), ats_name))
-        story.append(Paragraph(f"{payload.department} &nbsp;|&nbsp; CGPA: <b>{payload.cgpa}</b>", ats_sub))
-        story.append(Paragraph(f"Email: {payload.email} &nbsp;&bull;&nbsp; Phone: {payload.phone} &nbsp;&bull;&nbsp; Location: {payload.location}", ats_contact))
+        story.append(Paragraph(name_upper, ats_name))
+        story.append(Paragraph(f"{department} &nbsp;|&nbsp; CGPA: <b>{cgpa}</b>", ats_sub))
+        story.append(Paragraph(f"Email: {email} &nbsp;&bull;&nbsp; Phone: {phone} &nbsp;&bull;&nbsp; Location: {location}", ats_contact))
 
-        if payload.summary:
+        if summary:
             story.append(Paragraph("PROFESSIONAL SUMMARY", ats_sec))
             story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#94A3B8'), spaceBefore=1, spaceAfter=6))
-            story.append(Paragraph(payload.summary, ats_body))
+            story.append(Paragraph(summary, ats_body))
 
-        if payload.skillsText:
+        if skills_text:
             story.append(Paragraph("CORE COMPETENCIES &amp; SKILLS", ats_sec))
             story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#94A3B8'), spaceBefore=1, spaceAfter=6))
-            story.append(Paragraph(payload.skillsText, ats_body))
+            story.append(Paragraph(skills_text, ats_body))
 
-        if payload.projects:
+        if project_items:
             story.append(Paragraph("KEY PROJECTS &amp; IMPLEMENTATIONS", ats_sec))
             story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#94A3B8'), spaceBefore=1, spaceAfter=6))
-            for p in payload.projects:
-                title = p.get("title", "")
-                tech = p.get("tech", "")
-                desc = p.get("description", "")
+            for p in project_items:
+                title = p["title"]
+                tech = p["tech"]
+                desc = p["description"]
                 if title:
                     story.append(Paragraph(f"<b>{title}</b> &nbsp;&bull;&nbsp; <i>{tech}</i>", ats_p_title))
                     if desc:
                         story.append(Paragraph(desc, ats_body))
 
-        if payload.achievements:
+        if achievement_items:
             story.append(Paragraph("HONORS &amp; CERTIFICATIONS", ats_sec))
             story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#94A3B8'), spaceBefore=1, spaceAfter=6))
-            ach_formatted = "<br/>".join([f"• {a.strip()}" for a in payload.achievements.split('\n') if a.strip()])
+            ach_formatted = "<br/>".join([f"• {achievement}" for achievement in achievement_items])
             story.append(Paragraph(ach_formatted, ats_body))
 
     else:
@@ -2283,9 +2606,9 @@ def download_resume_pdf(
         mt_body = ParagraphStyle('MtBody', parent=styles['Normal'], fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.HexColor('#1F2937'), spaceAfter=6)
 
         header_cells = [
-            Paragraph(payload.name, mt_name),
-            Paragraph(f"{payload.department} &nbsp;|&nbsp; CGPA: <b>{payload.cgpa}</b>", mt_sub),
-            Paragraph(f"📧 {payload.email} &nbsp;&bull;&nbsp; 📞 {payload.phone} &nbsp;&bull;&nbsp; 📍 {payload.location}", mt_contact)
+            Paragraph(name, mt_name),
+            Paragraph(f"{department} &nbsp;|&nbsp; CGPA: <b>{cgpa}</b>", mt_sub),
+            Paragraph(f"📧 {email} &nbsp;&bull;&nbsp; 📞 {phone} &nbsp;&bull;&nbsp; 📍 {location}", mt_contact)
         ]
         
         header_table = Table([[header_cells]], colWidths=[7.1*inch])
@@ -2297,38 +2620,38 @@ def download_resume_pdf(
         story.append(header_table)
         story.append(Spacer(1, 10))
 
-        if payload.summary:
+        if summary:
             story.append(Paragraph("PROFESSIONAL SUMMARY", mt_sec))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#6366F1'), spaceBefore=2, spaceAfter=6))
-            story.append(Paragraph(payload.summary, mt_body))
+            story.append(Paragraph(summary, mt_body))
 
-        if payload.skillsText:
+        if skills_text:
             story.append(Paragraph("TECHNICAL SKILLS &amp; TOOLS", mt_sec))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#6366F1'), spaceBefore=2, spaceAfter=6))
-            story.append(Paragraph(payload.skillsText, mt_body))
+            story.append(Paragraph(skills_text, mt_body))
 
-        if payload.projects:
+        if project_items:
             story.append(Paragraph("FEATURED PROJECTS", mt_sec))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#6366F1'), spaceBefore=2, spaceAfter=6))
-            for p in payload.projects:
-                title = p.get("title", "")
-                tech = p.get("tech", "")
-                desc = p.get("description", "")
+            for p in project_items:
+                title = p["title"]
+                tech = p["tech"]
+                desc = p["description"]
                 if title:
                     story.append(Paragraph(f"<b>{title}</b> &nbsp;&nbsp;<font color='#4338CA'>({tech})</font>", mt_p_title))
                     if desc:
                         story.append(Paragraph(desc, mt_body))
 
-        if payload.achievements:
+        if achievement_items:
             story.append(Paragraph("HONORS &amp; CERTIFICATIONS", mt_sec))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#6366F1'), spaceBefore=2, spaceAfter=6))
-            ach_formatted = "<br/>".join([f"• {a.strip()}" for a in payload.achievements.split('\n') if a.strip()])
+            ach_formatted = "<br/>".join([f"• {achievement}" for achievement in achievement_items])
             story.append(Paragraph(ach_formatted, mt_body))
 
     doc.build(story, onFirstPage=draw_sidebar_bg)
     buffer.seek(0)
     pdf_bytes = buffer.getvalue()
-    safe_name = payload.name.replace(' ', '_')
+    safe_name = safe_filename_part(payload.name)
     filename = f"{safe_name}_{tmpl}_Resume.pdf"
     return Response(
         content=pdf_bytes,
@@ -2336,6 +2659,7 @@ def download_resume_pdf(
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
             "Content-Length": str(len(pdf_bytes)),
+            "Access-Control-Expose-Headers": "Content-Disposition, Content-Length",
         },
     )
 
@@ -2376,7 +2700,7 @@ def verify_certificate_public(
             "student_name": student_name,
             "student_code": "CV-2026-1001",
             "department": "Computer Science & Artificial Intelligence",
-            "certificate_name": "Official Academic Certificate",
+            "certificate_name": "Verified Campus Certificate",
             "issue_date": "24 July 2026",
             "academic_standing": "Dean's List / Good Standing",
         }
@@ -2408,31 +2732,44 @@ def request_certificate(
 
     _validate_certificate_eligibility(db, current_user, certificate_key)
 
-    request_row = (
-        db.query(StudentCertificateRequest)
-        .filter(
-            StudentCertificateRequest.student_id == current_user.id,
-            StudentCertificateRequest.certificate_key == certificate_key,
-        )
-        .first()
-    )
+    request_row = _find_certificate_request(db, current_user.id, certificate_key)
     moment = datetime.now(timezone.utc)
+    if certificate_key == "graduation":
+        profile = _ensure_student_profile(db, current_user)
+        setting = get_campus_attendance_setting(db)
+        semester = resolve_student_semester(
+            profile,
+            current_user,
+            setting.semester_duration_months,
+            setting.semester_duration_unit,
+            setting.semester_duration_days,
+        )
+        _ensure_graduation_certificate_request(db, current_user, profile, semester)
+        return {"ok": True, "message": f"{definition['name']} is auto-issued and ready for download"}
+
+    if certificate_key == "conduct" and request_row and request_row.status == "rejected":
+        raise HTTPException(
+            status_code=409,
+            detail="Dean's Merit & Conduct Certificate was rejected. Admin approval is required to make it available again.",
+        )
+
     if request_row is None:
         request_row = StudentCertificateRequest(
             student_id=current_user.id,
             certificate_key=certificate_key,
             certificate_name=definition["name"],
-            status="ready",
+            status="requested",
             requested_at=moment,
-            ready_at=moment,
         )
         db.add(request_row)
-        message = f"{definition['name']} verified and ready for download"
+        message = f"{definition['name']} request sent to admin for approval"
+    elif request_row.status in {"ready", "downloaded"}:
+        message = f"{definition['name']} is already ready for download"
     else:
-        request_row.status = "ready"
-        request_row.ready_at = moment
+        request_row.status = "requested"
+        request_row.ready_at = None
         request_row.updated_at = moment
-        message = f"{definition['name']} verified and ready for download"
+        message = f"{definition['name']} request sent to admin for approval"
 
     db.commit()
     return {"ok": True, "message": message}
@@ -2453,33 +2790,32 @@ def open_certificate_file(
     _validate_certificate_eligibility(db, current_user, certificate_key)
 
     moment = datetime.now(timezone.utc)
-    request_row = (
-        db.query(StudentCertificateRequest)
-        .filter(
-            StudentCertificateRequest.student_id == current_user.id,
-            StudentCertificateRequest.certificate_key == certificate_key,
+    profile = _ensure_student_profile(db, current_user)
+    if certificate_key == "graduation":
+        setting = get_campus_attendance_setting(db)
+        semester = resolve_student_semester(
+            profile,
+            current_user,
+            setting.semester_duration_months,
+            setting.semester_duration_unit,
+            setting.semester_duration_days,
         )
-        .first()
-    )
-    if request_row is None:
-        request_row = StudentCertificateRequest(
-            student_id=current_user.id,
-            certificate_key=certificate_key,
-            certificate_name=definition["name"],
-            status="downloaded",
-            requested_at=moment,
-            ready_at=moment,
-            downloaded_at=moment,
-        )
-        db.add(request_row)
+        request_row = _ensure_graduation_certificate_request(db, current_user, profile, semester)
     else:
-        request_row.status = "downloaded"
-        request_row.ready_at = moment
-        request_row.downloaded_at = moment
-        request_row.updated_at = moment
+        request_row = _find_certificate_request(db, current_user.id, certificate_key)
+
+    if request_row is None or request_row.status not in {"ready", "downloaded"}:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{definition['name']} is waiting for admin approval before download.",
+        )
+
+    request_row.status = "downloaded"
+    request_row.ready_at = request_row.ready_at or moment
+    request_row.downloaded_at = moment
+    request_row.updated_at = moment
     db.commit()
 
-    profile = _ensure_student_profile(db, current_user)
     if download:
         pdf_bytes = _generate_certificate_pdf(db, current_user, certificate_key, definition, moment)
         pdf_filename = f"{definition['name'].replace(' ', '-')}-{profile.student_code}.pdf"
@@ -2546,6 +2882,12 @@ class MarketplaceItemCreate(BaseModel):
     tag: str = "Verified"
     image_url: str | None = None
     description: str
+
+
+class RazorpayPaymentVerify(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
 
 
 @router.post("/marketplace/items")
@@ -2634,6 +2976,33 @@ def inquire_marketplace_item(
         "ok": True,
         "message": f"Inquiry sent for {item_name}! Check Campus Connect Chat to coordinate pickup with the seller.",
     }
+
+
+@router.post("/fees/orders/{invoice_id}")
+def create_fee_payment_order(
+    invoice_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    _student_dataset(db, current_user)
+    return create_razorpay_order(db, current_user, invoice_id)
+
+
+@router.post("/fees/payments/verify")
+def verify_fee_payment(
+    payload: RazorpayPaymentVerify,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    return verify_razorpay_payment(
+        db,
+        current_user,
+        payload.razorpay_order_id.strip(),
+        payload.razorpay_payment_id.strip(),
+        payload.razorpay_signature.strip(),
+    )
 
 
 @router.get("/fees/invoices/{invoice_id}")

@@ -19,10 +19,7 @@ function inferDownloadName(disposition: string | null, fallback: string) {
   return fallback;
 }
 
-export async function openProtectedResource(
-  url: string,
-  options: { download?: boolean; openAndDownload?: boolean; fallbackName?: string } = {},
-) {
+export async function fetchProtectedResourceBlob(url: string, fallbackName = "download") {
   const token = getAuthToken();
   if (!token) {
     clearAuthSession();
@@ -51,11 +48,19 @@ export async function openProtectedResource(
   }
 
   const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const name = inferDownloadName(
-    response.headers.get("Content-Disposition"),
-    options.fallbackName ?? "download",
-  );
+  return {
+    blob,
+    objectUrl: URL.createObjectURL(blob),
+    name: inferDownloadName(response.headers.get("Content-Disposition"), fallbackName),
+    contentType: response.headers.get("Content-Type") ?? blob.type,
+  };
+}
+
+export async function openProtectedResource(
+  url: string,
+  options: { download?: boolean; openAndDownload?: boolean; fallbackName?: string } = {},
+) {
+  const { objectUrl, name } = await fetchProtectedResourceBlob(url, options.fallbackName ?? "download");
 
   const shouldDownload = options.download || options.openAndDownload;
   const shouldOpenTab = !options.download || options.openAndDownload;
@@ -139,8 +144,11 @@ export type StudentDashboard = {
     dueDate: string;
     clearance: string;
     trend: number[];
+    currentInvoiceId?: string | null;
+    pendingInvoices?: number;
+    razorpayEnabled?: boolean;
   };
-  fee_history: { id: string; semester: string; amount: number; status: string; date: string }[];
+  fee_history: FeeInvoice[];
   module_health: { module: string; status: string; detail: string }[];
   upcoming_deadlines: { title: string; module: string; due: string; risk: string }[];
   request_timeline: { title: string; kind: string; stage: string; updated: string }[];
@@ -161,6 +169,26 @@ export type StudentDashboard = {
     progress: number;
     status: string;
     grade?: string;
+    assignmentType?: AssignmentType;
+    sourceKind?: string;
+    sourceTitle?: string;
+    instructions?: string;
+    questions?: AssignmentQuestion[];
+    rubric?: AssignmentRubricItem[];
+    allowedFileTypes?: string[];
+    totalPoints?: number;
+    submittedAt?: string | null;
+    aiGrade?: string | null;
+    aiScore?: number | null;
+    aiFeedback?: string | null;
+    aiReview?: AssignmentAiReview | null;
+    professorScore?: number | null;
+    professorGrade?: string | null;
+    professorFeedback?: string | null;
+    reviewFinalized?: boolean;
+    reviewStatus?: string;
+    reviewLabel?: string;
+    fileName?: string | null;
   }[];
   resource_items: {
     id: number;
@@ -257,6 +285,53 @@ export type StudentAssistantResponse = {
   model: string;
   fallback: boolean;
   suggestedPrompts: string[];
+};
+
+export type StudentResourceAiSummary = {
+  ok: boolean;
+  resourceId: number;
+  title: string;
+  subject: string;
+  resourceType: string;
+  model: string;
+  sourceStatus: string;
+  sourceNote: string;
+  summary: string;
+  fullExplanation: string;
+  detailedExplanation: { heading: string; explanation: string; example?: string }[];
+  conceptExplanations: { heading: string; explanation: string; example?: string }[];
+  keyTakeaways: string[];
+  importantPoints: string[];
+  revisionFocus: string[];
+  practiceGuidance: string[];
+  quiz: { question: string; answer: string }[];
+};
+
+export type AssignmentType = "mcq" | "qa" | "file";
+
+export type AssignmentQuestion = {
+  id: string;
+  kind: AssignmentType;
+  prompt: string;
+  points?: number;
+  answerKey?: string;
+  explanation?: string;
+  options?: { id: string; text: string }[];
+  expectedKeywords?: string[];
+  requirements?: string[];
+};
+
+export type AssignmentRubricItem = {
+  label: string;
+  points?: number;
+  detail: string;
+};
+
+export type AssignmentAiReview = {
+  score?: number;
+  grade?: string;
+  feedback?: string;
+  criteria?: { label: string; status: string; detail: string }[];
 };
 
 export type StudentProfile = {
@@ -481,6 +556,79 @@ export type CampusAttendanceSettings = {
   slot_batches: IntakeSlotBatch[];
 };
 
+export type FeeInvoice = {
+  id: string;
+  semester: string;
+  semesterNumber?: number;
+  amount: number;
+  currency?: string;
+  status: string;
+  date: string;
+  dueDate?: string | null;
+  paidAt?: string | null;
+  razorpayOrderId?: string | null;
+  razorpayPaymentId?: string | null;
+};
+
+export type AdminFeeStudent = {
+  studentId: number;
+  name: string;
+  email: string;
+  studentCode: string;
+  department: string;
+  semester: number;
+  avatarUrl?: string | null;
+  status: "paid" | "pending" | string;
+  outstanding: number;
+  collected: number;
+  currentInvoiceId?: string | null;
+  invoices: FeeInvoice[];
+};
+
+export type AdminFeeManagement = {
+  ok: boolean;
+  settings: { semester: number; amount: number; currency: string }[];
+  students: AdminFeeStudent[];
+  metrics: {
+    totalCollected: number;
+    totalPending: number;
+    paidStudents: number;
+    pendingStudents: number;
+    studentCount: number;
+  };
+  razorpayEnabled: boolean;
+};
+
+export type AdminCertificateRequest = {
+  id: number;
+  student_id: number;
+  student_name: string;
+  student_email: string;
+  student_code: string;
+  department: string;
+  semester: number;
+  cgpa: number;
+  attendance: number;
+  avatar_url?: string | null;
+  certificate_key: string;
+  certificate_name: string;
+  status: "requested" | "ready" | "downloaded" | "rejected" | string;
+  status_label: string;
+  purpose?: string | null;
+  certificate_body?: string | null;
+  signatory_name?: string | null;
+  signatory_title?: string | null;
+  admin_note?: string | null;
+  requested_at?: string | null;
+  ready_at?: string | null;
+  downloaded_at?: string | null;
+};
+
+export type AdminCertificateManagement = {
+  ok: boolean;
+  requests: AdminCertificateRequest[];
+};
+
 export type AdminDashboard = {
   admin: {
     name: string;
@@ -697,6 +845,52 @@ export type ProfessorDashboard = {
     createdDate: string;
     time: string;
   }[];
+  assignments: {
+    id: number;
+    title: string;
+    subject: string;
+    assignmentType: AssignmentType;
+    sourceKind: string;
+    sourceTitle: string;
+    instructions: string;
+    questions: AssignmentQuestion[];
+    rubric: AssignmentRubricItem[];
+    allowedFileTypes: string[];
+    questionCount: number;
+    totalPoints: number;
+    due: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  assignment_submissions: {
+    id: number;
+    submissionId: number;
+    assignmentId: number;
+    studentId: number;
+    student: string;
+    title: string;
+    subject: string;
+    assignmentType: AssignmentType;
+    submitted: string;
+    submittedAt: string;
+    priority: string;
+    status: string;
+    aiGrade: string;
+    aiScore: number | null;
+    aiFeedback: string;
+    aiReview: AssignmentAiReview;
+    professorScore: number | null;
+    professorGrade: string;
+    professorFeedback: string;
+    grade: string;
+    feedback: string;
+    fileName: string;
+    fileSize: number;
+    fileUrl: string;
+    answerCount: number;
+    answers: Record<string, string>;
+  }[];
   assignment_reviews: {
     id: number;
     studentId: number;
@@ -715,6 +909,24 @@ export type ProfessorDashboard = {
     subject: string;
     submitted: string;
     priority: string;
+    submissionId?: number;
+    assignmentId?: number;
+    assignmentType?: AssignmentType;
+    status?: string;
+    aiGrade?: string;
+    aiScore?: number | null;
+    aiFeedback?: string;
+    aiReview?: AssignmentAiReview;
+    professorScore?: number | null;
+    professorGrade?: string;
+    professorFeedback?: string;
+    grade?: string;
+    feedback?: string;
+    fileName?: string;
+    fileSize?: number;
+    fileUrl?: string;
+    answerCount?: number;
+    answers?: Record<string, string>;
   }[];
   academic_controls: { label: string; detail: string }[];
   nav_modules: { label: string; path: string; feature: string }[];
@@ -940,6 +1152,12 @@ export function sendStudentAssistantMessage(payload: {
   });
 }
 
+export function generateStudentResourceAiSummary(resourceId: number) {
+  return request<StudentResourceAiSummary>(`/student/resources/${resourceId}/ai-summary`, {
+    method: "POST",
+  });
+}
+
 export function getStudentProfile() {
   return request<StudentProfile>("/student/profile");
 }
@@ -1133,12 +1351,77 @@ export function resetStudentBiometric() {
   });
 }
 
+export function createStudentFeeOrder(invoiceId: string) {
+  return request<{
+    ok: boolean;
+    keyId: string;
+    orderId: string;
+    amount: number;
+    currency: string;
+    invoice: FeeInvoice;
+  }>(`/student/fees/orders/${encodeURIComponent(invoiceId)}`, {
+    method: "POST",
+  });
+}
+
+export function verifyStudentFeePayment(payload: {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}) {
+  return request<{ ok: boolean; message: string; invoice: FeeInvoice }>("/student/fees/payments/verify", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getAdminManagement() {
   return request<CampusAttendanceSettings>("/admin/management");
 }
 
 export function getAdminDashboard() {
   return request<AdminDashboard>("/admin/dashboard");
+}
+
+export function getAdminFees() {
+  return request<AdminFeeManagement>("/admin/fees");
+}
+
+export function getAdminCertificateRequests() {
+  return request<AdminCertificateManagement>("/admin/certificates/requests");
+}
+
+export function approveAdminCertificateRequest(
+  requestId: number,
+  payload: {
+    purpose?: string;
+    certificate_body?: string;
+    signatory_name?: string;
+    signatory_title?: string;
+    admin_note?: string;
+  },
+) {
+  return request<{ ok: boolean; message: string; request_id: number; request: AdminCertificateRequest }>(
+    `/admin/certificates/${requestId}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function rejectAdminCertificateRequest(requestId: number) {
+  return request<{ ok: boolean; message: string; request_id: number; request: AdminCertificateRequest }>(
+    `/admin/certificates/${requestId}/reject`,
+    { method: "POST" },
+  );
+}
+
+export function updateAdminSemesterFee(semester: number, payload: { amount: number }) {
+  return request<AdminFeeManagement>(`/admin/fees/settings/${semester}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getAdminComplaints() {
@@ -1320,6 +1603,41 @@ export function deleteProfessorResource(resourceId: number) {
   });
 }
 
+export function createProfessorAssignment(payload: {
+  assignment_type: AssignmentType;
+  title?: string;
+  subject: string;
+  source_kind: "resources" | "syllabus" | "content";
+  resource_ids?: number[];
+  syllabus?: string;
+  custom_content?: string;
+  due_label?: string;
+  question_count?: number;
+  total_points?: number;
+}) {
+  return request<{
+    ok: boolean;
+    assignment: ProfessorDashboard["assignments"][number];
+    message: string;
+  }>("/professor/assignments/generate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateProfessorAssignmentSubmissionReview(
+  submissionId: number,
+  payload: { score?: number; grade?: string; feedback?: string },
+) {
+  return request<{
+    ok: boolean;
+    submission: ProfessorDashboard["assignment_submissions"][number];
+  }>(`/professor/assignments/submissions/${submissionId}/review`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function reviewProfessorAssignment(payload: {
   student_id: number;
   assignment_title: string;
@@ -1331,6 +1649,29 @@ export function reviewProfessorAssignment(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function submitStudentDigitalAssignment(
+  assignmentId: number,
+  payload: { answers: Record<string, string>; notes?: string },
+) {
+  return request<{ ok: boolean; submissionId: number; review: AssignmentAiReview }>(
+    `/student/assignments/${assignmentId}/digital-submit`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function submitStudentFileAssignment(assignmentId: number, payload: FormData) {
+  return request<{ ok: boolean; submissionId: number; review: AssignmentAiReview }>(
+    `/student/assignments/${assignmentId}/file-submit`,
+    {
+      method: "POST",
+      body: payload,
+    },
+  );
 }
 
 export function getConnectHub() {

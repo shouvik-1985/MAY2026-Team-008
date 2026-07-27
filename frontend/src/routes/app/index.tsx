@@ -95,14 +95,13 @@ const FALLBACK_DASHBOARD: StudentDashboard = {
   fee_history: [],
   module_health: [
     { module: "Announcements", status: "3 unread", detail: "Mid-sem schedule, fee deadline" },
-    { module: "Assignments", status: "2 pending", detail: "Transformer report due in 2 days" },
+    { module: "Assignments", status: "0 pending", detail: "No assignments published yet" },
     { module: "Complaints", status: "1 in progress", detail: "Hostel Wi-Fi assigned" },
     { module: "Certificates", status: "1 ready", detail: "Bonafide certificate available" },
     { module: "Fees", status: "Due Apr 05", detail: "Semester 6 invoice generated" },
     { module: "Resources", status: "12 new", detail: "Slides, notes, previous papers" },
   ],
   upcoming_deadlines: [
-    { title: "Voice-First UX Case Study", module: "Assignments", due: "Tomorrow", risk: "high" },
     { title: "Semester 6 fee payment", module: "Fees", due: "Apr 05", risk: "medium" },
     { title: "Mid-Sem examination", module: "Academics", due: "Apr 14", risk: "medium" },
     { title: "TEDxCampusVerse registration", module: "Events", due: "Apr 18", risk: "low" },

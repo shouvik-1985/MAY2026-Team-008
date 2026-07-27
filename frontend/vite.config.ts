@@ -9,11 +9,15 @@ export default defineConfig({
   },
   vite: {
     resolve: {
-      dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
-    },
-    optimizeDeps: {
-      force: true,
-      include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
+      dedupe: [
+        "react",
+        "react-dom",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "@tanstack/react-router",
+        "@tanstack/react-start",
+        "@tanstack/react-start-client",
+      ],
     },
   },
 });

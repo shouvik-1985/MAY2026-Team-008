@@ -54,6 +54,19 @@ function shareToLinkedin(name: string) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+function inferResumeDownloadName(disposition: string | null, fallback: string) {
+  if (!disposition) return fallback;
+  const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utfMatch?.[1]) return decodeURIComponent(utfMatch[1]);
+  const simpleMatch = disposition.match(/filename="([^"]+)"/i);
+  return simpleMatch?.[1] ?? fallback;
+}
+
+function resumeDownloadName(name: string) {
+  const safeName = name.trim().replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, "_") || "Student";
+  return `${safeName}_Resume.pdf`;
+}
+
 function CertificatesPage() {
   const [activeTab, setActiveTab] = useState<Tab>("certificates");
   const [processing, setProcessing] = useState<number | null>(null);
@@ -145,6 +158,8 @@ function CertificatesPage() {
     try {
       setStatus(null);
       const token = getAuthToken();
+      if (!token) throw new Error("Your login session expired. Please log in again.");
+
       const payload = {
         name: resumeData.name,
         email: resumeData.email,
@@ -162,19 +177,34 @@ function CertificatesPage() {
       const res = await fetch(resolveResourceUrl("/api/student/resume/pdf"), {
         method: "POST",
         headers: {
+          Accept: "application/pdf",
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Could not generate resume PDF");
+      if (!res.ok) {
+        let message = "Could not generate resume PDF";
+        try {
+          const body = await res.json();
+          message = body.detail ?? message;
+        } catch {
+          // Keep the fallback message when the server returns a non-JSON error.
+        }
+        throw new Error(message);
+      }
 
       const blob = await res.blob();
+      const contentType = res.headers.get("Content-Type") ?? blob.type;
+      if (!contentType.includes("application/pdf")) {
+        throw new Error("Resume PDF response was not a PDF");
+      }
+
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = objectUrl;
-      a.download = `${resumeData.name.replace(/\s+/g, "_")}_Resume.pdf`;
+      a.download = inferResumeDownloadName(res.headers.get("Content-Disposition"), resumeDownloadName(resumeData.name));
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -228,6 +258,13 @@ function CertificatesPage() {
           <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5 mb-10">
             {certificates.map((c, i) => {
               const isGrad = c.key === "graduation";
+              const isReady = c.status === "ready" || c.status === "downloaded";
+              const isPending = c.status === "requested";
+              const isRejected = c.status === "rejected";
+              const isMeritRejected = c.key === "conduct" && isRejected;
+              const isLocked = c.status === "locked";
+              const canRequest = c.status === "available" || (isRejected && !isMeritRejected);
+              const canDownload = isReady;
               return (
                 <motion.div
                   key={c.id}
@@ -284,7 +321,7 @@ function CertificatesPage() {
                     <div className="mt-4 space-y-2">
                       <button
                         onClick={() => {
-                          if (!c.key || processing === c.id) return;
+                          if (!c.key || processing === c.id || !canRequest) return;
                           setProcessing(c.id);
                           setStatus(null);
                           void requestStudentCertificate(c.key)
@@ -301,13 +338,30 @@ function CertificatesPage() {
                           isGrad
                             ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
                             : "bg-[var(--grad-aurora)] hover:opacity-90"
-                        }`}
+                        } disabled:cursor-not-allowed disabled:opacity-70`}
+                        disabled={processing === c.id || isPending || isReady || isLocked || isMeritRejected}
                       >
                         {processing === c.id ? (
                           <>
                             <Loader2 className="size-3.5 animate-spin" /> Processing...
                           </>
-                        ) : c.status === "available" ? (
+                        ) : isLocked ? (
+                          <>
+                            <Clock className="size-3.5" /> Locked Until Sem 4
+                          </>
+                        ) : isPending ? (
+                          <>
+                            <Clock className="size-3.5" /> Pending Admin Review
+                          </>
+                        ) : isMeritRejected ? (
+                          <>
+                            <Clock className="size-3.5" /> Rejected
+                          </>
+                        ) : isRejected ? (
+                          <>
+                            <ShieldCheck className="size-3.5" /> Resubmit Request
+                          </>
+                        ) : canRequest ? (
                           <>
                             <ShieldCheck className="size-3.5" /> Request Certificate
                           </>
@@ -322,7 +376,7 @@ function CertificatesPage() {
                         <button
                           title="View & Download PDF Certificate"
                           onClick={() => {
-                            if (!c.key || processing === c.id) return;
+                            if (!c.key || processing === c.id || !canDownload) return;
                             setProcessing(c.id);
                             setStatus(null);
                             void openProtectedResource(`/api/student/certificates/${c.key}/file?download=true`, {
@@ -338,7 +392,12 @@ function CertificatesPage() {
                               )
                               .finally(() => setProcessing(null));
                           }}
-                          className="flex-1 glass py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 text-[11px] font-medium text-white/80 hover:text-white transition"
+                          className={`flex-1 glass py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 text-[11px] font-medium transition ${
+                            canDownload
+                              ? "text-white/80 hover:text-white"
+                              : "cursor-not-allowed text-white/35 opacity-55"
+                          }`}
+                          disabled={processing === c.id || !canDownload}
                         >
                           <Download className="size-3 text-emerald-400" /> PDF
                         </button>
@@ -368,12 +427,12 @@ function CertificatesPage() {
             })}
           </div>
 
-          <GlassCard>
+          <GlassCard className="overflow-hidden">
             <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Request & Verification History</div>
-            <div className="font-display text-xl mt-1 mb-5">Past academic record updates</div>
-            <div className="space-y-3">
-              {(history.length ? history : [{ title: "Graduation Certificate Conferred", updated: "Now", stage: "Ready" }]).map(
-                (r, i) => (
+            <div className="font-display text-xl mt-1 mb-5">Certificate request updates</div>
+            <div className="max-h-[280px] space-y-3 overflow-y-auto pr-2" data-lenis-prevent>
+              {history.length ? (
+                history.map((r, i) => (
                   <motion.div
                     key={`${r.title}-${i}`}
                     initial={{ opacity: 0, x: -8 }}
@@ -392,7 +451,11 @@ function CertificatesPage() {
                       {r.stage}
                     </span>
                   </motion.div>
-                ),
+                ))
+              ) : (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-5 py-8 text-center text-sm text-white/45">
+                  No certificate request updates yet.
+                </div>
               )}
             </div>
           </GlassCard>
@@ -529,11 +592,12 @@ function CertificatesPage() {
                   <span className="text-xs uppercase tracking-wider text-white/40 font-medium">Projects ({projects.length})</span>
                   <button
                     onClick={() =>
-                      setProjects([
-                        ...projects,
+                      setProjects((current) => [
+                        ...current,
                         { id: `p${Date.now()}`, title: "New Project", role: "Developer", tech: "React, Python", description: "Project description..." },
                       ])
                     }
+                    type="button"
                     className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
                   >
                     <Plus className="size-3" /> Add Project
@@ -542,8 +606,10 @@ function CertificatesPage() {
                 {projects.map((p, idx) => (
                   <div key={p.id} className="p-3 rounded-xl border border-white/10 glass space-y-2 relative">
                     <button
-                      onClick={() => setProjects(projects.filter((x) => x.id !== p.id))}
-                      className="absolute top-3 right-3 text-white/40 hover:text-rose-400"
+                      type="button"
+                      aria-label={`Delete ${p.title || "project"}`}
+                      onClick={() => setProjects((current) => current.filter((x) => x.id !== p.id))}
+                      className="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-400"
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -555,7 +621,7 @@ function CertificatesPage() {
                         setProjects(next);
                       }}
                       placeholder="Project Title"
-                      className="w-full glass px-2 py-1 text-xs bg-transparent text-white font-medium outline-none"
+                      className="w-full glass px-2 py-1 pr-9 text-xs bg-transparent text-white font-medium outline-none"
                     />
                     <input
                       value={p.tech}

@@ -26,6 +26,19 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("OPENAI_API_KEY", "OPEN_API"),
     )
     openai_model: str = "gpt-5.4-mini"
+    razorpay_key_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RAZORPAY_KEY_ID", "Razorpay_key_id", "razorpay_key_id"),
+    )
+    razorpay_secret_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "RAZORPAY_KEY_SECRET",
+            "RAZORPAY_SECRET_KEY",
+            "Razorpay_secret_key",
+            "razorpay_secret_key",
+        ),
+    )
 
     model_config = SettingsConfigDict(
         env_file=str(CONFIG_ROOT / ".env"),

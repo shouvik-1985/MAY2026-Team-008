@@ -37,7 +37,7 @@ function PublicVerificationPage() {
           student_name: "Verified Student",
           student_code: "CV-2026-1001",
           department: "Computer Science & Artificial Intelligence",
-          certificate_name: "Official Academic Certificate",
+          certificate_name: "Verified Campus Certificate",
           issue_date: "24 July 2026",
           academic_standing: "Dean's List / Good Standing",
         });

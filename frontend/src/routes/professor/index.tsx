@@ -48,14 +48,18 @@ import {
 import {
   confirmProfessorAttendance,
   createProfessorAnnouncement,
+  createProfessorAssignment,
   createProfessorResource,
   deleteProfessorResource,
   finalizeProfessorAttendance,
   getProfessorDashboard,
   markProfessorAttendance,
+  openProtectedResource,
   resolveResourceUrl,
   reviewProfessorAssignment,
+  updateProfessorAssignmentSubmissionReview,
   updateStudentBlock,
+  type AssignmentType,
   type ProfessorDashboard,
 } from "@/lib/api";
 import { ConnectHub } from "@/components/connect/ConnectHub";
@@ -80,7 +84,35 @@ export const Route = createFileRoute("/professor/")({
 });
 
 type ProfessorStudent = ProfessorDashboard["students"][number];
+type ReviewQueueItem = ProfessorDashboard["review_queue"][number];
+type AssignmentSubmissionItem = ProfessorDashboard["assignment_submissions"][number];
+type ReviewLikeItem = ReviewQueueItem | AssignmentSubmissionItem;
+type PublishedAssignment = ProfessorDashboard["assignments"][number];
+type AssignmentDetailView =
+  | { kind: "submission"; item: ReviewLikeItem }
+  | { kind: "assignment"; item: PublishedAssignment };
 type AttendanceStatus = "present" | "absent";
+type AssignmentSourceKind = "resources" | "syllabus" | "content";
+const GRADE_CRITERIA = [
+  { code: "S", cutoff: 90 },
+  { code: "A", cutoff: 80 },
+  { code: "B", cutoff: 70 },
+  { code: "C", cutoff: 60 },
+  { code: "D", cutoff: 50 },
+  { code: "E", cutoff: 40 },
+  { code: "U", cutoff: 0 },
+];
+const GRADE_OPTIONS = ["S", "A", "B", "C", "D", "E", "U", "P", "F", "W", "I"];
+
+function gradeCodeFromScore(score: number) {
+  const normalized = Math.max(0, Math.min(100, score));
+  return GRADE_CRITERIA.find((item) => normalized >= item.cutoff)?.code ?? "U";
+}
+
+function gradeCodeFromMarks(marks: number, totalPoints = 100) {
+  return gradeCodeFromScore((marks / Math.max(1, totalPoints)) * 100);
+}
+
 const PROFESSOR_SECTIONS = [
   "dashboard",
   "students",
@@ -128,8 +160,21 @@ function ProfessorDashboardPage() {
   const [reviewStudentId, setReviewStudentId] = useState("");
   const [reviewTitle, setReviewTitle] = useState("");
   const [reviewSubject, setReviewSubject] = useState("");
+  const [reviewScore, setReviewScore] = useState("");
   const [reviewGrade, setReviewGrade] = useState("");
   const [reviewFeedback, setReviewFeedback] = useState("");
+  const [reviewSubmissionId, setReviewSubmissionId] = useState<number | null>(null);
+  const [assignmentDetailView, setAssignmentDetailView] = useState<AssignmentDetailView | null>(null);
+
+  const [assignmentType, setAssignmentType] = useState<AssignmentType>("mcq");
+  const [assignmentTitle, setAssignmentTitle] = useState("");
+  const [assignmentSubject, setAssignmentSubject] = useState(STUDY_SUBJECTS[0]);
+  const [assignmentSourceKind, setAssignmentSourceKind] = useState<AssignmentSourceKind>("resources");
+  const [assignmentResourceIds, setAssignmentResourceIds] = useState<number[]>([]);
+  const [assignmentSyllabus, setAssignmentSyllabus] = useState("");
+  const [assignmentContent, setAssignmentContent] = useState("");
+  const [assignmentDueLabel, setAssignmentDueLabel] = useState("in 7 days");
+  const [assignmentQuestionCount, setAssignmentQuestionCount] = useState(5);
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
 
   const students = dashboard?.students ?? [];
@@ -172,6 +217,144 @@ function ProfessorDashboardPage() {
     });
   }, [professorResources, resourceDateFilter, resourceSearch, resourceSubjectFilter]);
 
+  const selectedReviewItem = useMemo(() => {
+    const queue = [
+      ...(dashboard?.review_queue ?? []),
+      ...(dashboard?.assignment_submissions ?? []),
+    ];
+    const seen = new Set<number | string>();
+    const reviewItems = queue.filter((item) => {
+      const key = item.submissionId ?? item.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return (
+      reviewItems.find((item) => item.submissionId && item.submissionId === reviewSubmissionId) ??
+      reviewItems.find((item) => String(item.studentId) === reviewStudentId && item.title === reviewTitle) ??
+      null
+    );
+  }, [dashboard?.assignment_submissions, dashboard?.review_queue, reviewStudentId, reviewSubmissionId, reviewTitle]);
+  const selectedReviewAssignment = useMemo(() => {
+    if (!selectedReviewItem?.assignmentId) return null;
+    return dashboard?.assignments.find((item) => item.id === selectedReviewItem.assignmentId) ?? null;
+  }, [dashboard?.assignments, selectedReviewItem?.assignmentId]);
+  const selectedStudentName =
+    selectedReviewItem?.student ??
+    students.find((student) => String(student.id) === reviewStudentId)?.name ??
+    "Selected student";
+  const selectedStudentAssignmentHistory = useMemo(() => {
+    if (!reviewStudentId) return [];
+    const selectedStudent =
+      students.find((student) => String(student.id) === reviewStudentId)?.name ??
+      selectedReviewItem?.student ??
+      "Selected student";
+    const submissions = [
+      ...(dashboard?.assignment_submissions ?? []),
+      ...(dashboard?.review_queue ?? []),
+    ]
+      .filter((item) => String(item.studentId) === reviewStudentId)
+      .filter((item, index, rows) => {
+        const key = item.submissionId ?? item.id;
+        return rows.findIndex((row) => (row.submissionId ?? row.id) === key) === index;
+      });
+    const submissionByAssignment = new Map<number, ReviewLikeItem>();
+    for (const item of submissions) {
+      if (typeof item.assignmentId === "number" && !submissionByAssignment.has(item.assignmentId)) {
+        submissionByAssignment.set(item.assignmentId, item);
+      }
+    }
+    const rows: Array<{ item: ReviewLikeItem; sortTime: number }> = [];
+    for (const assignment of dashboard?.assignments ?? []) {
+      const submission = submissionByAssignment.get(assignment.id);
+      if (submission) {
+        rows.push({
+          item: submission,
+          sortTime: Date.parse("submittedAt" in submission ? submission.submittedAt : "") || 0,
+        });
+        continue;
+      }
+      rows.push({
+        item: {
+          id: -assignment.id,
+          studentId: Number(reviewStudentId),
+          student: selectedStudent,
+          title: assignment.title,
+          subject: assignment.subject,
+          submitted: assignment.due ? `Due ${assignment.due}` : "Assigned",
+          priority: "normal",
+          assignmentId: assignment.id,
+          assignmentType: assignment.assignmentType,
+          status: "assigned",
+          aiGrade: "",
+          aiScore: null,
+          aiFeedback: "",
+          professorScore: null,
+          professorGrade: "",
+          professorFeedback: "",
+          grade: "Not submitted",
+          feedback: "",
+          fileName: "",
+          fileSize: 0,
+          fileUrl: "",
+          answerCount: 0,
+          answers: {},
+        },
+        sortTime: Date.parse(assignment.createdAt) || 0,
+      });
+    }
+    for (const submission of submissions) {
+      if (typeof submission.assignmentId === "number" && dashboard?.assignments?.some((assignment) => assignment.id === submission.assignmentId)) {
+        continue;
+      }
+      rows.push({
+        item: submission,
+        sortTime: Date.parse("submittedAt" in submission ? submission.submittedAt : "") || 0,
+      });
+    }
+    return rows.sort((left, right) => right.sortTime - left.sortTime).map((row) => row.item);
+  }, [dashboard?.assignment_submissions, dashboard?.assignments, dashboard?.review_queue, reviewStudentId, selectedReviewItem?.student, students]);
+  const selectedReviewTotalPoints = selectedReviewAssignment?.totalPoints ?? 100;
+  const selectedReviewScore =
+    typeof selectedReviewItem?.aiScore === "number" ? selectedReviewItem.aiScore : null;
+  const parsedReviewScore = reviewScore.trim() === "" ? null : Number(reviewScore);
+  const finalGradeCode = reviewGrade || "U";
+  const detailSubmission = assignmentDetailView?.kind === "submission" ? assignmentDetailView.item : null;
+  const detailAssignment =
+    assignmentDetailView?.kind === "assignment"
+      ? assignmentDetailView.item
+      : detailSubmission?.assignmentId
+        ? dashboard?.assignments.find((item) => item.id === detailSubmission.assignmentId) ?? null
+        : null;
+
+  useEffect(() => {
+    if (!selectedReviewItem || reviewScore.trim()) return;
+    const marks =
+      typeof selectedReviewItem.professorScore === "number"
+        ? selectedReviewItem.professorScore
+        : typeof selectedReviewItem.aiScore === "number"
+          ? selectedReviewItem.aiScore
+          : null;
+    if (marks === null) return;
+    setReviewScore(String(marks));
+    setReviewGrade(gradeCodeFromMarks(marks, selectedReviewTotalPoints));
+  }, [
+    selectedReviewItem?.submissionId,
+    selectedReviewItem?.professorScore,
+    selectedReviewItem?.aiScore,
+    selectedReviewTotalPoints,
+  ]);
+
+  useEffect(() => {
+    if (
+      assignmentSourceKind === "resources" &&
+      assignmentResourceIds.length === 0 &&
+      professorResources[0]
+    ) {
+      setAssignmentResourceIds([professorResources[0].id]);
+    }
+  }, [assignmentResourceIds.length, assignmentSourceKind, professorResources]);
+
   const todayStatusByStudent = useMemo(() => {
     const map = new Map<number, AttendanceStatus>();
     const today = dashboard?.attendance_today.date;
@@ -194,6 +377,14 @@ function ProfessorDashboardPage() {
         setDashboard(data);
         if (!reviewStudentId && data.review_queue[0]) {
           loadReview(data.review_queue[0]);
+        } else if (!data.review_queue[0]) {
+          setReviewSubmissionId(null);
+          setReviewStudentId("");
+          setReviewTitle("");
+          setReviewSubject("");
+          setReviewScore("");
+          setReviewGrade("");
+          setReviewFeedback("");
         }
       } catch (error) {
         if (!options?.silent) {
@@ -276,12 +467,49 @@ function ProfessorDashboardPage() {
     }
   }, [academicTab, activeSection]);
 
-  function loadReview(item: ProfessorDashboard["review_queue"][number]) {
+  function loadReview(item: ReviewLikeItem) {
+    setReviewSubmissionId(item.submissionId ?? null);
     setReviewStudentId(String(item.studentId));
     setReviewTitle(item.title);
     setReviewSubject(item.subject);
-    setReviewGrade("");
-    setReviewFeedback("");
+    setReviewScore(
+      typeof item.professorScore === "number"
+        ? String(item.professorScore)
+        : typeof item.aiScore === "number"
+          ? String(item.aiScore)
+          : "",
+    );
+    setReviewGrade(
+      typeof item.professorScore === "number"
+        ? gradeCodeFromMarks(
+            item.professorScore,
+            dashboard?.assignments.find((assignment) => assignment.id === item.assignmentId)?.totalPoints ?? 100,
+          )
+        : typeof item.aiScore === "number"
+          ? gradeCodeFromMarks(
+              item.aiScore,
+              dashboard?.assignments.find((assignment) => assignment.id === item.assignmentId)?.totalPoints ?? 100,
+            )
+            : GRADE_OPTIONS.includes(item.professorGrade || "")
+            ? item.professorGrade || "U"
+            : GRADE_OPTIONS.includes(item.aiGrade || "")
+              ? item.aiGrade || "U"
+              : "U",
+    );
+    setReviewFeedback(item.professorFeedback || item.aiFeedback || item.feedback || "");
+  }
+
+  function openStudentAssignmentHistory(item: ReviewLikeItem) {
+    if (item.submissionId) {
+      loadReview(item);
+      setAssignmentDetailView({ kind: "submission", item });
+      return;
+    }
+
+    const assignment = dashboard?.assignments.find((row) => row.id === item.assignmentId);
+    if (assignment) {
+      setAssignmentDetailView({ kind: "assignment", item: assignment });
+    }
   }
 
   function updateLocalBlock(student: ProfessorStudent, blocked: boolean) {
@@ -447,9 +675,13 @@ function ProfessorDashboardPage() {
     setSaving(true);
     setStatus(null);
     try {
-      await action();
+      const result = await action();
       await refresh();
-      setStatus(message);
+      setStatus(
+        result && typeof result === "object" && "message" in result && typeof result.message === "string"
+          ? result.message
+          : message,
+      );
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Action failed");
     } finally {
@@ -550,25 +782,103 @@ function ProfessorDashboardPage() {
     setResourceFileKey((value) => value + 1);
   }
 
+  function toggleAssignmentResource(resourceId: number) {
+    setAssignmentResourceIds((current) =>
+      current.includes(resourceId)
+        ? current.filter((id) => id !== resourceId)
+        : [...current, resourceId],
+    );
+  }
+
+  async function submitGeneratedAssignment(event: FormEvent) {
+    event.preventDefault();
+    if (assignmentSourceKind === "resources" && assignmentResourceIds.length === 0) {
+      setStatus("Select at least one resource, or switch the source to syllabus/content");
+      return;
+    }
+    if (assignmentSourceKind === "syllabus" && !assignmentSyllabus.trim()) {
+      setStatus("Paste or type a syllabus before generating from syllabus");
+      return;
+    }
+    if (assignmentSourceKind === "content" && !assignmentContent.trim()) {
+      setStatus("Add source content before generating from custom content");
+      return;
+    }
+
+    await runAction(
+      () =>
+        createProfessorAssignment({
+          assignment_type: assignmentType,
+          title: assignmentTitle || undefined,
+          subject: assignmentSubject,
+          source_kind: assignmentSourceKind,
+          resource_ids: assignmentResourceIds,
+          syllabus: assignmentSyllabus || undefined,
+          custom_content: assignmentContent || undefined,
+          due_label: assignmentDueLabel,
+          question_count: assignmentType === "file" ? 1 : assignmentQuestionCount,
+          total_points: 100,
+        }),
+      "AI assignment generated, published to students, and ready for auto-review",
+    );
+    setAssignmentTitle("");
+    if (assignmentSourceKind !== "resources") {
+      setAssignmentSyllabus("");
+      setAssignmentContent("");
+    }
+  }
+
   async function deleteResource(item: ProfessorDashboard["resources"][number]) {
     const shouldDelete = window.confirm(`Delete "${item.title}" from study resources?`);
     if (!shouldDelete) return;
     await runAction(() => deleteProfessorResource(item.id), "Study resource deleted");
   }
 
+  function fillAiReviewDraft() {
+    if (selectedReviewItem?.aiGrade || selectedReviewItem?.aiFeedback) {
+      if (typeof selectedReviewItem.aiScore === "number") {
+        setReviewScore(String(selectedReviewItem.aiScore));
+        setReviewGrade(gradeCodeFromMarks(selectedReviewItem.aiScore, selectedReviewTotalPoints));
+      } else {
+        setReviewGrade(selectedReviewItem.aiGrade || selectedReviewItem.grade || "");
+      }
+      setReviewFeedback(selectedReviewItem.aiFeedback || selectedReviewItem.feedback || "");
+      setStatus("AI review loaded. You can adjust before saving.");
+      return;
+    }
+    setStatus("No AI review is available for this submission yet.");
+  }
+
   async function submitReview(event: FormEvent) {
     event.preventDefault();
-    await runAction(
-      () =>
-        reviewProfessorAssignment({
-          student_id: Number(reviewStudentId),
-          assignment_title: reviewTitle,
-          subject: reviewSubject,
-          grade: reviewGrade || undefined,
-          feedback: reviewFeedback || undefined,
-        }),
-      "Assignment review saved",
-    );
+    if (reviewSubmissionId) {
+      await runAction(
+        () =>
+          updateProfessorAssignmentSubmissionReview(reviewSubmissionId, {
+            score:
+              parsedReviewScore !== null && Number.isFinite(parsedReviewScore)
+                ? parsedReviewScore
+                : undefined,
+            grade: finalGradeCode || undefined,
+            feedback: reviewFeedback || undefined,
+          }),
+        "Professor correction saved over the AI review",
+      );
+    } else {
+      await runAction(
+        () =>
+          reviewProfessorAssignment({
+            student_id: Number(reviewStudentId),
+            assignment_title: reviewTitle,
+            subject: reviewSubject,
+            grade: reviewGrade || undefined,
+            feedback: reviewFeedback || undefined,
+          }),
+        "Assignment review saved",
+      );
+    }
+    setReviewSubmissionId(null);
+    setReviewScore("");
     setReviewGrade("");
     setReviewFeedback("");
   }
@@ -1305,98 +1615,477 @@ function ProfessorDashboardPage() {
 
       <section
         id="reviews"
-        className={visible("reviews") ? "grid xl:grid-cols-[0.9fr_1.1fr] gap-5" : "hidden"}
+        className={visible("reviews") ? "grid gap-5 xl:h-[calc(100vh-7.5rem)] xl:grid-cols-[0.9fr_1.1fr] xl:overflow-hidden" : "hidden"}
       >
-        <Panel className="p-5">
-          <SectionTitle icon={ClipboardCheck} eyebrow="Submitted work" title="Review queue" />
-          <div className="mt-5 space-y-3">
-            {(dashboard?.review_queue ?? []).map((item) => (
-              <button
-                key={item.id}
-                onClick={() => loadReview(item)}
-                className="w-full text-left glass rounded-2xl p-4 hover:border-white/20 transition"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium text-sm">{item.title}</div>
-                  <span
-                    className={`text-[10px] uppercase tracking-[0.2em] ${item.priority === "high" ? "text-rose-200" : "text-white/40"}`}
-                  >
-                    {item.priority}
-                  </span>
+        <Panel className="flex min-h-0 flex-col overflow-hidden p-5 xl:max-h-[calc(100vh-7.5rem)]">
+          <div className="flex min-h-[11rem] flex-1 flex-col xl:min-h-0">
+            <SectionTitle icon={ClipboardCheck} eyebrow="Submitted work" title="AI review queue" />
+            <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+              {(dashboard?.review_queue ?? []).map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    loadReview(item);
+                    setAssignmentDetailView({ kind: "submission", item });
+                  }}
+                  className={`w-full text-left glass rounded-2xl p-4 transition hover:border-white/20 ${
+                    item.submissionId && item.submissionId === reviewSubmissionId
+                      ? "border-fuchsia-300/35 bg-fuchsia-400/10"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{item.title}</div>
+                      <div className="mt-1 text-xs text-white/45">
+                        {item.student} / {item.submitted}
+                      </div>
+                    </div>
+                    <span
+                      className={`text-[10px] uppercase tracking-[0.2em] ${item.priority === "high" ? "text-rose-200" : "text-white/40"}`}
+                    >
+                      {item.priority}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-white/45">
+                    <span className="rounded-full bg-white/5 px-2 py-1">
+                      {(item.assignmentType ?? "manual").replace("qa", "Q&A")}
+                    </span>
+                    {item.aiGrade && (
+                      <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-emerald-100">
+                        AI {item.aiGrade}
+                      </span>
+                    )}
+                    {item.fileName && (
+                      <span className="truncate rounded-full bg-white/5 px-2 py-1">{item.fileName}</span>
+                    )}
+                    <span className="ml-auto inline-flex items-center gap-1 text-cyan-100">
+                      <Eye className="size-3" />
+                      Open
+                    </span>
+                  </div>
+                </button>
+              ))}
+              {(dashboard?.review_queue ?? []).length === 0 && (
+                <div className="rounded-3xl border border-dashed border-white/15 py-10 text-center text-sm text-white/45">
+                  Student submissions will appear here after AI review.
                 </div>
-                <div className="mt-1 text-xs text-white/45">
-                  {item.student} / {item.submitted}
-                </div>
-              </button>
-            ))}
+              )}
+            </div>
           </div>
+
+          <div className="mt-5 flex min-h-[11rem] flex-1 flex-col border-t border-white/10 pt-5 xl:min-h-0">
+            <SectionTitle icon={FileText} eyebrow="Published" title="AI assignments" />
+            <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+              {(dashboard?.assignments ?? []).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setAssignmentDetailView({ kind: "assignment", item })}
+                  className="w-full glass rounded-2xl p-4 text-left transition hover:border-white/20"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{item.title}</div>
+                      <div className="mt-1 text-xs text-white/45">
+                        {item.subject} / {item.sourceTitle}
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-cyan-100">
+                      {item.assignmentType === "qa" ? "Q&A" : item.assignmentType.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="mt-3 inline-flex items-center gap-1.5 text-xs text-cyan-100">
+                    <Eye className="size-3.5" />
+                    View generated questions and rubric
+                  </div>
+                </button>
+              ))}
+              {(dashboard?.assignments ?? []).length === 0 && (
+                <div className="rounded-3xl border border-dashed border-white/15 py-8 text-center text-sm text-white/45">
+                  Create the first AI assignment from the builder.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <StudentAssignmentHistory
+            className="mt-5 min-h-[10rem] flex-[0.9] xl:min-h-0"
+            listClassName="max-h-none flex-1"
+            items={selectedStudentAssignmentHistory}
+            assignments={dashboard?.assignments ?? []}
+            studentName={selectedStudentName}
+            selectedSubmissionId={reviewSubmissionId}
+            onOpen={openStudentAssignmentHistory}
+          />
         </Panel>
+
+        <div className="space-y-5 xl:max-h-[calc(100vh-7.5rem)] xl:overflow-y-auto xl:pr-2">
+          <Panel className="p-5">
+            <SectionTitle icon={Sparkles} eyebrow="AI assignment builder" title="Create from material" />
+            <form onSubmit={submitGeneratedAssignment} className="mt-5 space-y-4">
+              <div className="grid gap-2 sm:grid-cols-3">
+                {[
+                  { value: "mcq" as const, label: "MCQ", icon: ClipboardCheck },
+                  { value: "qa" as const, label: "Q&A", icon: Edit3 },
+                  { value: "file" as const, label: "File", icon: Upload },
+                ].map((option) => {
+                  const Icon = option.icon;
+                  const active = assignmentType === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setAssignmentType(option.value)}
+                      className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                        active
+                          ? "border-fuchsia-300/35 bg-fuchsia-400/12 text-white"
+                          : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white"
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Icon className="size-4" />
+                        {option.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  value={assignmentTitle}
+                  onChange={(event) => setAssignmentTitle(event.target.value)}
+                  placeholder="Assignment title (AI can fill)"
+                />
+                <SearchableOptionInput
+                  id="professor-assignment-subject"
+                  value={assignmentSubject}
+                  onChange={setAssignmentSubject}
+                  options={STUDY_SUBJECTS}
+                  placeholder="Subject"
+                />
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-3">
+                {[
+                  { value: "resources" as const, label: "Resources", icon: BookOpen },
+                  { value: "syllabus" as const, label: "Syllabus", icon: FileText },
+                  { value: "content" as const, label: "Content", icon: Edit3 },
+                ].map((option) => {
+                  const Icon = option.icon;
+                  const active = assignmentSourceKind === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setAssignmentSourceKind(option.value)}
+                      className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                        active
+                          ? "border-cyan-300/35 bg-cyan-300/10 text-white"
+                          : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white"
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Icon className="size-4" />
+                        {option.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {assignmentSourceKind === "resources" && (
+                <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="mb-3 text-[10px] uppercase tracking-[0.25em] text-white/40">
+                    Select resources
+                  </div>
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    {professorResources.slice(0, 6).map((resource) => {
+                      const checked = assignmentResourceIds.includes(resource.id);
+                      return (
+                        <button
+                          key={resource.id}
+                          type="button"
+                          onClick={() => toggleAssignmentResource(resource.id)}
+                          className={`rounded-2xl border p-3 text-left transition ${
+                            checked
+                              ? "border-emerald-300/35 bg-emerald-400/10"
+                              : "border-white/10 bg-black/10 hover:border-white/20"
+                          }`}
+                        >
+                          <span className="block truncate text-sm font-medium">{resource.title}</span>
+                          <span className="mt-1 block text-xs text-white/40">
+                            {resource.subject} / {resource.resourceType}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {professorResources.length === 0 && (
+                      <div className="rounded-2xl border border-dashed border-white/15 p-5 text-sm text-white/45">
+                        Upload a resource in Study Resources, or switch to syllabus/content.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {assignmentSourceKind === "syllabus" && (
+                <Textarea
+                  value={assignmentSyllabus}
+                  onChange={(event) => setAssignmentSyllabus(event.target.value)}
+                  placeholder="Paste syllabus units, outcomes, or chapter list..."
+                />
+              )}
+
+              {assignmentSourceKind === "content" && (
+                <Textarea
+                  value={assignmentContent}
+                  onChange={(event) => setAssignmentContent(event.target.value)}
+                  placeholder="Paste any content the AI should transform into an assignment..."
+                />
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="block text-[10px] uppercase tracking-[0.25em] text-white/40">
+                    Assignment duration
+                  </span>
+                  <Input
+                    value={assignmentDueLabel}
+                    onChange={(event) => setAssignmentDueLabel(event.target.value)}
+                    placeholder="e.g. in 5 days"
+                    required
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="block text-[10px] uppercase tracking-[0.25em] text-white/40">
+                    Number of questions
+                  </span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={assignmentType === "file" ? 1 : 12}
+                    value={assignmentType === "file" ? 1 : assignmentQuestionCount}
+                    onChange={(event) => setAssignmentQuestionCount(Number(event.target.value) || 1)}
+                    disabled={assignmentType === "file"}
+                    placeholder="Question count"
+                  />
+                  {assignmentType === "file" && (
+                    <span className="block text-xs text-white/35">
+                      File assignments use one upload brief.
+                    </span>
+                  )}
+                </label>
+              </div>
+
+              <ActionButton disabled={saving} icon={Sparkles}>
+                Create AI assignment
+              </ActionButton>
+            </form>
+          </Panel>
 
         <Panel className="p-5">
           <SectionTitle icon={CheckCircle2} eyebrow="Assignment review" title="Grade submission" />
+          {selectedReviewItem && (
+            <div className="mt-5 rounded-3xl border border-fuchsia-300/20 bg-fuchsia-400/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-fuchsia-100/70">
+                    AI review snapshot
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl bg-black/20 p-3">
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-white/35">
+                        AI score
+                      </div>
+                      <div className="mt-1 font-display text-xl text-white">
+                        {selectedReviewScore !== null
+                          ? `${selectedReviewScore} / ${selectedReviewTotalPoints}`
+                          : "Pending"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-black/20 p-3">
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-white/35">
+                        AI grade
+                      </div>
+                      <div className="mt-1 font-display text-xl text-white">
+                        {selectedReviewItem.aiGrade || selectedReviewItem.grade || "Pending"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-black/20 p-3">
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-white/35">
+                        Submission
+                      </div>
+                      <div className="mt-1 font-display text-xl text-white">
+                        {selectedReviewItem.answerCount
+                          ? `${selectedReviewItem.answerCount} answer${selectedReviewItem.answerCount === 1 ? "" : "s"}`
+                          : selectedReviewItem.fileName
+                            ? "File uploaded"
+                            : "Manual"}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/65">
+                    {selectedReviewItem.aiFeedback || selectedReviewItem.feedback || "No AI feedback yet."}
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-white/45">
+                    AI score is only a suggestion. The saved grade and feedback below become the professor's final review for the student.
+                  </p>
+                </div>
+                {selectedReviewItem.fileUrl && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void openProtectedResource(selectedReviewItem.fileUrl || "", {
+                        openAndDownload: true,
+                        fallbackName: selectedReviewItem.fileName || "assignment-submission",
+                      })
+                    }
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs text-white/70 transition hover:text-white"
+                  >
+                    <Download className="size-3.5" />
+                    Open file
+                  </button>
+                )}
+              </div>
+              <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                {(selectedReviewItem.aiReview?.criteria ?? []).map((criterion) => (
+                  <div key={criterion.label} className="rounded-2xl bg-black/20 p-3">
+                    <div className="text-xs font-medium text-white">{criterion.label}</div>
+                    <div className="mt-1 text-xs text-white/45">{criterion.detail}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <form onSubmit={submitReview} className="mt-5 space-y-4">
-            <Select
-              value={reviewStudentId}
-              onChange={(event) => setReviewStudentId(event.target.value)}
-              required
-            >
-              <option value="" className="bg-neutral-950 text-white py-2">
-                Select student
-              </option>
-              {students.map((student) => (
-                <option key={student.id} value={student.id} className="bg-neutral-950 text-white py-2 font-medium">
-                  {student.name}
+            <label className="block space-y-2">
+              <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">
+                Student
+              </span>
+              <Select
+                value={reviewStudentId}
+                onChange={(event) => {
+                  setReviewStudentId(event.target.value);
+                  setReviewSubmissionId(null);
+                  setReviewTitle("");
+                  setReviewSubject("");
+                  setReviewScore("");
+                  setReviewGrade("");
+                  setReviewFeedback("");
+                }}
+                required
+              >
+                <option value="" className="bg-neutral-950 text-white py-2">
+                  Select student
                 </option>
-              ))}
-            </Select>
+                {students.map((student) => (
+                  <option key={student.id} value={student.id} className="bg-neutral-950 text-white py-2 font-medium">
+                    {student.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
             <div className="grid sm:grid-cols-2 gap-3">
-              <Input
-                value={reviewTitle}
-                onChange={(event) => setReviewTitle(event.target.value)}
-                placeholder="Assignment title"
-                required
-              />
-              <Input
-                value={reviewSubject}
-                onChange={(event) => setReviewSubject(event.target.value)}
-                placeholder="Subject"
-                required
-              />
+              <label className="space-y-2">
+                <span className="block text-[10px] uppercase tracking-[0.25em] text-white/40">
+                  Assignment title
+                </span>
+                <Input
+                  value={reviewTitle}
+                  onChange={(event) => setReviewTitle(event.target.value)}
+                  placeholder="Assignment title"
+                  required
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="block text-[10px] uppercase tracking-[0.25em] text-white/40">
+                  Subject
+                </span>
+                <Input
+                  value={reviewSubject}
+                  onChange={(event) => setReviewSubject(event.target.value)}
+                  placeholder="Subject"
+                  required
+                />
+              </label>
             </div>
             <div className="flex items-center justify-between gap-2 pt-1">
               <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">Evaluation & Feedback</span>
               <button
                 type="button"
-                onClick={() => {
-                  setReviewGrade("A+ (96/100)");
-                  setReviewFeedback("Exceptional technical depth, original implementation, and clean code architecture. Fully meets course rubric criteria with verified tests.");
-                  setStatus("✨ AI Assistant drafted evaluation feedback!");
-                }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-400/30 bg-fuchsia-400/10 px-3 py-1 text-xs text-fuchsia-200 transition hover:bg-fuchsia-400/20"
+                onClick={fillAiReviewDraft}
+                className="inline-flex items-center justify-center gap-1.5 rounded-full border border-fuchsia-400/30 bg-fuchsia-400/10 px-3 py-1 text-xs text-fuchsia-200 transition hover:bg-fuchsia-400/20"
               >
-                ✨ AI Auto-Grade & Feedback
+                <Sparkles className="size-3.5" />
+                Load AI suggestion
               </button>
             </div>
-            <Input
-              value={reviewGrade}
-              onChange={(event) => setReviewGrade(event.target.value)}
-              placeholder="Grade: A, B+, 18/20"
-            />
-            <Textarea
-              value={reviewFeedback}
-              onChange={(event) => setReviewFeedback(event.target.value)}
-              placeholder="Feedback for the student"
-            />
-            <ActionButton disabled={saving || !reviewStudentId} icon={Save}>
-              Save review
+            <div className="grid gap-3 sm:grid-cols-[1fr_0.65fr]">
+              <label className="block space-y-2">
+                <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">
+                  Professor final marks
+                </span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={selectedReviewTotalPoints}
+                  step="1"
+                  value={reviewScore}
+                  onChange={(event) => {
+                    setReviewScore(event.target.value);
+                    const score = Number(event.target.value);
+                    if (Number.isFinite(score)) {
+                      setReviewGrade(gradeCodeFromMarks(score, selectedReviewTotalPoints));
+                    }
+                  }}
+                  placeholder={`Marks out of ${selectedReviewTotalPoints}`}
+                />
+              </label>
+              <label className="block space-y-2">
+                <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">
+                  Grade code
+                </span>
+                <Select
+                  value={finalGradeCode}
+                  onChange={(event) => setReviewGrade(event.target.value)}
+                  aria-label="Professor final grade code"
+                >
+                  {GRADE_OPTIONS.map((code) => (
+                    <option key={code} value={code} className="bg-neutral-950 text-white">
+                      {code}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-white/45">
+              Grade criteria: S 90+, A 80+, B 70+, C 60+, D 50+, E 40+, U below 40. Special codes: P pass, F fail, W not eligible, I incomplete.
+            </div>
+            <label className="block space-y-2">
+              <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">
+                Professor feedback to student
+              </span>
+              <Textarea
+                value={reviewFeedback}
+                onChange={(event) => setReviewFeedback(event.target.value)}
+                placeholder="Feedback for the student"
+              />
+            </label>
+            <ActionButton
+              disabled={
+                saving ||
+                !reviewStudentId ||
+                Boolean(reviewSubmissionId && (parsedReviewScore === null || !Number.isFinite(parsedReviewScore)))
+              }
+              icon={Save}
+            >
+              Publish final review
             </ActionButton>
           </form>
-          <div className="mt-6 space-y-3">
-            {(dashboard?.assignment_reviews ?? []).slice(0, 3).map((item) => (
-              <MiniItem key={item.id} title={item.title} meta={`${item.subject} / ${item.grade}`} />
-            ))}
-          </div>
         </Panel>
+        </div>
       </section>
 
       <section id="profile" className={visible("profile") ? "space-y-5 pt-2" : "hidden"}>
@@ -1693,6 +2382,13 @@ function ProfessorDashboardPage() {
         />
       )}
 
+      <AssignmentDetailDialog
+        view={assignmentDetailView}
+        assignment={detailAssignment}
+        submission={detailSubmission}
+        onClose={() => setAssignmentDetailView(null)}
+      />
+
       <Dialog open={isProfileEditOpen} onOpenChange={setIsProfileEditOpen}>
         <DialogContent className="max-h-[88vh] overflow-y-auto border-white/10 bg-[#0b0b0f] text-white sm:max-w-3xl">
           <DialogHeader>
@@ -1868,6 +2564,344 @@ function ProfessorDashboardPage() {
           </form>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function StudentAssignmentHistory({
+  items,
+  assignments,
+  studentName,
+  selectedSubmissionId,
+  onOpen,
+  className = "",
+  listClassName = "max-h-56",
+}: {
+  items: ReviewLikeItem[];
+  assignments?: PublishedAssignment[];
+  studentName: string;
+  selectedSubmissionId: number | null;
+  onOpen: (item: ReviewLikeItem) => void;
+  className?: string;
+  listClassName?: string;
+}) {
+  return (
+    <div className={`flex min-h-0 flex-col rounded-3xl border border-white/10 bg-white/[0.03] p-4 ${className}`}>
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-white/40">
+            Selected student assignments
+          </div>
+          <div className="mt-1 text-sm font-medium text-white">{studentName}</div>
+        </div>
+        <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-cyan-100">
+          {items.length} record{items.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div className={`mt-3 min-h-0 space-y-2 overflow-y-auto pr-1 ${listClassName}`}>
+        {items.map((item) => {
+          const selected = item.submissionId === selectedSubmissionId;
+          const assignment = assignments?.find((row) => row.id === item.assignmentId);
+          const totalPoints = assignment?.totalPoints ?? 100;
+          const submitted = Boolean(item.submissionId);
+          const score =
+            typeof item.professorScore === "number"
+              ? item.professorScore
+              : typeof item.aiScore === "number"
+                ? item.aiScore
+                : null;
+          const grade = submitted ? item.professorGrade || item.aiGrade || item.grade || "Pending" : "Assigned";
+          const statusLabel =
+            !submitted
+              ? "Not submitted"
+              : item.status === "professor_reviewed"
+              ? "Professor reviewed"
+              : item.status === "ai_reviewed"
+                ? "AI reviewed"
+                : item.status || "Submitted";
+
+          return (
+            <button
+              key={item.submissionId ?? item.id}
+              type="button"
+              onClick={() => onOpen(item)}
+              className={`w-full rounded-2xl border p-3 text-left transition hover:border-white/20 ${
+                selected ? "border-emerald-300/35 bg-emerald-400/10" : "border-white/10 bg-black/15"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-white">{item.title}</div>
+                  <div className="mt-1 text-xs text-white/40">
+                    {item.subject} / {item.submitted}
+                  </div>
+                </div>
+                <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-white/55">
+                  {item.assignmentType === "qa" ? "Q&A" : (item.assignmentType ?? "manual").toUpperCase()}
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.16em]">
+                <span
+                  className={`rounded-full border px-2 py-1 ${
+                    submitted
+                      ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                      : "border-white/10 bg-white/[0.04] text-white/45"
+                  }`}
+                >
+                  {score !== null ? `${score}/${totalPoints}` : submitted ? "Marks pending" : "Assigned"}
+                </span>
+                <span
+                  className={`rounded-full border px-2 py-1 ${
+                    submitted
+                      ? "border-fuchsia-300/20 bg-fuchsia-400/10 text-fuchsia-100"
+                      : "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
+                  }`}
+                >
+                  Grade {grade}
+                </span>
+                <span className="rounded-full bg-white/5 px-2 py-1 text-white/40">{statusLabel}</span>
+                <span className="ml-auto inline-flex items-center gap-1 text-cyan-100">
+                  <Eye className="size-3" />
+                  {submitted ? "Open" : "View"}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+
+        {items.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-white/15 px-4 py-6 text-center text-sm text-white/45">
+            Select a student to view their submitted and assigned coursework here.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AssignmentDetailDialog({
+  view,
+  assignment,
+  submission,
+  onClose,
+}: {
+  view: AssignmentDetailView | null;
+  assignment: PublishedAssignment | null;
+  submission: ReviewLikeItem | null;
+  onClose: () => void;
+}) {
+  const answers = submission?.answers ?? {};
+  const title = assignment?.title ?? submission?.title ?? "Assignment detail";
+  const totalPoints = assignment?.totalPoints ?? 100;
+  const aiScore = typeof submission?.aiScore === "number" ? submission.aiScore : null;
+  const professorScore = typeof submission?.professorScore === "number" ? submission.professorScore : null;
+  const professorGrade = submission?.professorGrade || submission?.grade || "";
+
+  return (
+    <Dialog open={Boolean(view)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[88vh] overflow-y-auto border-white/10 bg-[#0b0b0f] text-white sm:max-w-5xl">
+        {view && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="font-display text-2xl">{title}</DialogTitle>
+              <DialogDescription className="text-white/50">
+                {view.kind === "submission"
+                  ? "Submitted work, AI review, generated questions, and professor grading context."
+                  : "Published AI assignment questions, answer keys, requirements, and rubric."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-3 md:grid-cols-4">
+              <DetailMetric label="Type" value={assignment?.assignmentType === "qa" ? "Q&A" : (assignment?.assignmentType ?? submission?.assignmentType ?? "manual").toUpperCase()} />
+              <DetailMetric label="Subject" value={assignment?.subject ?? submission?.subject ?? "Assignment"} />
+              <DetailMetric label="Due" value={assignment?.due ?? "Published"} />
+              <DetailMetric label="Total points" value={`${totalPoints}`} />
+              {submission && (
+                <>
+                  <DetailMetric label="Student" value={submission.student} />
+                  <DetailMetric label="AI score" value={aiScore !== null ? `${aiScore} / ${totalPoints}` : "Pending"} />
+                  <DetailMetric label="AI grade" value={submission.aiGrade || submission.grade || "Pending"} />
+                  <DetailMetric
+                    label="Faculty marks"
+                    value={professorScore !== null ? `${professorScore} / ${totalPoints}` : "Not finalized"}
+                  />
+                  <DetailMetric label="Faculty grade" value={professorGrade || "Not finalized"} />
+                  <DetailMetric
+                    label="Submission"
+                    value={
+                      submission.answerCount
+                        ? `${submission.answerCount} answer${submission.answerCount === 1 ? "" : "s"}`
+                        : submission.fileName || "Submitted"
+                    }
+                  />
+                </>
+              )}
+            </div>
+
+            {assignment?.instructions && (
+              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="text-[10px] uppercase tracking-[0.25em] text-white/40">Instructions</div>
+                <p className="mt-2 text-sm leading-6 text-white/70">{assignment.instructions}</p>
+              </div>
+            )}
+
+            {submission?.aiFeedback && (
+              <div className="rounded-3xl border border-fuchsia-300/20 bg-fuchsia-400/10 p-4">
+                <div className="text-[10px] uppercase tracking-[0.25em] text-fuchsia-100/70">AI review</div>
+                <p className="mt-2 text-sm leading-6 text-white/70">{submission.aiFeedback}</p>
+                {(submission.aiReview?.criteria ?? []).length > 0 && (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {(submission.aiReview?.criteria ?? []).map((criterion) => (
+                      <div key={`${criterion.label}-${criterion.detail}`} className="rounded-2xl bg-black/20 p-3">
+                        <div className="text-xs font-medium text-white">{criterion.label}</div>
+                        <div className="mt-1 text-xs capitalize text-white/35">{criterion.status.replace("_", " ")}</div>
+                        <div className="mt-1 text-xs text-white/55">{criterion.detail}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {submission?.fileUrl && (
+              <button
+                type="button"
+                onClick={() =>
+                  void openProtectedResource(submission.fileUrl || "", {
+                    openAndDownload: true,
+                    fallbackName: submission.fileName || "assignment-submission",
+                  })
+                }
+                className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white/70 transition hover:text-white"
+              >
+                <Download className="size-4" />
+                Open submitted file
+              </button>
+            )}
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-white/40">Generated questions</div>
+                  <div className="mt-1 text-sm text-white/55">
+                    {assignment?.questions.length ?? 0} question{assignment?.questions.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+              </div>
+
+              {assignment?.questions.length ? (
+                assignment.questions.map((question, index) => {
+                  const submittedAnswer = answers[question.id] ?? "";
+                  const answerKey = question.answerKey ?? "";
+                  return (
+                    <div key={question.id} className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
+                        <div className="font-display text-lg">Question {index + 1}</div>
+                        <div className="text-xs font-semibold text-white/45">{question.points ?? 0} points</div>
+                      </div>
+                      <p className="mt-4 text-sm leading-6 text-white/80">{question.prompt}</p>
+
+                      {(question.options ?? []).length > 0 && (
+                        <div className="mt-4 grid gap-2">
+                          {(question.options ?? []).map((option) => {
+                            const selected = submittedAnswer === option.id;
+                            const correct = answerKey === option.id;
+                            return (
+                              <div
+                                key={option.id}
+                                className={`rounded-2xl border p-3 text-sm ${
+                                  selected
+                                    ? "border-cyan-300/35 bg-cyan-300/10 text-white"
+                                    : correct
+                                      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50"
+                                      : "border-white/10 bg-black/15 text-white/60"
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <span className="grid size-7 shrink-0 place-items-center rounded-full border border-white/15 text-xs">
+                                    {option.id}
+                                  </span>
+                                  <span className="leading-6">{option.text}</span>
+                                </div>
+                                {(selected || correct) && (
+                                  <div className="mt-2 text-xs uppercase tracking-[0.18em] text-white/40">
+                                    {selected ? "Student selected" : ""}
+                                    {selected && correct ? " / " : ""}
+                                    {correct ? "Answer key" : ""}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {question.kind === "qa" && submission && (
+                        <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3">
+                          <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-100/70">
+                            Student answer
+                          </div>
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/75">
+                            {submittedAnswer || "No answer submitted."}
+                          </p>
+                        </div>
+                      )}
+
+                      {(question.requirements ?? []).length > 0 && (
+                        <div className="mt-4 grid gap-2">
+                          {(question.requirements ?? []).map((requirement) => (
+                            <div key={requirement} className="rounded-2xl bg-black/20 px-3 py-2 text-sm text-white/65">
+                              {requirement}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {answerKey && (
+                        <div className="mt-3 text-xs text-emerald-200">Answer key: {answerKey}</div>
+                      )}
+                      {question.explanation && (
+                        <div className="mt-2 text-xs leading-5 text-white/45">{question.explanation}</div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-3xl border border-dashed border-white/15 py-8 text-center text-sm text-white/45">
+                  Generated question details were not found for this item.
+                </div>
+              )}
+            </div>
+
+            {(assignment?.rubric ?? []).length > 0 && (
+              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="text-[10px] uppercase tracking-[0.25em] text-white/40">Rubric</div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {(assignment?.rubric ?? []).map((item) => (
+                    <div key={item.label} className="rounded-2xl bg-black/20 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium text-white">{item.label}</div>
+                        <div className="text-xs text-emerald-200">{item.points ?? 0} pts</div>
+                      </div>
+                      <div className="mt-1 text-xs leading-5 text-white/45">{item.detail}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DetailMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="text-[10px] uppercase tracking-[0.22em] text-white/35">{label}</div>
+      <div className="mt-1 truncate text-sm font-medium text-white">{value}</div>
     </div>
   );
 }

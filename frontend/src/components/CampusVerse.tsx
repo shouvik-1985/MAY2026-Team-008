@@ -28,6 +28,7 @@ import {
   Brain,
   Bell,
   ClipboardCheck,
+  ClipboardList,
   FileText,
   Library,
   FlaskConical,
@@ -679,7 +680,7 @@ function AICommand() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-20%" });
   const [typed, setTyped] = useState("");
-  const full = "Show my assignments due this week";
+  const full = "Show my assignment workspace";
   useEffect(() => {
     if (!inView) return;
     let i = 0;
@@ -730,48 +731,23 @@ function AICommand() {
                   className="self-start max-w-[85%] flex flex-col gap-3"
                 >
                   <div className="flex items-center gap-2 text-xs text-white/50">
-                    <Sparkles className="size-3" /> Found 4 assignments
+                    <Sparkles className="size-3" /> Assignment workspace
                   </div>
-                  {[
-                    {
-                      c: "CS401",
-                      t: "Distributed Systems Lab",
-                      d: "in 2 days",
-                      color: "oklch(0.72 0.27 350)",
-                    },
-                    {
-                      c: "MTH301",
-                      t: "Linear Algebra Set 7",
-                      d: "in 3 days",
-                      color: "oklch(0.82 0.18 200)",
-                    },
-                    {
-                      c: "ENG201",
-                      t: "Critical Essay",
-                      d: "in 5 days",
-                      color: "oklch(0.78 0.18 50)",
-                    },
-                  ].map((a, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 + i * 0.15 }}
-                      className="glass rounded-xl p-3 flex items-center gap-3"
-                    >
-                      <span
-                        className="size-8 rounded-lg flex items-center justify-center text-[10px] font-mono"
-                        style={{ background: `${a.color}30`, color: a.color }}
-                      >
-                        {a.c}
-                      </span>
-                      <div className="flex-1">
-                        <div className="text-sm">{a.t}</div>
-                        <div className="text-xs text-white/40">Due {a.d}</div>
-                      </div>
-                      <ChevronRight className="size-4 text-white/40" />
-                    </motion.div>
-                  ))}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="glass rounded-xl p-4 flex items-center gap-3"
+                  >
+                    <span className="size-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/45">
+                      <ClipboardList className="size-4" />
+                    </span>
+                    <div className="flex-1">
+                      <div className="text-sm">No published assignments yet</div>
+                      <div className="text-xs text-white/40">Professor-created AI assignments will appear here.</div>
+                    </div>
+                    <ChevronRight className="size-4 text-white/40" />
+                  </motion.div>
                 </motion.div>
               )}
 

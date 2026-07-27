@@ -2,12 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   AlertCircle,
+  Award,
   BadgeCheck,
   Ban,
   BarChart3,
   Building2,
   CalendarClock,
   CheckCircle2,
+  CreditCard,
   Eye,
   FileText,
   Gauge,
@@ -22,24 +24,33 @@ import {
   ShieldCheck,
   Trash2,
   UserCheck,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { ComplaintStageStrip } from "@/components/app/ComplaintStageStrip";
 import {
+  approveAdminCertificateRequest,
   createAdminSlotBatch,
   deleteAdminUserAccount,
+  getAdminCertificateRequests,
   getAdminComplaints,
   getAdminDashboard,
+  getAdminFees,
   getAdminManagement,
   openProtectedResource,
+  rejectAdminCertificateRequest,
   resetAdminStudentBiometric,
   updateAdminComplaintStatus,
+  updateAdminSemesterFee,
   updateAdminSemesterDuration,
   updateAdminSlotBatch,
   updateAdminAttendanceRadius,
   updateAdminUserBlock,
   type AdminDashboard,
+  type AdminCertificateRequest,
+  type AdminFeeManagement,
+  type AdminFeeStudent,
   type CampusAttendanceSettings,
   type ComplaintItem,
 } from "@/lib/api";
@@ -48,10 +59,12 @@ export const Route = createFileRoute("/admin/")({
   component: AdminDeskPage,
 });
 
-const ADMIN_SECTIONS = ["dashboard", "student", "professor", "management", "complaints"] as const;
+const ADMIN_SECTIONS = ["dashboard", "student", "professor", "management", "complaints", "fees", "certificate"] as const;
 
 type AdminSection = (typeof ADMIN_SECTIONS)[number];
 type AdminComplaint = ComplaintItem;
+type AdminCertificate = AdminCertificateRequest;
+type CertificateStatusFilter = "all" | "requested" | "ready" | "downloaded" | "rejected";
 
 function normalizeAdminSection(hash: string): AdminSection {
   const raw = hash.replace("#", "");
@@ -60,6 +73,8 @@ function normalizeAdminSection(hash: string): AdminSection {
     students: "student",
     professors: "professor",
     complaint: "complaints",
+    "fee-management": "fees",
+    certificates: "certificate",
   };
   const candidate = (aliases[raw] ?? raw) as AdminSection;
   return ADMIN_SECTIONS.includes(candidate) ? candidate : "dashboard";
@@ -77,6 +92,16 @@ function AdminDeskPage() {
   const [selectedProfessorId, setSelectedProfessorId] = useState<number | null>(null);
   const [complaints, setComplaints] = useState<AdminComplaint[]>([]);
   const [selectedComplaintId, setSelectedComplaintId] = useState<number | null>(null);
+  const [feeData, setFeeData] = useState<AdminFeeManagement | null>(null);
+  const [feeAmountEdits, setFeeAmountEdits] = useState<Record<number, number>>({});
+  const [certificateRequests, setCertificateRequests] = useState<AdminCertificate[]>([]);
+  const [selectedCertificateRequestId, setSelectedCertificateRequestId] = useState<number | null>(null);
+  const [certificateStatusFilter, setCertificateStatusFilter] = useState<CertificateStatusFilter>("all");
+  const [certificatePurpose, setCertificatePurpose] = useState("");
+  const [certificateBody, setCertificateBody] = useState("");
+  const [certificateSignatoryName, setCertificateSignatoryName] = useState("Dr. A. R. Sharma");
+  const [certificateSignatoryTitle, setCertificateSignatoryTitle] = useState("Registrar & Academic Senate");
+  const [certificateAdminNote, setCertificateAdminNote] = useState("");
   const [complaintStatusFilter, setComplaintStatusFilter] = useState<
     "all" | "open" | AdminComplaint["status"]
   >("all");
@@ -107,14 +132,21 @@ function AdminDeskPage() {
   }, []);
 
   async function refreshData(successMessage?: string) {
-    const [dashboardData, managementData, complaintsData] = await Promise.all([
+    const [dashboardData, managementData, complaintsData, feesData, certificateData] = await Promise.all([
       getAdminDashboard(),
       getAdminManagement(),
       getAdminComplaints(),
+      getAdminFees(),
+      getAdminCertificateRequests(),
     ]);
     setDashboard(dashboardData);
     setSettings(managementData);
     setComplaints(complaintsData.complaints);
+    setFeeData(feesData);
+    setCertificateRequests(certificateData.requests);
+    setFeeAmountEdits(
+      Object.fromEntries(feesData.settings.map((setting) => [setting.semester, setting.amount])),
+    );
     setRadius(managementData.radius_meters);
     setLatitude(managementData.latitude?.toString() ?? "");
     setLongitude(managementData.longitude?.toString() ?? "");
@@ -125,6 +157,7 @@ function AdminDeskPage() {
     setSelectedStudentId((current) => current ?? dashboardData.students[0]?.id ?? null);
     setSelectedProfessorId((current) => current ?? dashboardData.professors[0]?.id ?? null);
     setSelectedComplaintId((current) => current ?? complaintsData.complaints[0]?.id ?? null);
+    setSelectedCertificateRequestId((current) => current ?? certificateData.requests[0]?.id ?? null);
     if (successMessage) setStatus(successMessage);
   }
 
@@ -213,11 +246,54 @@ function AdminDeskPage() {
     });
   }, [complaints, query, complaintStatusFilter, complaintCategoryFilter, complaintDateFilter]);
 
+  const filteredFeeStudents = useMemo(() => {
+    return (feeData?.students ?? []).filter((student) => {
+      if (!query) return true;
+      return [
+        student.name,
+        student.email,
+        student.studentCode,
+        student.department,
+        `sem ${student.semester}`,
+        student.status,
+        student.currentInvoiceId ?? "",
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [feeData?.students, query]);
+
+  const filteredCertificateRequests = useMemo(() => {
+    return certificateRequests.filter((request) => {
+      const matchesStatus = certificateStatusFilter === "all" ? true : request.status === certificateStatusFilter;
+      if (!matchesStatus) return false;
+      if (!query) return true;
+      return [
+        request.student_name,
+        request.student_email,
+        request.student_code,
+        request.department,
+        `sem ${request.semester}`,
+        request.certificate_name,
+        request.status_label,
+        request.purpose ?? "",
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [certificateRequests, certificateStatusFilter, query]);
+
   const selectedStudent = filteredStudents.find((student) => student.id === selectedStudentId) ?? filteredStudents[0] ?? null;
   const selectedProfessor =
     filteredProfessors.find((professor) => professor.id === selectedProfessorId) ?? filteredProfessors[0] ?? null;
   const selectedComplaint =
     filteredComplaints.find((complaint) => complaint.id === selectedComplaintId) ?? filteredComplaints[0] ?? null;
+  const selectedCertificateRequest =
+    filteredCertificateRequests.find((request) => request.id === selectedCertificateRequestId) ??
+    filteredCertificateRequests[0] ??
+    null;
 
   useEffect(() => {
     if (selectedStudent && selectedStudent.id !== selectedStudentId) {
@@ -246,11 +322,49 @@ function AdminDeskPage() {
     }
   }, [selectedComplaint, selectedComplaintId]);
 
+  useEffect(() => {
+    if (selectedCertificateRequest && selectedCertificateRequest.id !== selectedCertificateRequestId) {
+      setSelectedCertificateRequestId(selectedCertificateRequest.id);
+    }
+    if (!selectedCertificateRequest && selectedCertificateRequestId !== null) {
+      setSelectedCertificateRequestId(null);
+    }
+  }, [selectedCertificateRequest, selectedCertificateRequestId]);
+
+  useEffect(() => {
+    if (!selectedCertificateRequest) {
+      setCertificatePurpose("");
+      setCertificateBody("");
+      setCertificateSignatoryName("Dr. A. R. Sharma");
+      setCertificateSignatoryTitle("Registrar & Academic Senate");
+      setCertificateAdminNote("");
+      return;
+    }
+
+    setCertificatePurpose(selectedCertificateRequest.purpose ?? defaultCertificatePurpose(selectedCertificateRequest));
+    setCertificateBody(selectedCertificateRequest.certificate_body ?? defaultCertificateBody(selectedCertificateRequest));
+    setCertificateSignatoryName(selectedCertificateRequest.signatory_name ?? "Dr. A. R. Sharma");
+    setCertificateSignatoryTitle(selectedCertificateRequest.signatory_title ?? "Registrar & Academic Senate");
+    setCertificateAdminNote(selectedCertificateRequest.admin_note ?? "");
+  }, [
+    selectedCertificateRequest?.id,
+    selectedCertificateRequest?.purpose,
+    selectedCertificateRequest?.certificate_body,
+    selectedCertificateRequest?.signatory_name,
+    selectedCertificateRequest?.signatory_title,
+    selectedCertificateRequest?.admin_note,
+  ]);
+
   function clearComplaintFilters() {
     setSearchQuery("");
     setComplaintStatusFilter("all");
     setComplaintCategoryFilter("all");
     setComplaintDateFilter("");
+  }
+
+  function clearCertificateFilters() {
+    setSearchQuery("");
+    setCertificateStatusFilter("all");
   }
 
   async function save(event?: FormEvent) {
@@ -415,6 +529,65 @@ function AdminDeskPage() {
     }
   }
 
+  async function saveSemesterFee(semester: number) {
+    const amount = Math.max(1, Math.round(Number(feeAmountEdits[semester]) || 0));
+    setSaving(true);
+    setStatus(null);
+    try {
+      const response = await updateAdminSemesterFee(semester, { amount });
+      setFeeData(response);
+      setFeeAmountEdits(
+        Object.fromEntries(response.settings.map((setting) => [setting.semester, setting.amount])),
+      );
+      setStatus(`Semester ${semester} fee updated to ${formatCurrency(amount)}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update semester fee");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function approveCertificateRequest() {
+    if (!selectedCertificateRequest) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const response = await approveAdminCertificateRequest(selectedCertificateRequest.id, {
+        purpose: certificatePurpose,
+        certificate_body: certificateBody,
+        signatory_name: certificateSignatoryName,
+        signatory_title: certificateSignatoryTitle,
+        admin_note: certificateAdminNote,
+      });
+      setCertificateRequests((current) =>
+        current.map((request) => (request.id === response.request.id ? response.request : request)),
+      );
+      await refreshData(response.message || `${selectedCertificateRequest.certificate_name} approved`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not approve certificate request");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function rejectCertificateRequest(request: AdminCertificate) {
+    const okay = window.confirm(`Reject ${request.certificate_name} for ${request.student_name}?`);
+    if (!okay) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const response = await rejectAdminCertificateRequest(request.id);
+      setCertificateRequests((current) =>
+        current.map((item) => (item.id === response.request.id ? response.request : item)),
+      );
+      await refreshData(response.message || `${request.certificate_name} rejected`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not reject certificate request");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading && !dashboard) {
     return <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-8 text-white/60">Loading admin desk...</div>;
   }
@@ -449,6 +622,20 @@ function AdminDeskPage() {
       : `${semesterDurationMonths} ${semesterDurationMonths === 1 ? "month" : "months"}`;
   const semesterDurationInputValue =
     semesterDurationUnit === "days" ? semesterDurationDays : semesterDurationMonths;
+  const feeMetrics = feeData?.metrics ?? {
+    totalCollected: 0,
+    totalPending: 0,
+    paidStudents: 0,
+    pendingStudents: 0,
+    studentCount: 0,
+  };
+  const filteredFeePending = filteredFeeStudents.filter((student) => student.outstanding > 0).length;
+  const filteredFeeCollected = filteredFeeStudents.reduce((sum, student) => sum + student.collected, 0);
+  const filteredFeeOutstanding = filteredFeeStudents.reduce((sum, student) => sum + student.outstanding, 0);
+  const pendingCertificateRequests = filteredCertificateRequests.filter((request) => request.status === "requested").length;
+  const approvedCertificateRequests = filteredCertificateRequests.filter((request) => request.status === "ready").length;
+  const downloadedCertificateRequests = filteredCertificateRequests.filter((request) => request.status === "downloaded").length;
+  const rejectedCertificateRequests = filteredCertificateRequests.filter((request) => request.status === "rejected").length;
 
   return (
     <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
@@ -489,6 +676,14 @@ function AdminDeskPage() {
             >
               Slots
             </button>
+          </div>
+        ) : activeSection === "fees" ? (
+          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
+            {filteredFeeStudents.length} students / {filteredFeePending} pending
+          </div>
+        ) : activeSection === "certificate" ? (
+          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
+            {filteredCertificateRequests.length} certificates / {pendingCertificateRequests} pending
           </div>
         ) : activeSection === "complaints" ? (
           <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
@@ -1112,6 +1307,343 @@ function AdminDeskPage() {
         )}
       </section>
 
+      <section id="fees" className={visible("fees") ? "space-y-6" : "hidden"}>
+        <div className="grid gap-4 xl:grid-cols-5">
+          <MetricCard label="Collected" value={formatCurrency(feeMetrics.totalCollected)} hint="Verified Razorpay payments and imported paid dues" />
+          <MetricCard label="Pending" value={formatCurrency(feeMetrics.totalPending)} hint="Outstanding across student ledgers" />
+          <MetricCard label="Students cleared" value={String(feeMetrics.paidStudents)} hint="No outstanding balance" />
+          <MetricCard label="Students pending" value={String(feeMetrics.pendingStudents)} hint="Need fee payment" />
+          <MetricCard label="Razorpay" value={feeData?.razorpayEnabled ? "Live" : "Setup"} hint="Backend key status" />
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-[0.92fr_1.38fr]">
+          <Panel icon={CreditCard} eyebrow="Fee management" title="Semester fee editor">
+            <div className="space-y-4">
+              {feeData?.razorpayEnabled ? (
+                <div className="rounded-3xl border border-emerald-300/15 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+                  Razorpay checkout is connected for student payments.
+                </div>
+              ) : (
+                <div className="rounded-3xl border border-amber-300/15 bg-amber-400/10 p-4 text-sm text-amber-100">
+                  Add Razorpay keys in the backend environment to activate checkout.
+                </div>
+              )}
+
+              {(feeData?.settings ?? []).map((setting) => (
+                <div key={setting.semester} className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <label className="grid flex-1 gap-2">
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-white/40">
+                        Semester {setting.semester}
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10_000_000}
+                        value={feeAmountEdits[setting.semester] ?? setting.amount}
+                        onChange={(event) =>
+                          setFeeAmountEdits((current) => ({
+                            ...current,
+                            [setting.semester]: Number(event.target.value),
+                          }))
+                        }
+                        className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={saving || loading}
+                      onClick={() => saveSemesterFee(setting.semester)}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition disabled:cursor-wait disabled:opacity-60"
+                      style={{ background: "var(--grad-aurora)" }}
+                    >
+                      {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                      Save fee
+                    </button>
+                  </div>
+                  <div className="mt-3 text-xs uppercase tracking-[0.18em] text-white/35">
+                    Current amount {formatCurrency(setting.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel icon={Wallet} eyebrow="Student fee ledger" title="Paid and pending">
+            <div className="mb-5 grid gap-3 xl:grid-cols-[1fr_auto_auto] xl:items-center">
+              <InlineSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search by student, roll, department, invoice"
+              />
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/50">
+                Visible collected {formatCurrency(filteredFeeCollected)}
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/50">
+                Visible pending {formatCurrency(filteredFeeOutstanding)}
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/10">
+              <div className="grid grid-cols-[1.35fr_0.45fr_0.7fr_0.7fr_0.62fr_1.1fr] gap-4 border-b border-white/10 px-5 py-4 text-[10px] uppercase tracking-[0.28em] text-white/35">
+                <div>Student</div>
+                <div>Sem</div>
+                <div>Pending</div>
+                <div>Paid</div>
+                <div>Status</div>
+                <div>Invoices</div>
+              </div>
+              <div className="max-h-[720px] overflow-y-auto">
+                {filteredFeeStudents.map((student) => (
+                  <div
+                    key={student.studentId}
+                    className="grid grid-cols-[1.35fr_0.45fr_0.7fr_0.7fr_0.62fr_1.1fr] gap-4 border-b border-white/5 px-5 py-4 text-sm text-white/80 last:border-b-0"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-3">
+                        <AvatarBadge value={avatarFromName(student.name)} imageUrl={student.avatarUrl} />
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-white">{student.name}</div>
+                          <div className="truncate text-white/45">{student.studentCode}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-white/65">{student.semester}</div>
+                    <div className="font-semibold text-amber-200">{formatCurrency(student.outstanding)}</div>
+                    <div className="font-semibold text-emerald-200">{formatCurrency(student.collected)}</div>
+                    <div>
+                      <FeeStatusPill status={student.status} />
+                    </div>
+                    <FeeInvoiceStack student={student} />
+                  </div>
+                ))}
+                {filteredFeeStudents.length === 0 && (
+                  <div className="px-5 py-12 text-center text-sm text-white/45">
+                    No fee ledger records match this search.
+                  </div>
+                )}
+              </div>
+            </div>
+          </Panel>
+        </div>
+      </section>
+
+      <section id="certificate" className={visible("certificate") ? "space-y-6" : "hidden"}>
+        <div className="grid gap-4 xl:grid-cols-5">
+          <MetricCard label="Certificate requests" value={String(filteredCertificateRequests.length)} hint="Visible certification queue" />
+          <MetricCard label="Pending review" value={String(pendingCertificateRequests)} hint="Waiting for admin approval" />
+          <MetricCard label="Approved" value={String(approvedCertificateRequests)} hint="Ready for student download" />
+          <MetricCard label="Downloaded" value={String(downloadedCertificateRequests)} hint="Already collected by students" />
+          <MetricCard label="Rejected" value={String(rejectedCertificateRequests)} hint="Declined certificate requests" />
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-[1.12fr_1fr]">
+          <Panel icon={Award} eyebrow="Certificate" title="Student certificate requests">
+            <div className="mb-5 grid gap-3 xl:grid-cols-[1fr_220px_auto] xl:items-center">
+              <InlineSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search by student, roll, department, certificate"
+              />
+              <select
+                value={certificateStatusFilter}
+                onChange={(event) => setCertificateStatusFilter(event.target.value as CertificateStatusFilter)}
+                className="rounded-[24px] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none"
+              >
+                <option value="all" className="bg-neutral-950 text-white">
+                  All status
+                </option>
+                <option value="requested" className="bg-neutral-950 text-white">
+                  Requested
+                </option>
+                <option value="ready" className="bg-neutral-950 text-white">
+                  Approved
+                </option>
+                <option value="downloaded" className="bg-neutral-950 text-white">
+                  Downloaded
+                </option>
+                <option value="rejected" className="bg-neutral-950 text-white">
+                  Rejected
+                </option>
+              </select>
+              <button
+                type="button"
+                onClick={clearCertificateFilters}
+                className="rounded-[24px] border border-white/10 bg-white/[0.05] px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/65 transition hover:text-white"
+              >
+                Clear
+              </button>
+            </div>
+
+            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/10">
+              <div className="grid grid-cols-[1.25fr_1fr_0.72fr_0.82fr_0.72fr] gap-4 border-b border-white/10 px-5 py-4 text-[10px] uppercase tracking-[0.28em] text-white/35">
+                <div>Student</div>
+                <div>Certificate</div>
+                <div>Status</div>
+                <div>Requested</div>
+                <div>Actions</div>
+              </div>
+              <div className="max-h-[720px] overflow-y-auto">
+                {filteredCertificateRequests.map((request) => {
+                  const selected = selectedCertificateRequest?.id === request.id;
+                  return (
+                    <div
+                      key={request.id}
+                      className={`grid grid-cols-[1.25fr_1fr_0.72fr_0.82fr_0.72fr] gap-4 border-b border-white/5 px-5 py-4 text-sm text-white/80 last:border-b-0 ${
+                        selected ? "bg-white/[0.045]" : ""
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-3">
+                          <AvatarBadge value={avatarFromName(request.student_name)} imageUrl={request.avatar_url} />
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold text-white">{request.student_name}</div>
+                            <div className="truncate text-white/45">{request.student_code}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-white">{request.certificate_name}</div>
+                        <div className="truncate text-white/45">
+                          Sem {request.semester} / CGPA {request.cgpa.toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <CertificateStatusPill status={request.status} label={request.status_label} />
+                      </div>
+                      <div className="text-white/55">{formatDateTime(request.requested_at ?? "")}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <ListActionButton onClick={() => setSelectedCertificateRequestId(request.id)} icon={Eye}>
+                          View
+                        </ListActionButton>
+                        <ListActionButton
+                          onClick={() => rejectCertificateRequest(request)}
+                          icon={Ban}
+                          tone="rose"
+                          disabled={saving || request.status === "rejected"}
+                        >
+                          Reject
+                        </ListActionButton>
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredCertificateRequests.length === 0 && (
+                  <div className="px-5 py-12 text-center text-sm text-white/45">
+                    No certificate requests match this search yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </Panel>
+
+          <DetailPanel
+            icon={FileText}
+            eyebrow="Certificate builder"
+            title={selectedCertificateRequest?.certificate_name ?? "No certificate selected"}
+            avatar={selectedCertificateRequest ? avatarFromName(selectedCertificateRequest.student_name) : undefined}
+            avatarUrl={selectedCertificateRequest?.avatar_url}
+            status={
+              selectedCertificateRequest ? (
+                <CertificateStatusPill
+                  status={selectedCertificateRequest.status}
+                  label={selectedCertificateRequest.status_label}
+                />
+              ) : null
+            }
+          >
+            {selectedCertificateRequest ? (
+              <div className="space-y-5">
+                <DetailGrid>
+                  <DetailCard label="Student" value={selectedCertificateRequest.student_name} />
+                  <DetailCard label="Roll" value={selectedCertificateRequest.student_code || "Not assigned"} />
+                  <DetailCard label="Department" value={selectedCertificateRequest.department || "N/A"} />
+                  <DetailCard label="Semester" value={`Sem ${selectedCertificateRequest.semester}`} />
+                  <DetailCard label="CGPA" value={selectedCertificateRequest.cgpa.toFixed(2)} />
+                  <DetailCard label="Attendance" value={`${selectedCertificateRequest.attendance.toFixed(1)}%`} />
+                  <DetailCard label="Requested" value={formatDateTime(selectedCertificateRequest.requested_at ?? "")} />
+                  <DetailCard label="Ready" value={formatDateTime(selectedCertificateRequest.ready_at ?? "")} />
+                </DetailGrid>
+
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/35">Issuance details</div>
+                  <div className="mt-4 grid gap-4">
+                    <label className="grid gap-2">
+                      <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">Certificate purpose</span>
+                      <input
+                        value={certificatePurpose}
+                        onChange={(event) => setCertificatePurpose(event.target.value)}
+                        className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                      />
+                    </label>
+                    <label className="grid gap-2">
+                      <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">Certificate body</span>
+                      <textarea
+                        rows={7}
+                        value={certificateBody}
+                        onChange={(event) => setCertificateBody(event.target.value)}
+                        className="resize-none rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-200/40"
+                      />
+                    </label>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="grid gap-2">
+                        <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">Signatory name</span>
+                        <input
+                          value={certificateSignatoryName}
+                          onChange={(event) => setCertificateSignatoryName(event.target.value)}
+                          className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                        />
+                      </label>
+                      <label className="grid gap-2">
+                        <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">Signatory title</span>
+                        <input
+                          value={certificateSignatoryTitle}
+                          onChange={(event) => setCertificateSignatoryTitle(event.target.value)}
+                          className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                        />
+                      </label>
+                    </div>
+                    <label className="grid gap-2">
+                      <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">Admin note</span>
+                      <textarea
+                        rows={3}
+                        value={certificateAdminNote}
+                        onChange={(event) => setCertificateAdminNote(event.target.value)}
+                        className="resize-none rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-200/40"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={approveCertificateRequest}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition disabled:cursor-wait disabled:opacity-60"
+                    style={{ background: "var(--grad-aurora)" }}
+                  >
+                    {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                    Approve & Send
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving || selectedCertificateRequest.status === "rejected"}
+                    onClick={() => rejectCertificateRequest(selectedCertificateRequest)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <Ban className="size-4" />
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <EmptyState text="Select a certificate request to review student details and issue a certificate." />
+            )}
+          </DetailPanel>
+        </div>
+      </section>
+
       <section id="complaints" className={visible("complaints") ? "space-y-6" : "hidden"}>
         <div className="grid gap-4 xl:grid-cols-5">
           <MetricCard label="Complaint inbox" value={String(filteredComplaints.length)} hint="Visible student complaints" />
@@ -1610,6 +2142,80 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
+function defaultCertificatePurpose(request: AdminCertificate) {
+  if (request.certificate_key === "graduation") return "Degree completion";
+  if (request.certificate_key === "conduct") return "Merit and conduct verification";
+  return "Enrollment verification";
+}
+
+function defaultCertificateBody(request: AdminCertificate) {
+  if (request.certificate_key === "graduation") {
+    return `${request.student_name} (${request.student_code}) has successfully completed Semester 4 of the ${request.department} program and has fulfilled all prescribed academic requirements for graduation.`;
+  }
+  if (request.certificate_key === "conduct") {
+    return `${request.student_name} (${request.student_code}) of the ${request.department} program has maintained good conduct, academic discipline, CGPA ${request.cgpa.toFixed(2)}, and verified attendance of ${request.attendance.toFixed(1)}%.`;
+  }
+  return `${request.student_name} (${request.student_code}) is a bona fide student of the ${request.department} program, currently enrolled in Semester ${request.semester}, as verified by CampusVerse records.`;
+}
+
+function FeeStatusPill({ status }: { status: string }) {
+  const paid = status === "paid";
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs uppercase tracking-[0.18em] ${
+        paid
+          ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+          : "border-amber-300/20 bg-amber-400/10 text-amber-100"
+      }`}
+    >
+      <BadgeCheck className="size-3.5" />
+      {paid ? "Paid" : "Pending"}
+    </span>
+  );
+}
+
+function CertificateStatusPill({ status, label }: { status: string; label?: string }) {
+  const normalized = status.toLowerCase();
+  const className =
+    normalized === "downloaded"
+      ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+      : normalized === "ready"
+        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+        : normalized === "rejected"
+          ? "border-rose-300/20 bg-rose-500/10 text-rose-100"
+          : "border-amber-300/20 bg-amber-400/10 text-amber-100";
+  const display = label || (normalized === "ready" ? "Approved" : status.replace("_", " "));
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs uppercase tracking-[0.18em] ${className}`}>
+      <BadgeCheck className="size-3.5" />
+      {display}
+    </span>
+  );
+}
+
+function FeeInvoiceStack({ student }: { student: AdminFeeStudent }) {
+  return (
+    <div className="flex min-w-0 flex-wrap gap-2">
+      {student.invoices.map((invoice) => {
+        const paid = invoice.status === "paid";
+        return (
+          <span
+            key={invoice.id}
+            className={`max-w-full truncate rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.16em] ${
+              paid
+                ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+                : "border-amber-300/20 bg-amber-400/10 text-amber-100"
+            }`}
+            title={`${invoice.semester} / ${invoice.id} / ${formatCurrency(invoice.amount)} / ${paid ? "Paid" : "Pending"}`}
+          >
+            {invoice.semester} {formatCurrency(invoice.amount)} {paid ? "Paid" : "Due"}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function StatusPill({ status, blocked }: { status: string; blocked: boolean }) {
   if (blocked) {
     return <span className="rounded-full border border-rose-300/20 bg-rose-500/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-rose-100">Blocked</span>;
@@ -1704,4 +2310,8 @@ function formatDateTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function formatCurrency(value: number) {
+  return `₹ ${Math.round(value || 0).toLocaleString("en-IN")}`;
 }

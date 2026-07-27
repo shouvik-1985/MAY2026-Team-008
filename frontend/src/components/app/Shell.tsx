@@ -799,7 +799,6 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
   const [q, setQ] = useState("");
   const all = [
     ...NAV.map((n) => ({ kind: "Page", label: n.label, to: n.to })),
-    { kind: "Assignment", label: "Transformer Architecture Report", to: "/app/assignments" },
     { kind: "Faculty", label: "Dr. Anaya Krishnan / Adv. ML", to: "/app/profile" },
     { kind: "Event", label: "TEDxCampusVerse 2026", to: "/app/events" },
     { kind: "Resource", label: "Deep Learning / Goodfellow", to: "/app/resources" },

@@ -278,6 +278,8 @@ class ProfessorDashboard(BaseModel):
     cgpa_years: list[dict]
     announcements: list[dict]
     resources: list[dict]
+    assignments: list[dict] = []
+    assignment_submissions: list[dict] = []
     assignment_reviews: list[dict]
     review_queue: list[dict]
     academic_controls: list[dict]
@@ -401,6 +403,59 @@ class StudyResourceCreate(BaseModel):
     resource_type: str = Field(default="Notes", min_length=2, max_length=80)
     url: str | None = Field(default=None, max_length=500)
     tag: str = Field(default="new", max_length=80)
+
+
+class AssignmentGenerateCreate(BaseModel):
+    assignment_type: Literal["mcq", "qa", "file"] = "mcq"
+    title: str | None = Field(default=None, max_length=180)
+    subject: str = Field(min_length=2, max_length=120)
+    source_kind: Literal["resources", "syllabus", "content"] = "resources"
+    resource_ids: list[int] = Field(default_factory=list, max_length=12)
+    syllabus: str | None = Field(default=None, max_length=12000)
+    custom_content: str | None = Field(default=None, max_length=12000)
+    due_label: str = Field(default="in 7 days", min_length=2, max_length=80)
+    question_count: int = Field(default=5, ge=1, le=12)
+    total_points: int = Field(default=100, ge=10, le=100)
+
+    @field_validator("title", "subject", "syllabus", "custom_content", "due_label")
+    @classmethod
+    def clean_assignment_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
+class AssignmentDigitalSubmissionCreate(BaseModel):
+    answers: dict[str, str] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("answers")
+    @classmethod
+    def clean_answers(cls, value: dict[str, str]) -> dict[str, str]:
+        return {str(key).strip(): str(answer).strip() for key, answer in value.items() if str(key).strip()}
+
+    @field_validator("notes")
+    @classmethod
+    def clean_submission_notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
+class AssignmentSubmissionReviewUpdate(BaseModel):
+    score: float | None = Field(default=None, ge=0, le=100)
+    grade: str | None = Field(default=None, max_length=20)
+    feedback: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("grade", "feedback")
+    @classmethod
+    def clean_review_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
 
 
 class AssignmentReviewCreate(BaseModel):

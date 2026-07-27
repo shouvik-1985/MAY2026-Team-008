@@ -4,7 +4,7 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.attendance_flow import campus_setting_payload, get_campus_attendance_se
 from app.avatar import avatar_initials, student_avatar_url
 from app.db import get_db
 from app.dependencies import get_current_user
+from app.fee_flow import admin_fee_management_payload, update_semester_fee_amount
 from app.intake_flow import resolve_student_semester, slot_batches_payload
 from app.models import (
     Announcement,
@@ -32,6 +33,7 @@ from app.models import (
     StudentCertificateRequest,
     StudentComplaint,
     StudentComplaintAttachment,
+    StudentFeeInvoice,
     StudentProfile,
     StudentTodo,
     StudyResource,
@@ -316,6 +318,161 @@ def _delete_connect_data(db: Session, user_id: int) -> None:
     ).delete(synchronize_session=False)
 
 
+class SemesterFeeUpdate(BaseModel):
+    amount: int = Field(ge=1, le=10_000_000)
+
+
+ACTIVE_CERTIFICATE_KEYS = {"bonafide", "conduct", "graduation"}
+
+
+class CertificateApprovalPayload(BaseModel):
+    purpose: str | None = Field(default=None, max_length=180)
+    certificate_body: str | None = Field(default=None, max_length=1200)
+    signatory_name: str | None = Field(default=None, max_length=120)
+    signatory_title: str | None = Field(default=None, max_length=160)
+    admin_note: str | None = Field(default=None, max_length=800)
+
+
+def _clean_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _certificate_default_body(
+    req: StudentCertificateRequest,
+    student: User,
+    profile: StudentProfile | None,
+    semester: int,
+) -> str:
+    student_code = profile.student_code if profile else _student_code(student.id)
+    department = profile.department if profile else "Computer Science & AI"
+    cgpa = profile.cgpa if profile else 0
+    attendance = profile.attendance if profile else 0
+    if req.certificate_key == "graduation":
+        return (
+            f"{student.full_name} ({student_code}) has successfully completed Semester 4 of the "
+            f"{department} program and has fulfilled all prescribed academic requirements for graduation."
+        )
+    if req.certificate_key == "conduct":
+        return (
+            f"This is to certify that {student.full_name} ({student_code}) of the {department} program "
+            f"has maintained good conduct, academic discipline, CGPA {cgpa:.2f}, and verified attendance "
+            f"of {attendance:.1f}% during the enrolled academic term."
+        )
+    return (
+        f"This is to certify that {student.full_name} ({student_code}) is a bona fide student of the "
+        f"{department} program, currently enrolled in Semester {semester}, as verified by CampusVerse records."
+    )
+
+
+def _certificate_request_payload(
+    db: Session,
+    req: StudentCertificateRequest,
+    student: User,
+    profile: StudentProfile | None,
+) -> dict:
+    setting = get_campus_attendance_setting(db)
+    semester = resolve_student_semester(
+        profile,
+        student,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
+    status_labels = {
+        "requested": "Requested",
+        "ready": "Approved",
+        "downloaded": "Downloaded",
+        "rejected": "Rejected",
+    }
+    return {
+        "id": req.id,
+        "student_id": student.id,
+        "student_name": student.full_name,
+        "student_email": student.email,
+        "student_code": profile.student_code if profile else _student_code(student.id),
+        "department": profile.department if profile else "Computer Science & AI",
+        "semester": semester,
+        "cgpa": round(profile.cgpa if profile else 0, 2),
+        "attendance": round(profile.attendance if profile else 0, 1),
+        "avatar_url": student_avatar_url(profile),
+        "certificate_key": req.certificate_key,
+        "certificate_name": req.certificate_name,
+        "status": req.status,
+        "status_label": status_labels.get(req.status, req.status.replace("_", " ").title()),
+        "purpose": req.purpose,
+        "certificate_body": req.certificate_body,
+        "signatory_name": req.signatory_name,
+        "signatory_title": req.signatory_title,
+        "admin_note": req.admin_note,
+        "requested_at": req.requested_at.isoformat() if req.requested_at else None,
+        "ready_at": req.ready_at.isoformat() if req.ready_at else None,
+        "downloaded_at": req.downloaded_at.isoformat() if req.downloaded_at else None,
+    }
+
+
+def _ensure_graduation_certificate_requests(db: Session) -> None:
+    setting = get_campus_attendance_setting(db)
+    profiles = {
+        profile.user_id: profile
+        for profile in db.query(StudentProfile).all()
+    }
+    existing_requests = {
+        req.student_id: req
+        for req in (
+            db.query(StudentCertificateRequest)
+            .filter(StudentCertificateRequest.certificate_key == "graduation")
+            .all()
+        )
+    }
+    changed = False
+    for student in db.query(User).filter(User.role == Role.student).all():
+        profile = profiles.get(student.id)
+        semester = resolve_student_semester(
+            profile,
+            student,
+            setting.semester_duration_months,
+            setting.semester_duration_unit,
+            setting.semester_duration_days,
+        )
+        if semester < 4:
+            continue
+
+        request = existing_requests.get(student.id)
+        moment = datetime.now(ZoneInfo("UTC"))
+        department = profile.department if profile else "Computer Science & AI"
+        student_code = profile.student_code if profile else _student_code(student.id)
+        if request is None:
+            db.add(
+                StudentCertificateRequest(
+                    student_id=student.id,
+                    certificate_key="graduation",
+                    certificate_name="Graduation Degree Certificate",
+                    status="ready",
+                    purpose="Degree completion",
+                    certificate_body=(
+                        f"{student.full_name} ({student_code}) has successfully completed Semester 4 of the "
+                        f"{department} program and has fulfilled all prescribed academic requirements for graduation."
+                    ),
+                    signatory_name="Dr. A. R. Sharma",
+                    signatory_title="Registrar & Academic Senate",
+                    requested_at=moment,
+                    ready_at=moment,
+                )
+            )
+            changed = True
+        elif request.status not in {"ready", "downloaded"}:
+            request.status = "ready"
+            request.ready_at = request.ready_at or moment
+            request.updated_at = moment
+            changed = True
+
+    if changed:
+        db.commit()
+
+
 def _delete_user_records(db: Session, target: User) -> None:
     db.query(User).filter(User.blocked_by_id == target.id).update(
         {"blocked_by_id": None},
@@ -360,6 +517,8 @@ def _delete_user_records(db: Session, target: User) -> None:
                 StudentComplaintAttachment.complaint_id.in_(complaint_ids)
             ).delete(synchronize_session=False)
         db.query(StudentComplaint).filter(StudentComplaint.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentFeeInvoice).filter(StudentFeeInvoice.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentCertificateRequest).filter(StudentCertificateRequest.student_id == target.id).delete(synchronize_session=False)
         db.query(AssignmentReview).filter(AssignmentReview.student_id == target.id).delete(synchronize_session=False)
         db.query(StudentTodo).filter(StudentTodo.student_id == target.id).delete(synchronize_session=False)
         db.query(StudentAttendance).filter(StudentAttendance.student_id == target.id).delete(synchronize_session=False)
@@ -423,6 +582,33 @@ def management(
     setting = get_campus_attendance_setting(db)
     db.commit()
     return _management_out(db, setting)
+
+
+@router.get("/fees")
+def fee_management(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    payload = admin_fee_management_payload(db)
+    db.commit()
+    return payload
+
+
+@router.patch("/fees/settings/{semester}")
+def update_semester_fee(
+    semester: int,
+    payload: SemesterFeeUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_admin(current_user)
+    if semester < 1 or semester > 4:
+        raise HTTPException(status_code=400, detail="Semester fee can be edited for semesters 1 to 4")
+    update_semester_fee_amount(db, semester, payload.amount, current_user.id)
+    response = admin_fee_management_payload(db)
+    db.commit()
+    return response
 
 
 @router.patch("/management/attendance-radius", response_model=CampusAttendanceSettingsOut)
@@ -652,34 +838,23 @@ def list_certificate_requests(
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     _require_admin(current_user)
+    _ensure_graduation_certificate_requests(db)
     requests = (
-        db.query(StudentCertificateRequest, User)
+        db.query(StudentCertificateRequest, User, StudentProfile)
         .join(User, StudentCertificateRequest.student_id == User.id)
+        .outerjoin(StudentProfile, StudentProfile.user_id == User.id)
+        .filter(StudentCertificateRequest.certificate_key.in_(ACTIVE_CERTIFICATE_KEYS))
         .order_by(StudentCertificateRequest.requested_at.desc())
         .all()
     )
-    rows = []
-    for req, student in requests:
-        rows.append(
-            {
-                "id": req.id,
-                "student_id": student.id,
-                "student_name": student.full_name,
-                "student_email": student.email,
-                "certificate_key": req.certificate_key,
-                "certificate_name": req.certificate_name,
-                "status": req.status,
-                "requested_at": req.requested_at.isoformat() if req.requested_at else None,
-                "ready_at": req.ready_at.isoformat() if req.ready_at else None,
-                "downloaded_at": req.downloaded_at.isoformat() if req.downloaded_at else None,
-            }
-        )
+    rows = [_certificate_request_payload(db, req, student, profile) for req, student, profile in requests]
     return {"ok": True, "requests": rows}
 
 
 @router.post("/certificates/{request_id}/approve")
 def approve_certificate_request(
     request_id: int,
+    payload: CertificateApprovalPayload | None,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
@@ -687,12 +862,45 @@ def approve_certificate_request(
     req = db.get(StudentCertificateRequest, request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Certificate request not found")
+    if req.certificate_key not in ACTIVE_CERTIFICATE_KEYS:
+        raise HTTPException(status_code=404, detail="Certificate type is no longer available")
+
+    student = db.get(User, req.student_id)
+    if not student or student.role != Role.student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == student.id).first()
+    setting = get_campus_attendance_setting(db)
+    semester = resolve_student_semester(
+        profile,
+        student,
+        setting.semester_duration_months,
+        setting.semester_duration_unit,
+        setting.semester_duration_days,
+    )
+    clean_payload = payload or CertificateApprovalPayload()
     moment = datetime.now(ZoneInfo("UTC"))
+    req.purpose = _clean_optional_text(clean_payload.purpose) or req.purpose or (
+        "Degree completion" if req.certificate_key == "graduation" else "Student certificate issuance"
+    )
+    req.certificate_body = (
+        _clean_optional_text(clean_payload.certificate_body)
+        or req.certificate_body
+        or _certificate_default_body(req, student, profile, semester)
+    )
+    req.signatory_name = _clean_optional_text(clean_payload.signatory_name) or req.signatory_name or "Dr. A. R. Sharma"
+    req.signatory_title = _clean_optional_text(clean_payload.signatory_title) or req.signatory_title or "Registrar & Academic Senate"
+    req.admin_note = _clean_optional_text(clean_payload.admin_note) or req.admin_note
     req.status = "ready"
     req.ready_at = moment
     req.updated_at = moment
     db.commit()
-    return {"ok": True, "message": f"{req.certificate_name} approved for student", "request_id": request_id}
+    db.refresh(req)
+    return {
+        "ok": True,
+        "message": f"{req.certificate_name} approved for student",
+        "request_id": request_id,
+        "request": _certificate_request_payload(db, req, student, profile),
+    }
 
 
 @router.post("/certificates/{request_id}/reject")
@@ -705,10 +913,23 @@ def reject_certificate_request(
     req = db.get(StudentCertificateRequest, request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Certificate request not found")
+    if req.certificate_key not in ACTIVE_CERTIFICATE_KEYS:
+        raise HTTPException(status_code=404, detail="Certificate type is no longer available")
+    student = db.get(User, req.student_id)
+    if not student or student.role != Role.student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == student.id).first()
     req.status = "rejected"
+    req.admin_note = req.admin_note or "Rejected by admin"
     req.updated_at = datetime.now(ZoneInfo("UTC"))
     db.commit()
-    return {"ok": True, "message": f"{req.certificate_name} request rejected", "request_id": request_id}
+    db.refresh(req)
+    return {
+        "ok": True,
+        "message": f"{req.certificate_name} request rejected",
+        "request_id": request_id,
+        "request": _certificate_request_payload(db, req, student, profile),
+    }
 
 
 class AnnouncementCreate(BaseModel):
@@ -776,4 +997,3 @@ def delete_announcement(
     db.delete(item)
     db.commit()
     return {"ok": True, "message": "Announcement deleted successfully", "id": announcement_id}
-

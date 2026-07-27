@@ -1,22 +1,31 @@
 from datetime import date, datetime, timedelta, timezone
+from io import BytesIO
+import json
 from math import ceil
 from pathlib import Path
 import re
+import zipfile
+import zlib
 from typing import Annotated
+from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from app.assignment_ai import build_assignment_blueprint, grade_from_score, normalize_grade_code
 from app.attendance_flow import checkin_payload, get_campus_attendance_setting, get_today_checkin, today_local
 from app.avatar import avatar_initials, student_avatar_url
+from app.core.config import get_settings
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.intake_flow import local_today, resolve_student_semester
 from app.models import (
     Announcement,
+    Assignment,
     AssignmentReview,
+    AssignmentSubmission,
     Role,
     StudentAttendance,
     StudentBiometricCheckIn,
@@ -26,7 +35,9 @@ from app.models import (
 )
 from app.schemas import (
     AnnouncementCreate,
+    AssignmentGenerateCreate,
     AssignmentReviewCreate,
+    AssignmentSubmissionReviewUpdate,
     ProfessorDashboard,
     ProfessorAttendanceConfirm,
     StudentAcademicUpdate,
@@ -389,9 +400,122 @@ def _resource_rows(db: Session, professor: User | None = None, limit: int = 60) 
     return [_resource_payload(db, item) for item in rows]
 
 
+def _json_loads(value: str | None, fallback):
+    if not value:
+        return fallback
+    try:
+        loaded = json.loads(value)
+    except (TypeError, ValueError):
+        return fallback
+    return loaded
+
+
+def _time_ago(value: datetime | None) -> str:
+    if value is None:
+        return "recently"
+    moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    delta = _now() - moment
+    if delta.days >= 1:
+        return f"{delta.days} day ago" if delta.days == 1 else f"{delta.days} days ago"
+    hours = max(0, delta.seconds // 3600)
+    if hours:
+        return f"{hours} hour ago" if hours == 1 else f"{hours} hours ago"
+    minutes = max(1, delta.seconds // 60)
+    return f"{minutes} min ago"
+
+
+def _assignment_payload(item: Assignment) -> dict:
+    content = _json_loads(item.content_json, {})
+    rubric = _json_loads(item.rubric_json, [])
+    questions = content.get("questions", []) if isinstance(content, dict) else []
+    return {
+        "id": item.id,
+        "title": item.title,
+        "subject": item.subject,
+        "assignmentType": item.assignment_type,
+        "sourceKind": item.source_kind,
+        "sourceTitle": item.source_title,
+        "instructions": content.get("instructions", "") if isinstance(content, dict) else "",
+        "questions": questions if isinstance(questions, list) else [],
+        "rubric": rubric if isinstance(rubric, list) else [],
+        "allowedFileTypes": content.get("allowedFileTypes", []) if isinstance(content, dict) else [],
+        "questionCount": item.question_count,
+        "totalPoints": item.total_points,
+        "due": item.due_label,
+        "status": item.status,
+        "createdAt": item.created_at.isoformat(),
+        "updatedAt": item.updated_at.isoformat(),
+    }
+
+
+def _assignment_rows(db: Session, professor: User | None = None, limit: int = 20) -> list[dict]:
+    query = db.query(Assignment)
+    if professor:
+        query = query.filter(Assignment.created_by_id == professor.id)
+    return [_assignment_payload(item) for item in query.order_by(desc(Assignment.created_at)).limit(limit).all()]
+
+
+def _submission_payload(db: Session, item: AssignmentSubmission) -> dict:
+    assignment = db.get(Assignment, item.assignment_id)
+    student = db.get(User, item.student_id)
+    ai_review = _json_loads(item.ai_review_json, {})
+    answers = _json_loads(item.answers_json, {})
+    total_points = assignment.total_points if assignment else 100
+    ai_grade = (
+        grade_from_score((item.ai_score / max(1, total_points)) * 100)
+        if item.ai_score is not None
+        else item.ai_grade
+    )
+    stored_professor_grade = normalize_grade_code(item.professor_grade)
+    professor_grade = (
+        stored_professor_grade
+        if stored_professor_grade
+        else grade_from_score((item.professor_score / max(1, total_points)) * 100)
+        if item.professor_score is not None
+        else None
+    )
+    final_grade = professor_grade or ai_grade or "Pending"
+    final_feedback = item.professor_feedback or item.ai_feedback or ""
+    priority = "high" if item.ai_score is not None and item.ai_score < 75 else "normal"
+    return {
+        "id": item.id,
+        "submissionId": item.id,
+        "assignmentId": item.assignment_id,
+        "studentId": item.student_id,
+        "student": student.full_name if student else "Student",
+        "title": assignment.title if assignment else "Assignment submission",
+        "subject": assignment.subject if assignment else item.submission_type,
+        "assignmentType": assignment.assignment_type if assignment else item.submission_type,
+        "submitted": _time_ago(item.submitted_at),
+        "submittedAt": item.submitted_at.isoformat(),
+        "priority": priority,
+        "status": item.status,
+        "aiGrade": ai_grade or "Pending",
+        "aiScore": item.ai_score,
+        "aiFeedback": item.ai_feedback or "",
+        "aiReview": ai_review,
+        "professorScore": item.professor_score,
+        "professorGrade": professor_grade or "",
+        "professorFeedback": item.professor_feedback or "",
+        "grade": final_grade,
+        "feedback": final_feedback,
+        "fileName": item.filename or "",
+        "fileSize": item.file_size or 0,
+        "fileUrl": f"/api/professor/assignments/submissions/{item.id}/file" if item.filename else "",
+        "answerCount": len(answers) if isinstance(answers, dict) else 0,
+        "answers": answers if isinstance(answers, dict) else {},
+    }
+
+
+def _submission_rows(db: Session, limit: int = 40) -> list[dict]:
+    rows = db.query(AssignmentSubmission).order_by(desc(AssignmentSubmission.updated_at)).limit(limit).all()
+    return [_submission_payload(db, item) for item in rows]
+
+
 def _review_rows(db: Session) -> list[dict]:
+    submission_rows = _submission_rows(db, limit=10)
     rows = db.query(AssignmentReview).order_by(desc(AssignmentReview.updated_at)).limit(10).all()
-    return [
+    legacy_rows = [
         {
             "id": item.id,
             "studentId": item.student_id,
@@ -404,22 +528,187 @@ def _review_rows(db: Session) -> list[dict]:
         }
         for item in rows
     ]
+    return [*submission_rows, *legacy_rows][:10]
 
 
-def _review_queue(students: list[dict]) -> list[dict]:
-    subjects = ["Research Methods", "Distributed Systems", "AI Studio", "Data Structures"]
-    return [
-        {
-            "id": idx + 1,
-            "studentId": student["id"],
-            "student": student["name"],
-            "title": f"{student['name'].split()[0]}'s {subjects[idx % len(subjects)]} submission",
-            "subject": subjects[idx % len(subjects)],
-            "submitted": f"{idx + 1} day ago" if idx == 0 else f"{idx + 1} days ago",
-            "priority": "high" if student["attendance"] < 80 else "normal",
-        }
-        for idx, student in enumerate(students[:6])
+def _review_queue(db: Session, students: list[dict]) -> list[dict]:
+    return _submission_rows(db, limit=30)
+
+
+def _compact_source_text(value: str, limit: int = 12000) -> str:
+    cleaned = re.sub(r"\s+", " ", value or "").strip()
+    return cleaned[:limit]
+
+
+def _raw_text_from_bytes(data: bytes, limit: int = 6000) -> str:
+    decoded = ""
+    for encoding in ("utf-8", "utf-16", "latin-1"):
+        try:
+            decoded = data.decode(encoding, errors="ignore")
+        except (LookupError, UnicodeDecodeError):
+            continue
+        if decoded.strip():
+            break
+    decoded = re.sub(r"[^\x09\x0A\x0D\x20-\x7E]+", " ", decoded)
+    chunks = re.findall(r"[A-Za-z0-9][A-Za-z0-9\s.,;:()/%+\-]{18,}", decoded)
+    return _compact_source_text(" ".join(chunks) or decoded, limit)
+
+
+PDF_ARTIFACT_PATTERNS = (
+    "/ObjStm",
+    "/FlateDecode",
+    "/Subtype",
+    "/Filter",
+    "/Length",
+    "endobj",
+    "endstream",
+    "xref",
+    "startxref",
+)
+
+
+def _looks_like_extraction_artifact(value: str) -> bool:
+    if not value:
+        return True
+    artifact_hits = sum(value.count(pattern) for pattern in PDF_ARTIFACT_PATTERNS)
+    words = re.findall(r"[A-Za-z]{3,}", value)
+    readable_words = [
+        word
+        for word in words
+        if not re.fullmatch(r"[A-Fa-f0-9]{6,}", word)
+        and not word.startswith("Obj")
+        and word.lower() not in {"stream", "endstream", "obj", "endobj", "filter", "length"}
     ]
+    if artifact_hits >= 2:
+        return True
+    return len(readable_words) < 35
+
+
+def _docx_text_from_bytes(data: bytes, limit: int = 9000) -> str:
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            xml_bytes = archive.read("word/document.xml")
+    except (KeyError, zipfile.BadZipFile):
+        return ""
+    try:
+        root = ElementTree.fromstring(xml_bytes)
+    except ElementTree.ParseError:
+        return ""
+    parts = [
+        node.text or ""
+        for node in root.iter()
+        if node.tag.endswith("}t") or node.tag == "t"
+    ]
+    return _compact_source_text(" ".join(parts), limit)
+
+
+def _pdf_text_from_bytes(data: bytes, limit: int = 9000) -> str:
+    try:
+        from pypdf import PdfReader  # type: ignore
+    except Exception:
+        pypdf_text = ""
+    else:
+        try:
+            reader = PdfReader(BytesIO(data))
+            pages = [(page.extract_text() or "") for page in reader.pages[:12]]
+            pypdf_text = _compact_source_text(" ".join(pages), limit)
+        except Exception:
+            pypdf_text = ""
+        if pypdf_text and not _looks_like_extraction_artifact(pypdf_text):
+            return pypdf_text
+
+    stream_text = _pdf_stream_text_from_bytes(data, limit)
+    return stream_text if stream_text and not _looks_like_extraction_artifact(stream_text) else ""
+
+
+def _decode_pdf_literal(raw: bytes) -> str:
+    try:
+        value = raw[1:-1].decode("latin-1", errors="ignore")
+    except Exception:
+        return ""
+    value = re.sub(r"\\([nrtbf()\\])", lambda match: {"n": "\n", "r": "\r", "t": "\t", "b": "", "f": "", "(": "(", ")": ")", "\\": "\\"}.get(match.group(1), match.group(1)), value)
+    value = re.sub(r"\\[0-7]{1,3}", " ", value)
+    return value
+
+
+def _decode_pdf_hex(raw: bytes) -> str:
+    cleaned = re.sub(rb"\s+", b"", raw)
+    if len(cleaned) % 2:
+        cleaned += b"0"
+    try:
+        data = bytes.fromhex(cleaned.decode("ascii"))
+    except Exception:
+        return ""
+    for encoding in ("utf-16-be", "utf-8", "latin-1"):
+        try:
+            text = data.decode(encoding, errors="ignore")
+        except Exception:
+            continue
+        if re.search(r"[A-Za-z]{3,}", text):
+            return text
+    return ""
+
+
+def _pdf_stream_text_from_bytes(data: bytes, limit: int = 9000) -> str:
+    chunks: list[str] = []
+    for match in re.finditer(rb"<<(?P<dict>.*?)>>\s*stream\r?\n(?P<body>.*?)\r?\nendstream", data, re.DOTALL):
+        dictionary = match.group("dict")
+        body = match.group("body").strip(b"\r\n")
+        if b"/FlateDecode" in dictionary:
+            try:
+                body = zlib.decompress(body)
+            except Exception:
+                continue
+        elif b"/Filter" in dictionary:
+            continue
+
+        for literal in re.findall(rb"\((?:\\.|[^\\()])*\)", body):
+            text = _decode_pdf_literal(literal)
+            if text:
+                chunks.append(text)
+        for hex_string in re.findall(rb"(?<!<)<([0-9A-Fa-f\s]{6,})>(?!>)", body):
+            text = _decode_pdf_hex(hex_string)
+            if text:
+                chunks.append(text)
+        if len(" ".join(chunks)) >= limit:
+            break
+    return _compact_source_text(" ".join(chunks), limit)
+
+
+def _resource_source_text(item: StudyResource, limit: int = 10000) -> str:
+    metadata = (
+        f"Resource title: {item.title}. Subject: {item.subject}. "
+        f"Type: {item.resource_type}. Tag: {item.tag}. "
+    )
+    if not item.file_data:
+        return metadata
+
+    filename = (item.filename or item.title or "").lower()
+    content_type = (item.content_type or "").lower()
+    extracted = ""
+    is_pdf = filename.endswith(".pdf") or "pdf" in content_type
+    is_docx = filename.endswith(".docx") or "wordprocessingml" in content_type
+    is_text = filename.endswith(".txt") or "text/" in content_type
+    is_legacy_doc = filename.endswith(".doc") and not is_docx
+
+    if is_docx:
+        extracted = _docx_text_from_bytes(item.file_data, limit)
+    elif is_pdf:
+        extracted = _pdf_text_from_bytes(item.file_data, limit)
+    if not extracted and is_text:
+        extracted = _raw_text_from_bytes(item.file_data, limit)
+
+    if extracted and _looks_like_extraction_artifact(extracted):
+        extracted = ""
+
+    if not extracted and not (is_pdf or is_docx or is_legacy_doc):
+        extracted = _raw_text_from_bytes(item.file_data, limit)
+        if _looks_like_extraction_artifact(extracted):
+            extracted = ""
+
+    if not extracted:
+        return _compact_source_text(metadata, limit)
+    return _compact_source_text(f"{metadata} Study content: {extracted}", limit)
 
 
 def _write_attendance_record(
@@ -478,7 +767,7 @@ def dashboard(
         [item for item in today_checkins if item.biometric_verified and not item.professor_confirmed]
     )
     today["warnings"] = len([item for item in today_checkins if item.warning_flag])
-    queue = _review_queue(students)
+    queue = _review_queue(db, students)
 
     return ProfessorDashboard(
         professor={
@@ -510,6 +799,8 @@ def dashboard(
         cgpa_years=_cgpa_years(students),
         announcements=_announcement_rows(db, current_user),
         resources=_resource_rows(db, current_user),
+        assignments=_assignment_rows(db, current_user),
+        assignment_submissions=_submission_rows(db, limit=120),
         assignment_reviews=_review_rows(db),
         review_queue=queue,
         academic_controls=[
@@ -805,6 +1096,154 @@ def delete_resource(
     db.commit()
     _delete_uploaded_resource_file(file_url)
     return {"ok": True, "id": resource_id}
+
+
+def _assignment_source_from_payload(
+    db: Session,
+    payload: AssignmentGenerateCreate,
+    professor: User,
+) -> tuple[str, str]:
+    if payload.source_kind == "resources":
+        query = db.query(StudyResource).filter(StudyResource.created_by_id == professor.id)
+        if payload.resource_ids:
+            query = query.filter(StudyResource.id.in_(payload.resource_ids))
+        resources = query.order_by(desc(StudyResource.created_at)).limit(12).all()
+        if resources:
+            titles = [item.title for item in resources]
+            source_text = "\n\n".join(
+                [
+                    f"RESOURCE {index + 1}: {_resource_source_text(item)}"
+                    for index, item in enumerate(resources)
+                ]
+            )
+            return ", ".join(titles[:3]), _compact_source_text(source_text, 12000)
+        return "Professor resource bank", payload.subject
+
+    if payload.source_kind == "syllabus":
+        return "Selected syllabus", _compact_source_text(payload.syllabus or payload.subject, 12000)
+
+    return "Custom professor content", _compact_source_text(payload.custom_content or payload.subject, 12000)
+
+
+@router.post("/assignments/generate")
+def generate_assignment(
+    payload: AssignmentGenerateCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    source_title, source_text = _assignment_source_from_payload(db, payload, current_user)
+    clean_subject = payload.subject.strip()
+    title = payload.title or f"{clean_subject} {payload.assignment_type.upper()} Assignment"
+    settings = get_settings()
+    openai_api_key = settings.openai_api_key.get_secret_value() if settings.openai_api_key else None
+    content, rubric = build_assignment_blueprint(
+        assignment_type=payload.assignment_type,
+        subject=clean_subject,
+        title=title,
+        source_title=source_title,
+        source_text=source_text,
+        question_count=payload.question_count,
+        total_points=payload.total_points,
+        api_key=openai_api_key,
+        model=settings.openai_model,
+    )
+    item = Assignment(
+        created_by_id=current_user.id,
+        title=title.strip()[:180],
+        subject=clean_subject[:120],
+        assignment_type=payload.assignment_type,
+        source_kind=payload.source_kind,
+        source_title=source_title[:255],
+        source_text=source_text[:12000],
+        total_points=payload.total_points,
+        question_count=payload.question_count,
+        due_label=payload.due_label.strip()[:80],
+        content_json=json.dumps(content),
+        rubric_json=json.dumps(rubric),
+        status="published",
+        updated_at=_now(),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    generation_mode = content.get("generationMode") if isinstance(content, dict) else None
+    source_warning = content.get("sourceWarning") if isinstance(content, dict) else None
+    message = (
+        "OpenAI assignment generated from the selected material and published to students"
+        if generation_mode == "openai"
+        else "Assignment generated from the selected material with the local fallback and published to students"
+    )
+    if source_warning:
+        message = f"{message}. {source_warning}"
+    return {"ok": True, "assignment": _assignment_payload(item), "message": message}
+
+
+@router.get("/assignments/submissions/{submission_id}/file")
+def open_assignment_submission_file(
+    submission_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    download: bool = Query(False),
+) -> Response:
+    _require_professor(current_user)
+    item = db.get(AssignmentSubmission, submission_id)
+    if not item or not item.file_data or not item.filename:
+        raise HTTPException(status_code=404, detail="Submission file not found")
+    disposition = "attachment" if download else "inline"
+    filename = Path(item.filename).name.replace('"', "")
+    return Response(
+        content=item.file_data,
+        media_type=item.content_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{filename}"',
+            "Content-Length": str(len(item.file_data)),
+        },
+    )
+
+
+@router.patch("/assignments/submissions/{submission_id}/review")
+def update_assignment_submission_review(
+    submission_id: int,
+    payload: AssignmentSubmissionReviewUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    item = db.get(AssignmentSubmission, submission_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Assignment submission not found")
+
+    assignment = db.get(Assignment, item.assignment_id)
+    total_points = assignment.total_points if assignment else 100
+    professor_score = None
+    professor_grade = normalize_grade_code(payload.grade)
+    if payload.score is not None:
+        professor_score = max(0.0, min(float(total_points), float(payload.score)))
+        professor_grade = professor_grade or grade_from_score((professor_score / max(1, total_points)) * 100)
+
+    item.professor_score = professor_score
+    item.professor_grade = professor_grade
+    item.professor_feedback = payload.feedback
+    item.reviewed_by_id = current_user.id
+    item.reviewed_at = _now()
+    item.status = "professor_reviewed"
+    item.updated_at = _now()
+
+    review = AssignmentReview(
+        student_id=item.student_id,
+        reviewed_by_id=current_user.id,
+        assignment_title=assignment.title if assignment else "Assignment submission",
+        subject=assignment.subject if assignment else item.submission_type,
+        grade=professor_grade,
+        feedback=payload.feedback,
+        status="reviewed",
+        updated_at=_now(),
+    )
+    db.add(review)
+    db.commit()
+    db.refresh(item)
+    return {"ok": True, "submission": _submission_payload(db, item)}
 
 
 @router.post("/assignments/review")

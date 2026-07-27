@@ -94,6 +94,25 @@ def ensure_database_shape() -> None:
     if "study_resources" in tables:
         resource_columns = {column["name"] for column in inspector.get_columns("study_resources")}
 
+    assignment_submission_columns = set()
+    if "assignment_submissions" in tables:
+        assignment_submission_columns = {
+            column["name"] for column in inspector.get_columns("assignment_submissions")
+        }
+
+    certificate_request_columns = set()
+    if "student_certificate_requests" in tables:
+        certificate_request_columns = {
+            column["name"] for column in inspector.get_columns("student_certificate_requests")
+        }
+    certificate_request_additions = {
+        "purpose": "VARCHAR(180)",
+        "certificate_body": _column_sql("text"),
+        "signatory_name": "VARCHAR(120)",
+        "signatory_title": "VARCHAR(160)",
+        "admin_note": _column_sql("text"),
+    }
+
     resource_additions = {
         "filename": "VARCHAR(255)",
         "content_type": "VARCHAR(120)",
@@ -168,6 +187,14 @@ def ensure_database_shape() -> None:
             for name, definition in resource_additions.items():
                 if name not in resource_columns:
                     connection.execute(text(f"ALTER TABLE study_resources ADD COLUMN {name} {definition}"))
+
+        if "assignment_submissions" in tables and "professor_score" not in assignment_submission_columns:
+            connection.execute(text("ALTER TABLE assignment_submissions ADD COLUMN professor_score FLOAT"))
+
+        if "student_certificate_requests" in tables:
+            for name, definition in certificate_request_additions.items():
+                if name not in certificate_request_columns:
+                    connection.execute(text(f"ALTER TABLE student_certificate_requests ADD COLUMN {name} {definition}"))
 
         if "placement_roles" in tables:
             for name, definition in placement_role_additions.items():

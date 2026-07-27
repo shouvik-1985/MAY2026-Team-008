@@ -61,49 +61,15 @@ export const SCHEDULE_TODAY = [
   { time: "16:30", title: "Robotics Seminar", room: "Auditorium 2", color: "oklch(0.85 0.12 60)" },
 ];
 
-export const ASSIGNMENTS = [
-  {
-    id: 1,
-    title: "Transformer Architecture Report",
-    subject: "Adv. ML",
-    due: "in 2 days",
-    progress: 70,
-    status: "ongoing",
-  },
-  {
-    id: 2,
-    title: "RAFT Consensus Simulation",
-    subject: "Distributed Systems",
-    due: "in 5 days",
-    progress: 30,
-    status: "ongoing",
-  },
-  {
-    id: 3,
-    title: "Voice-First UX Case Study",
-    subject: "HCI",
-    due: "tomorrow",
-    progress: 90,
-    status: "ongoing",
-  },
-  {
-    id: 4,
-    title: "Robot Path Planning Demo",
-    subject: "Robotics",
-    due: "completed",
-    progress: 100,
-    status: "graded",
-    grade: "A",
-  },
-  {
-    id: 5,
-    title: "Linear Algebra Set 4",
-    subject: "Mathematics",
-    due: "in 9 days",
-    progress: 0,
-    status: "pending",
-  },
-];
+export const ASSIGNMENTS: Array<{
+  id: number;
+  title: string;
+  subject: string;
+  due: string;
+  progress: number;
+  status: string;
+  grade?: string;
+}> = [];
 
 export const ANNOUNCEMENTS = [
   {

@@ -149,6 +149,54 @@ class CampusAttendanceSetting(Base):
     )
 
 
+class SemesterFeeSetting(Base):
+    __tablename__ = "semester_fee_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    semester: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, index=True)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="INR", nullable=False)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class StudentFeeInvoice(Base):
+    __tablename__ = "student_fee_invoices"
+    __table_args__ = (UniqueConstraint("student_id", "semester", name="uq_student_fee_invoice_semester"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    semester: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    invoice_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="INR", nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="pending", nullable=False, index=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    razorpay_order_id: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True, index=True)
+    razorpay_payment_id: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True, index=True)
+    razorpay_signature: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    student: Mapped[User] = relationship(foreign_keys=[student_id])
+
+
 class StudentBiometricCheckIn(Base):
     __tablename__ = "student_biometric_checkins"
     __table_args__ = (UniqueConstraint("student_id", "checkin_date", name="uq_student_biometric_checkin_day"),)
@@ -202,6 +250,11 @@ class StudentCertificateRequest(Base):
     certificate_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     certificate_name: Mapped[str] = mapped_column(String(180), nullable=False)
     status: Mapped[str] = mapped_column(String(40), default="requested", nullable=False, index=True)
+    purpose: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    certificate_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    signatory_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    signatory_title: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     requested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -457,6 +510,70 @@ class StudyResource(Base):
     tag: Mapped[str] = mapped_column(String(80), default="new", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class Assignment(Base):
+    __tablename__ = "assignments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(180), nullable=False)
+    subject: Mapped[str] = mapped_column(String(120), nullable=False)
+    assignment_type: Mapped[str] = mapped_column(String(24), default="mcq", nullable=False, index=True)
+    source_kind: Mapped[str] = mapped_column(String(40), default="content", nullable=False)
+    source_title: Mapped[str] = mapped_column(String(255), default="Selected course material", nullable=False)
+    source_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    total_points: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    question_count: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    due_label: Mapped[str] = mapped_column(String(80), default="in 7 days", nullable=False)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    content_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    rubric_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="published", nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class AssignmentSubmission(Base):
+    __tablename__ = "assignment_submissions"
+    __table_args__ = (UniqueConstraint("assignment_id", "student_id", name="uq_assignment_submission_student"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("assignments.id"), nullable=False, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    submission_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    answers_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    ai_grade: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    ai_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_review_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    professor_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    professor_grade: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    professor_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="ai_reviewed", nullable=False, index=True)
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
 
 
