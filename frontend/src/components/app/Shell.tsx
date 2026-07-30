@@ -40,6 +40,7 @@ import {
   Check,
   PencilLine,
   Trash2,
+  Brain,
 } from "lucide-react";
 import { clearStoredRole } from "@/lib/use-role";
 import { clearAuthSession, getStoredUser } from "@/lib/auth";
@@ -72,6 +73,7 @@ type NavItem = {
 };
 const NAV: NavItem[] = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { to: "/app/ai", label: "AI Assistant", icon: Brain },
   { to: "/app/announcements", label: "Announcements", icon: Megaphone },
   { to: "/app/attendance", label: "Attendance", icon: ClipboardCheck },
   { to: "/app/assignments", label: "Assignments", icon: FileText },
@@ -80,7 +82,7 @@ const NAV: NavItem[] = [
   { to: "/app/certificates", label: "Certificates", icon: Award },
   { to: "/app/fees", label: "Fee Payment", icon: Wallet },
   { to: "/app/marketplace", label: "Marketplace", icon: ShoppingBag },
-  { to: "/app/events", label: "Events", icon: Calendar },
+
   { to: "/app/connect", label: "Connect", icon: Users },
   { to: "/app/placement", label: "Placement", icon: BriefcaseBusiness },
   { to: "/app/profile", label: "Profile", icon: User },
@@ -93,6 +95,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const [openSearch, setOpenSearch] = useState(false);
   const [openFab, setOpenFab] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [notifUnread, setNotifUnread] = useState(0);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
 
@@ -215,6 +218,7 @@ export function Shell({ children }: { children: ReactNode }) {
           onNotif={() => setOpenNotif(true)}
           onAssistant={() => setOpenFab((open) => !open)}
           assistantOpen={openFab}
+          notifUnread={notifUnread}
         />
         <main className="px-5 md:px-10 py-6 pb-32 max-w-[1400px] mx-auto">{children}</main>
       </div>
@@ -223,7 +227,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <Fab open={openFab} setOpen={setOpenFab} currentPath={pathname} />
 
       {/* Notifications drawer */}
-      <NotificationCenter open={openNotif} onClose={() => setOpenNotif(false)} />
+      <NotificationCenter open={openNotif} onClose={() => setOpenNotif(false)} onUnreadCountChange={(c) => setNotifUnread(c)} />
 
       {/* Global search */}
       <SearchPalette open={openSearch} onClose={() => setOpenSearch(false)} />
@@ -236,14 +240,15 @@ function TopBar({
   onNotif,
   onAssistant,
   assistantOpen,
+  notifUnread,
 }: {
   onSearch: () => void;
   onNotif: () => void;
   onAssistant: () => void;
   assistantOpen: boolean;
+  notifUnread: number;
 }) {
   const [dark, setDark] = useState(true);
-  const [hasViewedNotifs, setHasViewedNotifs] = useState(false);
   const [authUser, setAuthUser] = useState(() => getStoredUser());
   const [studentProfile, setStudentProfile] = useState<EditableStudentProfile | null>(() =>
     getStoredStudentProfile(),
@@ -324,14 +329,13 @@ function TopBar({
           {dark ? <Moon className="size-4" /> : <Sun className="size-4" />}
         </IconBtn>
         <IconBtn 
-          onClick={() => {
-            setHasViewedNotifs(true);
-            onNotif();
-          }} 
+          onClick={onNotif}
           aria-label="Notifications"
         >
           <Bell className="size-4" />
-          {!hasViewedNotifs && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[oklch(0.72_0.27_350)]" />}
+          {notifUnread > 0 && (
+            <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[oklch(0.72_0.27_350)]" />
+          )}
         </IconBtn>
         <Link
           to="/app/profile"
@@ -800,7 +804,6 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
   const all = [
     ...NAV.map((n) => ({ kind: "Page", label: n.label, to: n.to })),
     { kind: "Faculty", label: "Dr. Anaya Krishnan / Adv. ML", to: "/app/profile" },
-    { kind: "Event", label: "TEDxCampusVerse 2026", to: "/app/events" },
     { kind: "Resource", label: "Deep Learning / Goodfellow", to: "/app/resources" },
     { kind: "Complaint", label: "Hostel B Wi-Fi outage", to: "/app/complaints" },
   ];

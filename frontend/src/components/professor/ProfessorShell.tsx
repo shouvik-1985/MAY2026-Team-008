@@ -18,7 +18,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { logoutAccount } from "@/lib/api";
+import { getProfessorDashboard, logoutAccount } from "@/lib/api";
 import { clearAuthSession, getStoredUser } from "@/lib/auth";
 import {
   getStoredProfessorProfile,
@@ -27,7 +27,7 @@ import {
   type EditableProfessorProfile,
 } from "@/lib/professor-profile";
 import { clearStoredDashboard } from "@/lib/student-session";
-import { NotificationCenter } from "@/components/app/NotificationCenter";
+import { NotificationCenter, type BackendNotification } from "@/components/app/NotificationCenter";
 import { clearStoredRole } from "@/lib/use-role";
 
 const NAV = [
@@ -58,6 +58,10 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const displayName = profile?.name.trim() || user?.full_name || "Professor";
   const avatar = professorInitialsFromName(displayName);
+  const currentAvatarUrl =
+    profile && profile.avatarUrl !== undefined
+      ? profile.avatarUrl ?? null
+      : (user as any)?.avatarUrl || (user as any)?.avatar_url || null;
 
   useEffect(() => {
     const ticker = setInterval(() => setTime(new Date()), 30_000);
@@ -103,7 +107,58 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
   }
 
   const [openNotif, setOpenNotif] = useState(false);
-  const [unreadNotifCount, setUnreadNotifCount] = useState(3);
+  const [professorNotifications, setProfessorNotifications] = useState<BackendNotification[]>(() => {
+    try {
+      const cached = localStorage.getItem("cv-prof-notifs-cache");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [unreadCountOverride, setUnreadCountOverride] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const fetchNotifs = () => {
+      getProfessorDashboard()
+        .then((data) => {
+          if (!active || !data) return;
+          const dismissedRaw = localStorage.getItem("campus_dismissed_notif_ids");
+          const readRaw = localStorage.getItem("campus_read_notif_ids");
+          const dismissedSet = new Set(dismissedRaw ? JSON.parse(dismissedRaw) : []);
+          const readSet = new Set(readRaw ? JSON.parse(readRaw) : []);
+
+          const notifSource = (data.notifications && data.notifications.length > 0) ? data.notifications : (data.announcements ?? []);
+          const formatted = notifSource
+            .filter((n: any) => !dismissedSet.has(String(n.id)))
+            .map((n: any) => ({
+              id: String(n.id),
+              title: n.title,
+              body: n.body,
+              category: (n.category || "announcement").toLowerCase(),
+              time: n.time || "Recently",
+              createdAt: n.createdAt || n.time || new Date().toISOString(),
+              read: readSet.has(String(n.id)) || (typeof n.read === "boolean" ? n.read : typeof n.unread === "boolean" ? !n.unread : false),
+            })) as unknown as BackendNotification[];
+          setProfessorNotifications(formatted);
+          try {
+            localStorage.setItem("cv-prof-notifs-cache", JSON.stringify(formatted));
+          } catch {}
+        })
+        .catch(() => {});
+    };
+
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [openNotif, activeHash]);
+
+  const rawUnreadCount = professorNotifications.filter((n) => !n.read).length;
+  const unreadNotifCount = unreadCountOverride !== null ? unreadCountOverride : rawUnreadCount;
+
 
   return (
     <div className="relative min-h-screen text-white">
@@ -232,8 +287,8 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
               className="size-10 rounded-full flex items-center justify-center text-xs font-semibold ml-1 overflow-hidden border border-white/20 shrink-0"
               style={{ background: "var(--grad-aurora)" }}
             >
-              {profile?.avatarUrl ? (
-                <img src={profile.avatarUrl} alt="Professor Avatar" className="size-full object-cover" />
+              {currentAvatarUrl ? (
+                <img src={currentAvatarUrl} alt="Professor Avatar" className="size-full object-cover" />
               ) : (
                 avatar
               )}
@@ -246,7 +301,8 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
       <NotificationCenter
         open={openNotif}
         onClose={() => setOpenNotif(false)}
-        onUnreadCountChange={setUnreadNotifCount}
+        onUnreadCountChange={(count) => setUnreadCountOverride(count)}
+        externalNotifications={professorNotifications}
       />
     </div>
   );

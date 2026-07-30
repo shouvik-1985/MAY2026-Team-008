@@ -160,6 +160,18 @@ export type StudentDashboard = {
     time: string;
     unread: boolean;
     body: string;
+    audience?: string;
+  }[];
+  notifications: {
+    id: number;
+    announcementId: number;
+    title: string;
+    body: string;
+    category: string;
+    audience: string;
+    time: string;
+    createdAt: string;
+    read: boolean;
   }[];
   assignment_items: {
     id: number;
@@ -599,6 +611,17 @@ export type AdminFeeManagement = {
   razorpayEnabled: boolean;
 };
 
+export type AdminAnnouncement = {
+  id: number;
+  title: string;
+  category: string;
+  audience: string;
+  body: string;
+  pinned: boolean;
+  created_at: string;
+  time: string;
+};
+
 export type AdminCertificateRequest = {
   id: number;
   student_id: number;
@@ -700,6 +723,7 @@ export type AdminDashboard = {
     createdAt: string;
     lastSeenAt: string;
     avatar: string;
+    avatarUrl?: string | null;
     authProvider: string;
     isBlocked: boolean;
   }[];
@@ -751,6 +775,7 @@ export type ProfessorDashboard = {
     licenseDocumentName: string;
     verificationStatus: string;
     avatar: string;
+    avatarUrl?: string | null;
   };
   metrics: { label: string; value: string; hint: string; tone: string }[];
   students: {
@@ -832,6 +857,17 @@ export type ProfessorDashboard = {
     pinned: boolean;
     createdBy: string;
     time: string;
+  }[];
+  notifications: {
+    id: number;
+    announcementId: number;
+    title: string;
+    body: string;
+    category: string;
+    audience: string;
+    time: string;
+    createdAt: string;
+    read: boolean;
   }[];
   resources: {
     id: number;
@@ -1383,6 +1419,29 @@ export function getAdminDashboard() {
   return request<AdminDashboard>("/admin/dashboard");
 }
 
+export function getAdminAnnouncements() {
+  return request<{ ok: boolean; announcements: AdminAnnouncement[] }>("/admin/announcements");
+}
+
+export function createAdminAnnouncement(payload: {
+  title: string;
+  category: string;
+  audience: string;
+  body: string;
+  pinned: boolean;
+}) {
+  return request<{ ok: boolean; message: string; announcement: AdminAnnouncement }>("/admin/announcements", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdminAnnouncement(announcementId: number) {
+  return request<{ ok: boolean; message: string; id: number }>(`/admin/announcements/${announcementId}`, {
+    method: "DELETE",
+  });
+}
+
 export function getAdminFees() {
   return request<AdminFeeManagement>("/admin/fees");
 }
@@ -1574,19 +1633,6 @@ export function finalizeProfessorAttendance() {
   );
 }
 
-export function createProfessorAnnouncement(payload: {
-  title: string;
-  category: string;
-  audience: string;
-  body: string;
-  pinned: boolean;
-}) {
-  return request<{ ok: boolean; id: number }>("/professor/announcements", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
 export function createProfessorResource(payload: FormData) {
   return request<{ ok: boolean; id: number; resource: ProfessorDashboard["resources"][number] }>(
     "/professor/resources/upload",
@@ -1730,5 +1776,34 @@ export function deleteConnectMessage(messageId: number, mode: "me" | "everyone")
   return request<{ ok: boolean; id?: number; message?: ConnectMessage }>(`/connect/messages/${messageId}`, {
     method: "DELETE",
     body: JSON.stringify({ mode }),
+  });
+}
+
+export function updateProfessorProfile(payload: {
+  name: string;
+  email: string;
+  phone?: string | null;
+  office?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  expertiseField?: string | null;
+  officeHours?: string | null;
+  highestEducation?: string | null;
+  licenseDocumentName?: string | null;
+  focus?: string | null;
+  bio?: string | null;
+  skills?: string[];
+  avatarUrl?: string | null;
+}) {
+  return request<{ ok: boolean; professor: ProfessorDashboard["professor"] }>("/professor/profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateProfessorAvatar(avatarUrl: string | null) {
+  return request<{ ok: boolean; avatarUrl: string | null }>("/professor/profile/avatar", {
+    method: "PUT",
+    body: JSON.stringify({ avatar_url: avatarUrl }),
   });
 }

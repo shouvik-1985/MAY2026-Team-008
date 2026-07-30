@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, selectinload
 
+from app.announcement_flow import announcement_notifications_for_user, announcement_rows_for_user
 from app.assignment_ai import grade_from_score, normalize_grade_code, review_digital_submission, review_file_submission
 from app.attendance_flow import (
     campus_setting_payload,
@@ -82,7 +83,6 @@ STUDENT_NAV = [
     {"label": "Complaints", "path": "/app/complaints", "feature": "Live request tracking"},
     {"label": "Certificates", "path": "/app/certificates", "feature": "Document requests"},
     {"label": "Fee Payment", "path": "/app/fees", "feature": "Payment verification"},
-    {"label": "Events", "path": "/app/events", "feature": "Registration and passes"},
     {"label": "Marketplace", "path": "/app/marketplace", "feature": "Verified student exchange"},
     {"label": "Connect", "path": "/app/connect", "feature": "Student and professor network"},
     {"label": "Placement", "path": "/app/placement", "feature": "Internship and job readiness"},
@@ -816,63 +816,7 @@ def _placement_notification_rows(db: Session, student_id: int) -> list[dict]:
 
 
 def _student_announcement_rows(db: Session, user: User) -> list[dict]:
-    announcements = (
-        db.query(Announcement)
-        .order_by(desc(Announcement.created_at))
-        .limit(15)
-        .all()
-    )
-    if not announcements:
-        defaults = [
-            Announcement(
-                title="End-Semester Examination Schedule Announced (July 2026)",
-                category="Exam",
-                pinned=True,
-                audience="All Students",
-                body="The official timetable for the July 2026 End-Semester Examinations has been published. Please verify your hall tickets and ensure zero fee balance before July 28th.",
-                created_at=datetime.now(timezone.utc),
-            ),
-            Announcement(
-                title="Campus Innovation Hackathon 2026 Registration Open",
-                category="Events",
-                pinned=True,
-                audience="Computer Science & AI",
-                body="Participate in the 48-hour Annual Campus Hackathon. Top winning teams will receive cash grants up to INR 1,50,000 and direct internship interviews with partner AI tech firms.",
-                created_at=datetime.now(timezone.utc) - timedelta(hours=5),
-            ),
-            Announcement(
-                title="Campus Placement Drive - TechVerse Solutions",
-                category="Placement",
-                pinned=False,
-                audience="Final Year & Sem 4 Students",
-                body="TechVerse Solutions is conducting placement drives for Full Stack & AI Engineering roles. Eligible students with CGPA >= 7.5 are requested to submit resumes by July 30th.",
-                created_at=datetime.now(timezone.utc) - timedelta(days=1),
-            ),
-            Announcement(
-                title="Library & Digital Innovation Hub Extended Hours",
-                category="Academic",
-                pinned=False,
-                audience="All Students",
-                body="The Central Library and AI High-Performance Computing Lab will remain open 24/7 during examination preparation weeks starting July 25th.",
-                created_at=datetime.now(timezone.utc) - timedelta(days=2),
-            ),
-        ]
-        db.add_all(defaults)
-        db.commit()
-        announcements = db.query(Announcement).order_by(desc(Announcement.created_at)).all()
-
-    return [
-        {
-            "id": item.id,
-            "pinned": item.pinned,
-            "title": item.title,
-            "category": item.category,
-            "time": item.created_at.strftime("%d %b, %I:%M %p"),
-            "unread": True,
-            "body": item.body,
-        }
-        for item in announcements
-    ]
+    return announcement_rows_for_user(db, user, limit=20)
 
 
 def _complaint_rows(
@@ -1045,9 +989,11 @@ def _student_dataset(db: Session, user: User) -> dict:
     resource_detail = "Notes, slides, previous papers" if resource_rows else "No study resources uploaded yet"
     certificate_items = _certificate_items(db, user, due_amount, first_name)
     fee_history = fee_data["history"]
-    event_items = _event_rows(db, user, semester, seed)
+    event_items: list[dict] = []
     marketplace_items = _marketplace_items(db, user, semester)
     assignment_items = _student_assignment_items(db, user, first_name, department, seed, cgpa)
+    announcements = _student_announcement_rows(db, user)
+    notifications = announcement_notifications_for_user(db, user, limit=20)
     pending_assignment_count = len(
         [item for item in assignment_items if item.get("status") in {"pending", "ongoing"}]
     )
@@ -1116,7 +1062,7 @@ def _student_dataset(db: Session, user: User) -> dict:
             {"label": "CGPA", "value": f"{cgpa:.1f}", "hint": "Updated from your student profile", "tone": "cyan"},
             {"label": "Attendance", "value": f"{attendance:.0f}%", "hint": f"{max(0, int(attendance - 75))}% above safe zone", "tone": "green"},
             {"label": "Open Requests", "value": str(1 + (user.id % 4)), "hint": "Live student request queue", "tone": "pink"},
-            {"label": "Due This Week", "value": str(2 + (user.id % 5)), "hint": "Assignments, fees, events", "tone": "amber"},
+            {"label": "Due This Week", "value": str(2 + (user.id % 5)), "hint": "Assignments, fees, announcements", "tone": "amber"},
         ],
         "cgpa_trend": [
             {"term": f"Sem {idx}", "cgpa": round(max(6.5, cgpa - ((semester - idx) * 0.18)), 2)}
@@ -1136,7 +1082,11 @@ def _student_dataset(db: Session, user: User) -> dict:
         "fee_summary": fee_data["summary"],
         "fee_history": fee_history,
         "module_health": [
-            {"module": "Announcements", "status": f"{1 + seed % 3} unread", "detail": f"Updates for {first_name}'s semester"},
+            {
+                "module": "Announcements",
+                "status": f"{len([item for item in announcements if item.get('unread')])} unread",
+                "detail": f"Official updates for {first_name}'s semester",
+            },
             {
                 "module": "Assignments",
                 "status": f"{pending_assignment_count} pending",
@@ -1171,7 +1121,6 @@ def _student_dataset(db: Session, user: User) -> dict:
                 "risk": "medium" if due_amount else "low",
             },
             {"title": "Mid-Sem examination", "module": "Academics", "due": "Aug 14", "risk": "medium"},
-            {"title": "Campus event registration", "module": "Events", "due": "Jul 24", "risk": "low"},
         ],
         "request_timeline": [
             *(
@@ -1201,10 +1150,8 @@ def _student_dataset(db: Session, user: User) -> dict:
                 "updated": fee_history[0]["date"] if fee_history else "Today",
             },
         ],
-        "announcements": [
-            *_placement_notification_rows(db, user.id),
-            *_student_announcement_rows(db, user),
-        ],
+        "announcements": announcements,
+        "notifications": notifications,
         "assignment_items": assignment_items,
         "resource_items": resource_rows,
         "complaint_items": complaint_rows,
@@ -1515,6 +1462,7 @@ def dashboard(
         upcoming_deadlines=data["upcoming_deadlines"],
         request_timeline=data["request_timeline"],
         announcements=data["announcements"],
+        notifications=data["notifications"],
         assignment_items=data["assignment_items"],
         resource_items=data["resource_items"],
         complaint_items=data["complaint_items"],

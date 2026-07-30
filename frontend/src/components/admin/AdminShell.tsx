@@ -14,6 +14,10 @@ import {
   Sun,
   University,
   Users,
+  Megaphone,
+  AlertCircle,
+  Wallet,
+  Award,
 } from "lucide-react";
 import { logoutAccount } from "@/lib/api";
 import { clearAuthSession, getStoredUser } from "@/lib/auth";
@@ -24,7 +28,11 @@ const NAV = [
   { href: "#dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "#students", label: "Students", icon: Users },
   { href: "#professors", label: "Professors", icon: University },
+  { href: "#announcements", label: "Announcements", icon: Megaphone },
   { href: "#management", label: "Management", icon: Gauge },
+  { href: "#complaints", label: "Complaints", icon: AlertCircle },
+  { href: "#fees", label: "Fee Payment", icon: Wallet },
+  { href: "#certificates", label: "Certificates", icon: Award },
 ] as const;
 
 export function AdminShell({ children }: { children: ReactNode }) {
