@@ -9,13 +9,20 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.attendance_flow import campus_setting_payload, get_campus_attendance_setting, now_utc
-from app.avatar import avatar_initials, student_avatar_url
+from app.announcement_flow import (
+    announcement_audience_label,
+    announcement_payload,
+    create_announcement_notifications,
+    normalize_announcement_audience,
+)
+from app.avatar import avatar_initials, professor_avatar_url, student_avatar_url
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.fee_flow import admin_fee_management_payload, update_semester_fee_amount
 from app.intake_flow import resolve_student_semester, slot_batches_payload
 from app.models import (
     Announcement,
+    AnnouncementNotification,
     AssignmentReview,
     CampusAttendanceSetting,
     ConnectAttachment,
@@ -41,6 +48,7 @@ from app.models import (
 )
 from app.schemas import (
     AdminDashboard,
+    AnnouncementCreate,
     CampusAttendanceSettingsOut,
     CampusAttendanceSettingsUpdate,
     SemesterDurationUpdate,
@@ -171,6 +179,7 @@ def _professor_rows(db: Session) -> list[dict]:
                 "createdAt": professor.created_at.astimezone(LOCAL_TIMEZONE).isoformat() if professor.created_at else "",
                 "lastSeenAt": professor.last_seen_at.astimezone(LOCAL_TIMEZONE).isoformat() if professor.last_seen_at else "",
                 "avatar": _avatar(professor.full_name),
+                "avatarUrl": professor_avatar_url(profile),
                 "authProvider": professor.auth_provider.value,
                 "isBlocked": professor.is_blocked,
             }
@@ -488,6 +497,9 @@ def _delete_user_records(db: Session, target: User) -> None:
         synchronize_session=False,
     )
     _delete_connect_data(db, target.id)
+    db.query(AnnouncementNotification).filter(AnnouncementNotification.user_id == target.id).delete(
+        synchronize_session=False
+    )
 
     if target.role == Role.student:
         placement_application_ids = [
@@ -535,7 +547,6 @@ def _delete_user_records(db: Session, target: User) -> None:
         )
         db.query(AssignmentReview).filter(AssignmentReview.reviewed_by_id == target.id).delete(synchronize_session=False)
         db.query(StudyResource).filter(StudyResource.created_by_id == target.id).delete(synchronize_session=False)
-        db.query(Announcement).filter(Announcement.created_by_id == target.id).delete(synchronize_session=False)
         db.query(ProfessorProfile).filter(ProfessorProfile.user_id == target.id).delete(synchronize_session=False)
 
     db.delete(target)
@@ -932,14 +943,6 @@ def reject_certificate_request(
     }
 
 
-class AnnouncementCreate(BaseModel):
-    title: str
-    body: str
-    category: str = "Academic"
-    audience: str = "All students"
-    pinned: bool = False
-
-
 @router.get("/announcements")
 def list_admin_announcements(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -947,18 +950,7 @@ def list_admin_announcements(
 ) -> dict:
     _require_admin(current_user)
     items = db.query(Announcement).order_by(Announcement.created_at.desc()).all()
-    rows = [
-        {
-            "id": item.id,
-            "title": item.title,
-            "body": item.body,
-            "category": item.category,
-            "audience": item.audience,
-            "pinned": item.pinned,
-            "created_at": item.created_at.isoformat() if item.created_at else None,
-        }
-        for item in items
-    ]
+    rows = [announcement_payload(item) for item in items]
     return {"ok": True, "announcements": rows}
 
 
@@ -973,15 +965,21 @@ def create_announcement(
         title=data.title.strip(),
         body=data.body.strip(),
         category=data.category.strip(),
-        audience=data.audience.strip(),
+        audience=normalize_announcement_audience(data.audience),
         pinned=data.pinned,
         created_by_id=current_user.id,
         created_at=datetime.now(timezone.utc),
     )
     db.add(item)
+    db.flush()
+    create_announcement_notifications(db, item)
     db.commit()
     db.refresh(item)
-    return {"ok": True, "message": "Campus announcement published successfully", "announcement": {"id": item.id, "title": item.title}}
+    return {
+        "ok": True,
+        "message": f"Campus announcement published for {announcement_audience_label(item.audience)}",
+        "announcement": announcement_payload(item),
+    }
 
 
 @router.delete("/announcements/{announcement_id}")
@@ -994,6 +992,9 @@ def delete_announcement(
     item = db.get(Announcement, announcement_id)
     if not item:
         raise HTTPException(status_code=404, detail="Announcement not found")
+    db.query(AnnouncementNotification).filter(AnnouncementNotification.announcement_id == item.id).delete(
+        synchronize_session=False
+    )
     db.delete(item)
     db.commit()
     return {"ok": True, "message": "Announcement deleted successfully", "id": announcement_id}

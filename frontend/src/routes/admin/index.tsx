@@ -22,6 +22,9 @@ import {
   Save,
   Search,
   ShieldCheck,
+  Megaphone,
+  Send,
+  Sparkles,
   Trash2,
   UserCheck,
   Wallet,
@@ -31,8 +34,11 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { ComplaintStageStrip } from "@/components/app/ComplaintStageStrip";
 import {
   approveAdminCertificateRequest,
+  createAdminAnnouncement,
   createAdminSlotBatch,
+  deleteAdminAnnouncement,
   deleteAdminUserAccount,
+  getAdminAnnouncements,
   getAdminCertificateRequests,
   getAdminComplaints,
   getAdminDashboard,
@@ -47,6 +53,7 @@ import {
   updateAdminSlotBatch,
   updateAdminAttendanceRadius,
   updateAdminUserBlock,
+  type AdminAnnouncement,
   type AdminDashboard,
   type AdminCertificateRequest,
   type AdminFeeManagement,
@@ -59,7 +66,7 @@ export const Route = createFileRoute("/admin/")({
   component: AdminDeskPage,
 });
 
-const ADMIN_SECTIONS = ["dashboard", "student", "professor", "management", "complaints", "fees", "certificate"] as const;
+const ADMIN_SECTIONS = ["dashboard", "student", "professor", "announcements", "management", "complaints", "fees", "certificate"] as const;
 
 type AdminSection = (typeof ADMIN_SECTIONS)[number];
 type AdminComplaint = ComplaintItem;
@@ -72,6 +79,9 @@ function normalizeAdminSection(hash: string): AdminSection {
     overview: "dashboard",
     students: "student",
     professors: "professor",
+    announcement: "announcements",
+    announcements: "announcements",
+    notices: "announcements",
     complaint: "complaints",
     "fee-management": "fees",
     certificates: "certificate",
@@ -117,6 +127,13 @@ function AdminDeskPage() {
   const [slotBatchName, setSlotBatchName] = useState("");
   const [slotCount, setSlotCount] = useState(60);
   const [openNewBatch, setOpenNewBatch] = useState(true);
+  const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>([]);
+  const [annTitle, setAnnTitle] = useState("");
+  const [annCategory, setAnnCategory] = useState("Academic");
+  const [annAudience, setAnnAudience] = useState<"Students" | "Professors" | "Both">("Both");
+  const [annBody, setAnnBody] = useState("");
+  const [annPinned, setAnnPinned] = useState(false);
+  const [annPosting, setAnnPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -132,18 +149,22 @@ function AdminDeskPage() {
   }, []);
 
   async function refreshData(successMessage?: string) {
-    const [dashboardData, managementData, complaintsData, feesData, certificateData] = await Promise.all([
+    const [dashboardData, managementData, complaintsData, feesData, certificateData, announcementsData] = await Promise.all([
       getAdminDashboard(),
       getAdminManagement(),
       getAdminComplaints(),
       getAdminFees(),
       getAdminCertificateRequests(),
+      getAdminAnnouncements().catch(() => ({ ok: false, announcements: [] })),
     ]);
     setDashboard(dashboardData);
     setSettings(managementData);
     setComplaints(complaintsData.complaints);
     setFeeData(feesData);
     setCertificateRequests(certificateData.requests);
+    if ("announcements" in announcementsData && Array.isArray(announcementsData.announcements)) {
+      setAnnouncements(announcementsData.announcements);
+    }
     setFeeAmountEdits(
       Object.fromEntries(feesData.settings.map((setting) => [setting.semester, setting.amount])),
     );
@@ -588,6 +609,45 @@ function AdminDeskPage() {
     }
   }
 
+  async function handleCreateAdminAnnouncement(event: FormEvent) {
+    event.preventDefault();
+    if (!annTitle.trim() || !annBody.trim()) return;
+    setAnnPosting(true);
+    setStatus(null);
+    try {
+      const response = await createAdminAnnouncement({
+        title: annTitle.trim(),
+        category: annCategory,
+        audience: annAudience,
+        body: annBody.trim(),
+        pinned: annPinned,
+      });
+      setAnnTitle("");
+      setAnnBody("");
+      setAnnPinned(false);
+      await refreshData(response.message || "Announcement published & notifications generated!");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not publish announcement");
+    } finally {
+      setAnnPosting(false);
+    }
+  }
+
+  async function handleDeleteAdminAnnouncement(id: number, title: string) {
+    const okay = window.confirm(`Delete announcement "${title}"? This also removes it from student & professor feeds.`);
+    if (!okay) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const response = await deleteAdminAnnouncement(id);
+      await refreshData(response.message || "Announcement deleted");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete announcement");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading && !dashboard) {
     return <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-8 text-white/60">Loading admin desk...</div>;
   }
@@ -676,6 +736,10 @@ function AdminDeskPage() {
             >
               Slots
             </button>
+          </div>
+        ) : activeSection === "announcements" ? (
+          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
+            {announcements.length} announcements broadcasted
           </div>
         ) : activeSection === "fees" ? (
           <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
@@ -937,7 +1001,7 @@ function AdminDeskPage() {
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-3">
-                          <AvatarBadge value={professor.avatar} />
+                          <AvatarBadge value={professor.avatar} imageUrl={professor.avatarUrl} />
                           <div className="min-w-0">
                             <div className="truncate font-semibold text-white">{professor.name}</div>
                             <div className="truncate text-white/45">{professor.email}</div>
@@ -985,6 +1049,7 @@ function AdminDeskPage() {
             eyebrow="Professor details"
             title={selectedProfessor?.name ?? "No professor selected"}
             avatar={selectedProfessor?.avatar}
+            avatarUrl={selectedProfessor?.avatarUrl}
             status={
               selectedProfessor ? (
                 <VerificationPill status={selectedProfessor.isBlocked ? "blocked" : selectedProfessor.verificationStatus} />
@@ -1009,6 +1074,147 @@ function AdminDeskPage() {
               <EmptyState text="Choose a professor record to inspect account details." />
             )}
           </DetailPanel>
+        </div>
+      </section>
+
+      <section id="announcements" className={visible("announcements") ? "space-y-6" : "hidden"}>
+        <div className="grid gap-5 xl:grid-cols-[1.1fr_1.3fr]">
+          <Panel icon={Megaphone} eyebrow="Publish Notice" title="Create campus announcement">
+            <form onSubmit={handleCreateAdminAnnouncement} className="space-y-4">
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Announcement Title</label>
+                <input
+                  value={annTitle}
+                  onChange={(e) => setAnnTitle(e.target.value)}
+                  placeholder="e.g. Mid-Semester Exam Schedule & Guidelines"
+                  className="mt-1.5 w-full rounded-[24px] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30"
+                  required
+                />
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Category</label>
+                  <select
+                    value={annCategory}
+                    onChange={(e) => setAnnCategory(e.target.value)}
+                    className="mt-1.5 w-full truncate rounded-[24px] border border-white/10 bg-white/[0.06] px-3.5 py-3 text-xs text-white outline-none"
+                  >
+                    <option value="Academic" className="bg-[#0d0d12] text-white">Academic</option>
+                    <option value="Exam" className="bg-[#0d0d12] text-white">Exam</option>
+                    <option value="Placement" className="bg-[#0d0d12] text-white">Placement</option>
+                    <option value="Events" className="bg-[#0d0d12] text-white">Events</option>
+                    <option value="Urgent" className="bg-[#0d0d12] text-white">Urgent</option>
+                    <option value="Sports" className="bg-[#0d0d12] text-white">Sports</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Target Audience</label>
+                  <select
+                    value={annAudience}
+                    onChange={(e) => setAnnAudience(e.target.value as "Students" | "Professors" | "Both")}
+                    className="mt-1.5 w-full truncate rounded-[24px] border border-white/10 bg-white/[0.06] px-3.5 py-3 text-xs text-white outline-none"
+                  >
+                    <option value="Both" className="bg-[#0d0d12] text-white">Both (All Users)</option>
+                    <option value="Students" className="bg-[#0d0d12] text-white">Students Only</option>
+                    <option value="Professors" className="bg-[#0d0d12] text-white">Professors Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <label className="inline-flex items-center gap-3 text-xs text-white/70 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={annPinned}
+                  onChange={(e) => setAnnPinned(e.target.checked)}
+                  className="size-4 accent-fuchsia-400 rounded cursor-pointer"
+                />
+                <span className="flex items-center gap-1.5">
+                  📌 Pin this notice to the top of student and professor feeds
+                </span>
+              </label>
+
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Notice Content</label>
+                <textarea
+                  rows={4}
+                  value={annBody}
+                  onChange={(e) => setAnnBody(e.target.value)}
+                  placeholder="Write full announcement description..."
+                  className="mt-1.5 w-full rounded-[24px] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={annPosting}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-600 px-7 py-3.5 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-[0_0_25px_rgba(217,70,239,0.35)] transition-all duration-200 hover:shadow-[0_0_35px_rgba(6,182,212,0.45)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 cursor-pointer"
+              >
+                {annPosting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="size-4 text-cyan-200" />
+                )}
+                {annPosting ? "Broadcasting Announcement..." : "Broadcast Announcement & Generate Notifications"}
+              </button>
+            </form>
+          </Panel>
+
+          <Panel icon={Megaphone} eyebrow="Announcement History" title="Live broadcasts">
+            <div className="space-y-3 max-h-[700px] overflow-y-auto pr-1">
+              {announcements.length === 0 && (
+                <div className="py-16 text-center text-sm text-white/40 space-y-3">
+                  <div className="size-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
+                    <Megaphone className="size-6 text-white/30" />
+                  </div>
+                  <div className="font-semibold text-white/70">No announcements published yet</div>
+                  <div className="text-xs text-white/40 max-w-sm mx-auto leading-relaxed">
+                    Fill out the form on the left to broadcast a campus update. Target notifications will be instantly generated for selected users.
+                  </div>
+                </div>
+              )}
+              {announcements.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-2 hover:border-white/20 transition"
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {item.pinned && (
+                        <span className="text-[10px] uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full font-semibold">
+                          📌 Pinned
+                        </span>
+                      )}
+                      <span className="text-[10px] uppercase tracking-wider text-fuchsia-300 bg-fuchsia-500/10 border border-fuchsia-500/30 px-2 py-0.5 rounded-full font-semibold">
+                        {item.category}
+                      </span>
+                      <span className="text-[10px] text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-0.5 rounded-full font-medium">
+                        Target: {item.audience}
+                      </span>
+                    </div>
+
+                    <ListActionButton
+                      onClick={() => handleDeleteAdminAnnouncement(item.id, item.title)}
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={saving}
+                    >
+                      Delete
+                    </ListActionButton>
+                  </div>
+
+                  <div className="font-semibold text-sm text-white">{item.title}</div>
+                  <p className="text-xs text-white/60 leading-relaxed line-clamp-3 whitespace-pre-wrap">{item.body}</p>
+                  <div className="text-[10px] text-white/35 pt-1 border-t border-white/5 flex items-center justify-between">
+                    <span>Issued: {item.time}</span>
+                    <span>ID: #{item.id}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
         </div>
       </section>
 

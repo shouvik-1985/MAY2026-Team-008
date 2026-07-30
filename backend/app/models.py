@@ -475,6 +475,7 @@ class ProfessorProfile(Base):
     designation: Mapped[str] = mapped_column(String(120), default="Assistant Professor", nullable=False)
     license_document_name: Mapped[str] = mapped_column(String(255), nullable=False)
     verification_status: Mapped[str] = mapped_column(String(40), default="pending", nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="professor_profile")
 
@@ -489,6 +490,19 @@ class Announcement(Base):
     audience: Mapped[str] = mapped_column(String(80), default="All students", nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class AnnouncementNotification(Base):
+    __tablename__ = "announcement_notifications"
+    __table_args__ = (UniqueConstraint("announcement_id", "user_id", name="uq_announcement_notification_user"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    announcement_id: Mapped[int] = mapped_column(ForeignKey("announcements.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

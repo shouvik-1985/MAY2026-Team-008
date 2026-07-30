@@ -14,18 +14,19 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Respon
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from app.announcement_flow import announcement_notifications_for_user, announcement_rows_for_user
 from app.assignment_ai import build_assignment_blueprint, grade_from_score, normalize_grade_code
 from app.attendance_flow import checkin_payload, get_campus_attendance_setting, get_today_checkin, today_local
-from app.avatar import avatar_initials, student_avatar_url
+from app.avatar import avatar_initials, student_avatar_url, user_avatar_url
 from app.core.config import get_settings
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.intake_flow import local_today, resolve_student_semester
 from app.models import (
-    Announcement,
     Assignment,
     AssignmentReview,
     AssignmentSubmission,
+    ProfessorProfile,
     Role,
     StudentAttendance,
     StudentBiometricCheckIn,
@@ -34,12 +35,13 @@ from app.models import (
     User,
 )
 from app.schemas import (
-    AnnouncementCreate,
     AssignmentGenerateCreate,
     AssignmentReviewCreate,
     AssignmentSubmissionReviewUpdate,
     ProfessorDashboard,
     ProfessorAttendanceConfirm,
+    ProfessorAvatarUpdate,
+    ProfessorProfileUpdate,
     StudentAcademicUpdate,
     StudentAttendanceMark,
     StudentBlockUpdate,
@@ -56,7 +58,7 @@ PROFESSOR_NAV = [
     {"label": "Dashboard", "path": "/professor", "feature": "College command center"},
     {"label": "Students", "path": "/professor", "feature": "Search, block, and unblock students"},
     {"label": "CGPA & Attendance", "path": "/professor", "feature": "Academic controls"},
-    {"label": "Announcements", "path": "/professor", "feature": "Publish student updates"},
+    {"label": "Announcements", "path": "/professor", "feature": "View admin updates"},
     {"label": "Study Resources", "path": "/professor", "feature": "Upload notes and links"},
     {"label": "Assignment Reviews", "path": "/professor", "feature": "Grade submitted work"},
     {"label": "Profile", "path": "/professor", "feature": "Verification and expertise"},
@@ -340,37 +342,12 @@ def _cgpa_years(students: list[dict]) -> list[dict]:
     ]
 
 
-def _fallback_announcements(professor: User) -> list[dict]:
-    first_name = professor.full_name.split()[0] if professor.full_name else "Professor"
-    return [
-        {
-            "id": 0,
-            "title": "Mid-Sem academic checkpoint",
-            "category": "Academic",
-            "audience": "All students",
-            "body": f"{first_name} can publish semester notices from this panel.",
-            "pinned": True,
-            "createdBy": professor.full_name,
-            "time": "Draft",
-        }
-    ]
-
-
 def _announcement_rows(db: Session, professor: User) -> list[dict]:
-    rows = db.query(Announcement).order_by(desc(Announcement.created_at)).limit(8).all()
-    if not rows:
-        return _fallback_announcements(professor)
-
+    rows = announcement_rows_for_user(db, professor, limit=12)
     return [
         {
-            "id": item.id,
-            "title": item.title,
-            "category": item.category,
-            "audience": item.audience,
-            "body": item.body,
-            "pinned": item.pinned,
-            "createdBy": professor.full_name if item.created_by_id == professor.id else "Campus faculty",
-            "time": item.created_at.strftime("%d %b %Y"),
+            **item,
+            "createdBy": "Campus administration",
         }
         for item in rows
     ]
@@ -780,6 +757,7 @@ def dashboard(
             "licenseDocumentName": profile.license_document_name if profile else "Not submitted",
             "verificationStatus": profile.verification_status if profile else "pending",
             "avatar": _avatar(current_user.full_name),
+            "avatarUrl": user_avatar_url(current_user),
         },
         metrics=[
             {"label": "Students", "value": str(len(students)), "hint": "Assigned student records", "tone": "cyan"},
@@ -798,6 +776,7 @@ def dashboard(
         attendance_history=_attendance_history(db),
         cgpa_years=_cgpa_years(students),
         announcements=_announcement_rows(db, current_user),
+        notifications=announcement_notifications_for_user(db, current_user, limit=20),
         resources=_resource_rows(db, current_user),
         assignments=_assignment_rows(db, current_user),
         assignment_submissions=_submission_rows(db, limit=120),
@@ -994,27 +973,6 @@ def finalize_biometric_attendance(
         "warnings": warnings,
         "message": f"{marked_absent} absent records finalized, {warnings} verified students still need confirmation",
     }
-
-
-@router.post("/announcements")
-def create_announcement(
-    payload: AnnouncementCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[Session, Depends(get_db)],
-) -> dict:
-    _require_professor(current_user)
-    item = Announcement(
-        created_by_id=current_user.id,
-        title=payload.title.strip(),
-        category=payload.category.strip(),
-        audience=payload.audience.strip(),
-        body=payload.body.strip(),
-        pinned=payload.pinned,
-    )
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return {"ok": True, "id": item.id}
 
 
 @router.post("/resources")
@@ -1271,3 +1229,72 @@ def review_assignment(
     db.commit()
     db.refresh(review)
     return {"ok": True, "id": review.id}
+
+
+@router.put("/profile")
+def update_professor_profile(
+    payload: ProfessorProfileUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    if payload.name:
+        current_user.full_name = payload.name.strip()
+    if payload.email:
+        current_user.email = payload.email.strip().lower()
+
+    profile = current_user.professor_profile
+    if not profile:
+        profile = ProfessorProfile(user_id=current_user.id)
+        db.add(profile)
+
+    if payload.designation:
+        profile.designation = payload.designation.strip()
+    if payload.department:
+        profile.department = payload.department.strip()
+    if payload.expertiseField:
+        profile.expertise_field = payload.expertiseField.strip()
+    if payload.highestEducation:
+        profile.highest_education = payload.highestEducation.strip()
+    if payload.licenseDocumentName:
+        profile.license_document_name = payload.licenseDocumentName.strip()
+    if "avatarUrl" in payload.model_fields_set or payload.avatarUrl is not None:
+        profile.avatar_url = payload.avatarUrl.strip() if (payload.avatarUrl and payload.avatarUrl.strip()) else None
+
+    db.commit()
+    db.refresh(current_user)
+    return {
+        "ok": True,
+        "professor": {
+            "name": current_user.full_name,
+            "email": current_user.email,
+            "department": profile.department if profile else "Computer Science & AI",
+            "designation": profile.designation if profile else "Professor",
+            "expertiseField": profile.expertise_field if profile else "Academic Operations",
+            "highestEducation": profile.highest_education if profile else "Verified Faculty",
+            "licenseDocumentName": profile.license_document_name if profile else "Not submitted",
+            "verificationStatus": profile.verification_status if profile else "pending",
+            "avatar": _avatar(current_user.full_name),
+            "avatarUrl": user_avatar_url(current_user),
+        },
+    }
+
+
+@router.put("/profile/avatar")
+def update_professor_avatar(
+    payload: ProfessorAvatarUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    profile = current_user.professor_profile
+    if not profile:
+        profile = ProfessorProfile(user_id=current_user.id)
+        db.add(profile)
+    profile.avatar_url = payload.avatar_url.strip() if (payload.avatar_url and payload.avatar_url.strip()) else None
+    db.commit()
+    db.refresh(profile)
+    return {
+        "ok": True,
+        "avatarUrl": user_avatar_url(current_user),
+    }

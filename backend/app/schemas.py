@@ -79,6 +79,7 @@ class StudentDashboard(BaseModel):
     upcoming_deadlines: list[dict]
     request_timeline: list[dict]
     announcements: list[dict]
+    notifications: list[dict]
     assignment_items: list[dict]
     resource_items: list[dict]
     complaint_items: list[dict]
@@ -277,6 +278,7 @@ class ProfessorDashboard(BaseModel):
     attendance_history: list[dict]
     cgpa_years: list[dict]
     announcements: list[dict]
+    notifications: list[dict]
     resources: list[dict]
     assignments: list[dict] = []
     assignment_submissions: list[dict] = []
@@ -392,7 +394,7 @@ class ProfessorAttendanceConfirm(BaseModel):
 class AnnouncementCreate(BaseModel):
     title: str = Field(min_length=3, max_length=180)
     category: str = Field(default="Academic", min_length=2, max_length=80)
-    audience: str = Field(default="All students", min_length=2, max_length=80)
+    audience: str = Field(default="students", min_length=2, max_length=80)
     body: str = Field(min_length=5, max_length=2000)
     pinned: bool = False
 
@@ -529,3 +531,24 @@ class PlacementSelectionRequest(BaseModel):
             return None
         cleaned = value.strip()
         return cleaned or None
+
+
+class ProfessorAvatarUpdate(BaseModel):
+    avatar_url: str | None = None
+
+
+class ProfessorProfileUpdate(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    email: str = Field(min_length=5, max_length=255)
+    phone: str | None = Field(default=None, max_length=40)
+    office: str | None = Field(default=None, max_length=120)
+    designation: str | None = Field(default=None, max_length=120)
+    department: str | None = Field(default=None, max_length=120)
+    expertiseField: str | None = Field(default=None, max_length=160)
+    officeHours: str | None = Field(default=None, max_length=120)
+    highestEducation: str | None = Field(default=None, max_length=120)
+    licenseDocumentName: str | None = Field(default=None, max_length=255)
+    focus: str | None = Field(default=None, max_length=180)
+    bio: str | None = Field(default=None, max_length=600)
+    skills: list[str] = Field(default_factory=list, max_length=12)
+    avatarUrl: str | None = None

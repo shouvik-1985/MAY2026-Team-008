@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from app.models import StudentProfile, User
+from app.models import ProfessorProfile, StudentProfile, User
 
 
 def avatar_initials(name: str, fallback: str = "CV") -> str:
@@ -14,7 +12,17 @@ def student_avatar_url(profile: StudentProfile | None) -> str | None:
     return profile.avatar_url
 
 
+def professor_avatar_url(profile: ProfessorProfile | None) -> str | None:
+    if not profile or not profile.avatar_url:
+        return None
+    return profile.avatar_url
+
+
 def user_avatar_url(user: User | None) -> str | None:
     if not user:
         return None
-    return student_avatar_url(user.student_profile)
+    if user.student_profile:
+        return student_avatar_url(user.student_profile)
+    if user.professor_profile:
+        return professor_avatar_url(user.professor_profile)
+    return None

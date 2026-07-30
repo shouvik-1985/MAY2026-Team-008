@@ -47,7 +47,7 @@ import {
 } from "lucide-react";
 import {
   confirmProfessorAttendance,
-  createProfessorAnnouncement,
+
   createProfessorAssignment,
   createProfessorResource,
   deleteProfessorResource,
@@ -59,9 +59,12 @@ import {
   reviewProfessorAssignment,
   updateProfessorAssignmentSubmissionReview,
   updateStudentBlock,
+  updateProfessorProfile,
+  updateProfessorAvatar,
   type AssignmentType,
   type ProfessorDashboard,
 } from "@/lib/api";
+import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { ConnectHub } from "@/components/connect/ConnectHub";
 import {
   Dialog,
@@ -113,6 +116,12 @@ function gradeCodeFromMarks(marks: number, totalPoints = 100) {
   return gradeCodeFromScore((marks / Math.max(1, totalPoints)) * 100);
 }
 
+function parseSubmittedAt(item: ReviewLikeItem) {
+  return "submittedAt" in item && typeof item.submittedAt === "string"
+    ? Date.parse(item.submittedAt) || 0
+    : 0;
+}
+
 const PROFESSOR_SECTIONS = [
   "dashboard",
   "students",
@@ -143,12 +152,6 @@ function ProfessorDashboardPage() {
   const [academicTab, setAcademicTab] = useState<"attendance" | "cgpa">("attendance");
   const [showAttendanceHistory, setShowAttendanceHistory] = useState(false);
   const [now, setNow] = useState(() => new Date());
-
-  const [announcementTitle, setAnnouncementTitle] = useState("");
-  const [announcementCategory, setAnnouncementCategory] = useState("Academic");
-  const [announcementAudience, setAnnouncementAudience] = useState("All students");
-  const [announcementBody, setAnnouncementBody] = useState("");
-  const [announcementPinned, setAnnouncementPinned] = useState(true);
 
   const [resourceSubject, setResourceSubject] = useState(STUDY_SUBJECTS[0]);
   const [resourceFile, setResourceFile] = useState<File | null>(null);
@@ -270,7 +273,7 @@ function ProfessorDashboardPage() {
       if (submission) {
         rows.push({
           item: submission,
-          sortTime: Date.parse("submittedAt" in submission ? submission.submittedAt : "") || 0,
+          sortTime: parseSubmittedAt(submission),
         });
         continue;
       }
@@ -309,7 +312,7 @@ function ProfessorDashboardPage() {
       }
       rows.push({
         item: submission,
-        sortTime: Date.parse("submittedAt" in submission ? submission.submittedAt : "") || 0,
+        sortTime: parseSubmittedAt(submission),
       });
     }
     return rows.sort((left, right) => right.sortTime - left.sortTime).map((row) => row.item);
@@ -375,6 +378,28 @@ function ProfessorDashboardPage() {
       try {
         const data = await getProfessorDashboard();
         setDashboard(data);
+        if (data.professor) {
+          setProfile((prev) => {
+            const synced = {
+              name: data.professor.name,
+              email: data.professor.email,
+              department: data.professor.department,
+              designation: data.professor.designation,
+              expertiseField: data.professor.expertiseField,
+              highestEducation: data.professor.highestEducation,
+              licenseDocumentName: data.professor.licenseDocumentName,
+              phone: prev.phone || "",
+              office: prev.office || "",
+              officeHours: prev.officeHours || "",
+              focus: prev.focus || "",
+              bio: prev.bio || "",
+              skills: prev.skills.length ? prev.skills : [],
+              avatarUrl: data.professor.avatarUrl ?? null,
+            };
+            setStoredProfessorProfile(synced);
+            return synced;
+          });
+        }
         if (!reviewStudentId && data.review_queue[0]) {
           loadReview(data.review_queue[0]);
         } else if (!data.review_queue[0]) {
@@ -404,10 +429,6 @@ function ProfessorDashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (activeSection !== "academics" || academicTab !== "attendance") {
-      return;
-    }
-
     let cancelled = false;
 
     const silentRefresh = async () => {
@@ -438,7 +459,7 @@ function ProfessorDashboardPage() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [activeSection, academicTab, refresh]);
+  }, [refresh]);
 
   useEffect(() => {
     const ticker = setInterval(() => setNow(new Date()), 30_000);
@@ -751,23 +772,6 @@ function ProfessorDashboardPage() {
     }
   }
 
-  async function submitAnnouncement(event: FormEvent) {
-    event.preventDefault();
-    await runAction(
-      () =>
-        createProfessorAnnouncement({
-          title: announcementTitle,
-          category: announcementCategory,
-          audience: announcementAudience,
-          body: announcementBody,
-          pinned: announcementPinned,
-        }),
-      "Announcement published",
-    );
-    setAnnouncementTitle("");
-    setAnnouncementBody("");
-  }
-
   async function submitResource(event: FormEvent) {
     event.preventDefault();
     if (!resourceFile) {
@@ -1069,10 +1073,11 @@ function ProfessorDashboardPage() {
     setIsProfileEditOpen(true);
   }
 
-  function saveProfessorProfile(event: FormEvent<HTMLFormElement>) {
+  async function saveProfessorProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextProfile = {
       ...draftProfile,
+      avatarUrl: draftProfile.avatarUrl ?? null,
       skills: Array.from(
         new Set(draftProfile.skills.map((skill) => skill.trim()).filter(Boolean)),
       ).slice(0, 8),
@@ -1080,8 +1085,35 @@ function ProfessorDashboardPage() {
     setProfile(nextProfile);
     setDraftProfile(nextProfile);
     setStoredProfessorProfile(nextProfile);
+    const storedUser = getStoredUser();
+    if (storedUser) {
+      setStoredUser({
+        ...storedUser,
+        avatarUrl: nextProfile.avatarUrl ?? null,
+        avatar_url: nextProfile.avatarUrl ?? null,
+      } as any);
+    }
     setIsProfileEditOpen(false);
-    setStatus("Professor profile updated locally for the demo");
+    setStatus("Saving profile changes...");
+
+    try {
+      await updateProfessorAvatar(nextProfile.avatarUrl ?? null);
+      const res = await updateProfessorProfile(nextProfile);
+      if (res.ok && res.professor) {
+        const synced = {
+          ...nextProfile,
+          avatarUrl: res.professor.avatarUrl ?? null,
+        };
+        setProfile(synced);
+        setDraftProfile(synced);
+        setStoredProfessorProfile(synced);
+        setStatus("Faculty profile updated & saved to backend successfully!");
+        setTimeout(() => setStatus(null), 3000);
+      }
+    } catch {
+      setStatus("Faculty profile saved locally");
+      setTimeout(() => setStatus(null), 3000);
+    }
   }
 
   return (
@@ -1114,10 +1146,14 @@ function ProfessorDashboardPage() {
             </div>
             <div className="mt-3 flex items-center gap-3">
               <div
-                className="size-12 rounded-2xl flex items-center justify-center text-sm font-semibold"
+                className="size-12 rounded-2xl flex items-center justify-center text-sm font-semibold overflow-hidden border border-white/10 shrink-0"
                 style={{ background: "var(--grad-aurora)" }}
               >
-                {professor?.avatar ?? "PR"}
+                {profile.avatarUrl ? (
+                  <img src={profile.avatarUrl} alt="Faculty Avatar" className="size-full object-cover" />
+                ) : (
+                  professor?.avatar ?? professorInitialsFromName(profile.name)
+                )}
               </div>
               <div className="min-w-0">
                 <div className="font-display text-lg truncate">
@@ -1469,55 +1505,56 @@ function ProfessorDashboardPage() {
       <section
         className={visible("announcements") || visible("resources") ? "grid gap-5" : "hidden"}
       >
-        <Panel id="announcements" className={visible("announcements") ? "p-5" : "hidden"}>
-          <SectionTitle icon={Megaphone} eyebrow="Announcements" title="Publish campus update" />
-          <form onSubmit={submitAnnouncement} className="mt-5 space-y-4">
-            <Input
-              value={announcementTitle}
-              onChange={(event) => setAnnouncementTitle(event.target.value)}
-              placeholder="Announcement title"
-              required
-            />
-            <div className="grid sm:grid-cols-2 gap-3">
-              <Input
-                value={announcementCategory}
-                onChange={(event) => setAnnouncementCategory(event.target.value)}
-                placeholder="Category"
-                required
-              />
-              <Input
-                value={announcementAudience}
-                onChange={(event) => setAnnouncementAudience(event.target.value)}
-                placeholder="Audience"
-                required
-              />
-            </div>
-            <Textarea
-              value={announcementBody}
-              onChange={(event) => setAnnouncementBody(event.target.value)}
-              placeholder="Write the announcement body"
-              required
-            />
-            <label className="flex items-center gap-3 text-sm text-white/60">
-              <input
-                type="checkbox"
-                checked={announcementPinned}
-                onChange={(event) => setAnnouncementPinned(event.target.checked)}
-                className="size-4 accent-fuchsia-400"
-              />
-              Pin for students
-            </label>
-            <ActionButton disabled={saving} icon={Send}>
-              Publish announcement
-            </ActionButton>
-          </form>
-          <div className="mt-6 space-y-3">
-            {(dashboard?.announcements ?? []).slice(0, 3).map((item) => (
-              <MiniItem
+        <Panel id="announcements" className={visible("announcements") ? "p-6 glass-strong border border-white/12 shadow-2xl relative" : "hidden"}>
+          <div className="border-b border-white/10 pb-4 mb-6">
+            <SectionTitle icon={Megaphone} eyebrow="Notices & Circulars" title="Campus Announcements" />
+            <p className="mt-1 text-xs text-white/50 leading-relaxed">
+              Official university notices, academic updates, and administrative announcements.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {(dashboard?.announcements ?? []).length === 0 && (
+              <div className="relative overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.03] to-transparent p-10 text-center shadow-xl">
+                <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-fuchsia-400/30 bg-fuchsia-500/10 shadow-[0_0_20px_rgba(217,70,239,0.15)]">
+                  <Megaphone className="size-7 text-fuchsia-300" />
+                </div>
+                <h3 className="mt-4 font-display text-lg font-semibold text-white/95">No Active Announcements</h3>
+                <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-white/50">
+                  You are all caught up! New campus broadcasts and university directives will appear here when posted.
+                </p>
+              </div>
+            )}
+            {(dashboard?.announcements ?? []).map((item) => (
+              <div
                 key={item.id}
-                title={item.title}
-                meta={`${item.category} / ${item.audience}`}
-              />
+                className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-3 transition duration-200 hover:border-fuchsia-400/30 hover:bg-white/[0.05] hover:shadow-xl"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  {item.pinned && (
+                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-300 bg-amber-500/15 border border-amber-500/35 px-2.5 py-0.5 rounded-full font-bold">
+                      📌 Pinned
+                    </span>
+                  )}
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-fuchsia-300 bg-fuchsia-500/15 border border-fuchsia-500/30 px-2.5 py-0.5 rounded-full font-semibold">
+                    {item.category}
+                  </span>
+                  <span className="text-[10px] font-mono text-cyan-300 bg-cyan-500/15 border border-cyan-500/25 px-2.5 py-0.5 rounded-full">
+                    Audience: {item.audience}
+                  </span>
+                  <span className="text-[11px] text-white/40 ml-auto font-mono">{item.time}</span>
+                </div>
+                <div className="font-display text-base font-semibold text-white group-hover:text-fuchsia-200 transition">
+                  {item.title}
+                </div>
+                <p className="text-xs text-white/70 leading-relaxed">{item.body}</p>
+                {"createdBy" in item && (
+                  <div className="text-[10px] text-white/40 pt-2 border-t border-white/5 flex items-center gap-1.5 font-mono">
+                    <span>Issued by</span>
+                    <span className="text-white/70 font-sans font-medium">{(item as any).createdBy}</span>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </Panel>
@@ -1617,92 +1654,118 @@ function ProfessorDashboardPage() {
         id="reviews"
         className={visible("reviews") ? "grid gap-5 xl:h-[calc(100vh-7.5rem)] xl:grid-cols-[0.9fr_1.1fr] xl:overflow-hidden" : "hidden"}
       >
-        <Panel className="flex min-h-0 flex-col overflow-hidden p-5 xl:max-h-[calc(100vh-7.5rem)]">
+        <Panel className="flex min-h-0 flex-col overflow-hidden p-5 xl:max-h-[calc(100vh-7.5rem)] glass-strong border border-white/12 shadow-2xl relative">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 opacity-80" />
           <div className="flex min-h-[11rem] flex-1 flex-col xl:min-h-0">
-            <SectionTitle icon={ClipboardCheck} eyebrow="Submitted work" title="AI review queue" />
-            <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
-              {(dashboard?.review_queue ?? []).map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    loadReview(item);
-                    setAssignmentDetailView({ kind: "submission", item });
-                  }}
-                  className={`w-full text-left glass rounded-2xl p-4 transition hover:border-white/20 ${
-                    item.submissionId && item.submissionId === reviewSubmissionId
-                      ? "border-fuchsia-300/35 bg-fuchsia-400/10"
-                      : ""
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{item.title}</div>
-                      <div className="mt-1 text-xs text-white/45">
-                        {item.student} / {item.submitted}
+            <div className="flex items-center justify-between gap-3">
+              <SectionTitle icon={ClipboardCheck} eyebrow="Submitted work" title="AI review queue" />
+              <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-fuchsia-200 shadow-[0_0_12px_rgba(217,70,239,0.2)]">
+                {(dashboard?.review_queue ?? []).length} Pending
+              </span>
+            </div>
+            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
+              {(dashboard?.review_queue ?? []).map((item) => {
+                const active = item.submissionId && item.submissionId === reviewSubmissionId;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      loadReview(item);
+                      setAssignmentDetailView({ kind: "submission", item });
+                    }}
+                    className={`group relative w-full text-left rounded-2xl p-4 transition-all duration-200 border ${
+                      active
+                        ? "border-fuchsia-400/60 bg-gradient-to-r from-fuchsia-500/20 via-purple-500/10 to-transparent shadow-[0_0_25px_rgba(217,70,239,0.2)]"
+                        : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06] hover:shadow-lg"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-white group-hover:text-fuchsia-200 transition">
+                          {item.title}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-white/55">
+                          <span className="font-medium text-white/80">{item.student}</span>
+                          <span>•</span>
+                          <span className="font-mono text-white/40">{item.submitted}</span>
+                        </div>
                       </div>
-                    </div>
-                    <span
-                      className={`text-[10px] uppercase tracking-[0.2em] ${item.priority === "high" ? "text-rose-200" : "text-white/40"}`}
-                    >
-                      {item.priority}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-white/45">
-                    <span className="rounded-full bg-white/5 px-2 py-1">
-                      {(item.assignmentType ?? "manual").replace("qa", "Q&A")}
-                    </span>
-                    {item.aiGrade && (
-                      <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-emerald-100">
-                        AI {item.aiGrade}
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider ${
+                          item.priority === "high"
+                            ? "bg-rose-500/15 border border-rose-500/35 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.25)]"
+                            : "bg-white/5 border border-white/10 text-white/45"
+                        }`}
+                      >
+                        {item.priority}
                       </span>
-                    )}
-                    {item.fileName && (
-                      <span className="truncate rounded-full bg-white/5 px-2 py-1">{item.fileName}</span>
-                    )}
-                    <span className="ml-auto inline-flex items-center gap-1 text-cyan-100">
-                      <Eye className="size-3" />
-                      Open
-                    </span>
-                  </div>
-                </button>
-              ))}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.16em]">
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-white/60 font-medium">
+                        {(item.assignmentType ?? "manual").replace("qa", "Q&A")}
+                      </span>
+                      {item.aiGrade && (
+                        <span className="rounded-full border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-0.5 font-bold text-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
+                          AI {item.aiGrade}
+                        </span>
+                      )}
+                      {item.fileName && (
+                        <span className="truncate max-w-[140px] rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-white/50">
+                          📎 {item.fileName}
+                        </span>
+                      )}
+                      <span className="ml-auto inline-flex items-center gap-1.5 font-medium text-cyan-300 group-hover:translate-x-0.5 transition-transform">
+                        <Eye className="size-3.5" />
+                        Inspect
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
               {(dashboard?.review_queue ?? []).length === 0 && (
-                <div className="rounded-3xl border border-dashed border-white/15 py-10 text-center text-sm text-white/45">
+                <div className="rounded-3xl border border-dashed border-white/15 py-10 text-center text-sm text-white/45 bg-white/[0.01]">
                   Student submissions will appear here after AI review.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="mt-5 flex min-h-[11rem] flex-1 flex-col border-t border-white/10 pt-5 xl:min-h-0">
-            <SectionTitle icon={FileText} eyebrow="Published" title="AI assignments" />
-            <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+          <div className="mt-5 flex min-h-[11rem] flex-1 flex-col border-t border-white/10 pt-4 xl:min-h-0">
+            <div className="flex items-center justify-between gap-3">
+              <SectionTitle icon={FileText} eyebrow="Published" title="AI assignments" />
+              <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-cyan-200">
+                {(dashboard?.assignments ?? []).length} Active
+              </span>
+            </div>
+            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
               {(dashboard?.assignments ?? []).map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => setAssignmentDetailView({ kind: "assignment", item })}
-                  className="w-full glass rounded-2xl p-4 text-left transition hover:border-white/20"
+                  className="group w-full rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition-all duration-200 hover:border-cyan-400/40 hover:bg-white/[0.06] hover:shadow-lg"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{item.title}</div>
-                      <div className="mt-1 text-xs text-white/45">
-                        {item.subject} / {item.sourceTitle}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-white group-hover:text-cyan-200 transition">
+                        {item.title}
+                      </div>
+                      <div className="mt-1 text-xs text-white/45 truncate">
+                        {item.subject} <span className="text-white/20">•</span> {item.sourceTitle}
                       </div>
                     </div>
-                    <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-cyan-100">
+                    <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-cyan-200 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
                       {item.assignmentType === "qa" ? "Q&A" : item.assignmentType.toUpperCase()}
                     </span>
                   </div>
-                  <div className="mt-3 inline-flex items-center gap-1.5 text-xs text-cyan-100">
+                  <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-cyan-300 group-hover:translate-x-0.5 transition-transform">
                     <Eye className="size-3.5" />
-                    View generated questions and rubric
+                    View generated paper & rubric
                   </div>
                 </button>
               ))}
               {(dashboard?.assignments ?? []).length === 0 && (
-                <div className="rounded-3xl border border-dashed border-white/15 py-8 text-center text-sm text-white/45">
+                <div className="rounded-3xl border border-dashed border-white/15 py-8 text-center text-sm text-white/45 bg-white/[0.01]">
                   Create the first AI assignment from the builder.
                 </div>
               )}
@@ -1721,86 +1784,121 @@ function ProfessorDashboardPage() {
         </Panel>
 
         <div className="space-y-5 xl:max-h-[calc(100vh-7.5rem)] xl:overflow-y-auto xl:pr-2">
-          <Panel className="p-5">
-            <SectionTitle icon={Sparkles} eyebrow="AI assignment builder" title="Create from material" />
-            <form onSubmit={submitGeneratedAssignment} className="mt-5 space-y-4">
-              <div className="grid gap-2 sm:grid-cols-3">
-                {[
-                  { value: "mcq" as const, label: "MCQ", icon: ClipboardCheck },
-                  { value: "qa" as const, label: "Q&A", icon: Edit3 },
-                  { value: "file" as const, label: "File", icon: Upload },
-                ].map((option) => {
-                  const Icon = option.icon;
-                  const active = assignmentType === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setAssignmentType(option.value)}
-                      className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                        active
-                          ? "border-fuchsia-300/35 bg-fuchsia-400/12 text-white"
-                          : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white"
-                      }`}
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <Icon className="size-4" />
-                        {option.label}
-                      </span>
-                    </button>
-                  );
-                })}
+          <Panel className="p-6 glass-strong border border-white/12 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-500 opacity-70" />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SectionTitle icon={Sparkles} eyebrow="GenAI Assignment System" title="AI Intelligence Builder" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-3.5 py-1.5 text-[11px] font-medium text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
+                <span className="size-2 rounded-full bg-purple-400 animate-pulse" />
+                AI Engine Live
+              </div>
+            </div>
+
+            <form onSubmit={submitGeneratedAssignment} className="mt-6 space-y-5">
+              <div>
+                <span className="mb-2 block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                  1. Select Paper Format
+                </span>
+                <div className="grid gap-2.5 sm:grid-cols-3">
+                  {[
+                    { value: "mcq" as const, label: "MCQ Paper", icon: ClipboardCheck, desc: "Auto-graded quiz" },
+                    { value: "qa" as const, label: "Q&A Assessment", icon: Edit3, desc: "Descriptive paper" },
+                    { value: "file" as const, label: "File Project", icon: Upload, desc: "Submission brief" },
+                  ].map((option) => {
+                    const Icon = option.icon;
+                    const active = assignmentType === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAssignmentType(option.value)}
+                        className={`group relative rounded-2xl border p-3.5 text-left transition-all duration-200 ${
+                          active
+                            ? "border-fuchsia-400/60 bg-gradient-to-br from-fuchsia-500/20 via-purple-500/15 to-transparent text-white shadow-[0_0_20px_rgba(217,70,239,0.25)]"
+                            : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25 hover:bg-white/[0.06] hover:text-white"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 font-semibold text-sm">
+                          <Icon className={`size-4 ${active ? "text-fuchsia-300" : "text-white/45 group-hover:text-white"}`} />
+                          {option.label}
+                        </div>
+                        <div className="mt-1 text-[11px] text-white/40">{option.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input
-                  value={assignmentTitle}
-                  onChange={(event) => setAssignmentTitle(event.target.value)}
-                  placeholder="Assignment title (AI can fill)"
-                />
-                <SearchableOptionInput
-                  id="professor-assignment-subject"
-                  value={assignmentSubject}
-                  onChange={setAssignmentSubject}
-                  options={STUDY_SUBJECTS}
-                  placeholder="Subject"
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                    Assignment Title (Optional)
+                  </span>
+                  <Input
+                    value={assignmentTitle}
+                    onChange={(event) => setAssignmentTitle(event.target.value)}
+                    placeholder="Auto-generated by AI if blank"
+                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                    Target Subject
+                  </span>
+                  <SearchableOptionInput
+                    id="professor-assignment-subject"
+                    value={assignmentSubject}
+                    onChange={setAssignmentSubject}
+                    options={STUDY_SUBJECTS}
+                    placeholder="Select subject"
+                  />
+                </label>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-3">
-                {[
-                  { value: "resources" as const, label: "Resources", icon: BookOpen },
-                  { value: "syllabus" as const, label: "Syllabus", icon: FileText },
-                  { value: "content" as const, label: "Content", icon: Edit3 },
-                ].map((option) => {
-                  const Icon = option.icon;
-                  const active = assignmentSourceKind === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setAssignmentSourceKind(option.value)}
-                      className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                        active
-                          ? "border-cyan-300/35 bg-cyan-300/10 text-white"
-                          : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white"
-                      }`}
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <Icon className="size-4" />
-                        {option.label}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div>
+                <span className="mb-2 block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                  2. Select AI Context Source
+                </span>
+                <div className="grid gap-2.5 sm:grid-cols-3">
+                  {[
+                    { value: "resources" as const, label: "Uploaded Resources", icon: BookOpen },
+                    { value: "syllabus" as const, label: "Syllabus Outline", icon: FileText },
+                    { value: "content" as const, label: "Custom Text Prompt", icon: Edit3 },
+                  ].map((option) => {
+                    const Icon = option.icon;
+                    const active = assignmentSourceKind === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAssignmentSourceKind(option.value)}
+                        className={`rounded-2xl border px-4 py-3 text-left text-xs font-medium transition-all duration-200 ${
+                          active
+                            ? "border-cyan-400/60 bg-cyan-500/20 text-cyan-100 shadow-[0_0_15px_rgba(6,182,212,0.25)]"
+                            : "border-white/10 bg-white/[0.03] text-white/55 hover:border-white/20 hover:text-white"
+                        }`}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Icon className="size-4" />
+                          {option.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {assignmentSourceKind === "resources" && (
-                <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-                  <div className="mb-3 text-[10px] uppercase tracking-[0.25em] text-white/40">
-                    Select resources
+                <div className="rounded-3xl border border-white/12 bg-white/[0.03] p-4.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                      Select Study Material (Max 6)
+                    </span>
+                    <span className="text-xs text-cyan-300 font-mono">
+                      {assignmentResourceIds.length} selected
+                    </span>
                   </div>
-                  <div className="grid gap-2 lg:grid-cols-2">
+                  <div className="grid gap-2.5 lg:grid-cols-2">
                     {professorResources.slice(0, 6).map((resource) => {
                       const checked = assignmentResourceIds.includes(resource.id);
                       return (
@@ -1808,22 +1906,27 @@ function ProfessorDashboardPage() {
                           key={resource.id}
                           type="button"
                           onClick={() => toggleAssignmentResource(resource.id)}
-                          className={`rounded-2xl border p-3 text-left transition ${
+                          className={`rounded-2xl border p-3.5 text-left transition-all duration-200 ${
                             checked
-                              ? "border-emerald-300/35 bg-emerald-400/10"
-                              : "border-white/10 bg-black/10 hover:border-white/20"
+                              ? "border-emerald-400/60 bg-emerald-500/15 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                              : "border-white/10 bg-black/20 text-white/70 hover:border-white/25 hover:bg-black/30"
                           }`}
                         >
-                          <span className="block truncate text-sm font-medium">{resource.title}</span>
-                          <span className="mt-1 block text-xs text-white/40">
-                            {resource.subject} / {resource.resourceType}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="block truncate text-sm font-semibold">{resource.title}</span>
+                            {checked && (
+                              <span className="size-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                            )}
+                          </div>
+                          <span className="mt-1 block text-xs text-white/45">
+                            {resource.subject} • {resource.resourceType}
                           </span>
                         </button>
                       );
                     })}
                     {professorResources.length === 0 && (
-                      <div className="rounded-2xl border border-dashed border-white/15 p-5 text-sm text-white/45">
-                        Upload a resource in Study Resources, or switch to syllabus/content.
+                      <div className="col-span-2 rounded-2xl border border-dashed border-white/15 p-5 text-center text-sm text-white/45 bg-white/[0.01]">
+                        Upload resources in Study Resources first, or switch to syllabus/content mode above.
                       </div>
                     )}
                   </div>
@@ -1834,7 +1937,8 @@ function ProfessorDashboardPage() {
                 <Textarea
                   value={assignmentSyllabus}
                   onChange={(event) => setAssignmentSyllabus(event.target.value)}
-                  placeholder="Paste syllabus units, outcomes, or chapter list..."
+                  placeholder="Paste syllabus modules, topics, learning objectives, or unit summaries here..."
+                  className="bg-white/[0.04] border-white/12 focus:border-cyan-400/50 rounded-2xl min-h-[100px]"
                 />
               )}
 
@@ -1842,25 +1946,27 @@ function ProfessorDashboardPage() {
                 <Textarea
                   value={assignmentContent}
                   onChange={(event) => setAssignmentContent(event.target.value)}
-                  placeholder="Paste any content the AI should transform into an assignment..."
+                  placeholder="Paste any custom textbook excerpt, lecture notes, or reference text for GenAI..."
+                  className="bg-white/[0.04] border-white/12 focus:border-cyan-400/50 rounded-2xl min-h-[100px]"
                 />
               )}
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="block text-[10px] uppercase tracking-[0.25em] text-white/40">
-                    Assignment duration
+                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                    Assignment Duration
                   </span>
                   <Input
                     value={assignmentDueLabel}
                     onChange={(event) => setAssignmentDueLabel(event.target.value)}
-                    placeholder="e.g. in 5 days"
+                    placeholder="e.g. in 7 days"
                     required
+                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="block text-[10px] uppercase tracking-[0.25em] text-white/40">
-                    Number of questions
+                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                    Question Count
                   </span>
                   <Input
                     type="number"
@@ -1869,222 +1975,250 @@ function ProfessorDashboardPage() {
                     value={assignmentType === "file" ? 1 : assignmentQuestionCount}
                     onChange={(event) => setAssignmentQuestionCount(Number(event.target.value) || 1)}
                     disabled={assignmentType === "file"}
-                    placeholder="Question count"
+                    placeholder="Number of questions"
+                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
                   />
-                  {assignmentType === "file" && (
-                    <span className="block text-xs text-white/35">
-                      File assignments use one upload brief.
-                    </span>
-                  )}
                 </label>
               </div>
 
-              <ActionButton disabled={saving} icon={Sparkles}>
-                Create AI assignment
-              </ActionButton>
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full py-3.5 px-6 rounded-2xl border border-purple-400/30 bg-purple-500/15 hover:bg-purple-500/25 text-purple-100 font-semibold text-xs tracking-[0.2em] uppercase shadow-[0_0_20px_rgba(168,85,247,0.2)] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
+              >
+                <Sparkles className="size-4 text-purple-300" />
+                <span>{saving ? "Generating Paper via AI..." : "Create AI Assignment Paper"}</span>
+              </button>
             </form>
           </Panel>
 
-        <Panel className="p-5">
-          <SectionTitle icon={CheckCircle2} eyebrow="Assignment review" title="Grade submission" />
-          {selectedReviewItem && (
-            <div className="mt-5 rounded-3xl border border-fuchsia-300/20 bg-fuchsia-400/10 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.25em] text-fuchsia-100/70">
-                    AI review snapshot
+          <Panel className="p-6 glass-strong border border-white/12 shadow-2xl relative overflow-hidden">
+            <div className="flex items-center justify-between gap-3">
+              <SectionTitle icon={CheckCircle2} eyebrow="Submission Assessment" title="Grade submission" />
+              {selectedReviewItem && (
+                <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-emerald-200">
+                  Ready to Review
+                </span>
+              )}
+            </div>
+
+            {selectedReviewItem && (
+              <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-xl backdrop-blur-2xl">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-purple-300">
+                      <Sparkles className="size-3.5" />
+                      AI Review Snapshot
+                    </div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5">
+                        <div className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white/40">
+                          AI Score
+                        </div>
+                        <div className="mt-1 font-display text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-purple-200">
+                          {selectedReviewScore !== null
+                            ? `${selectedReviewScore} / ${selectedReviewTotalPoints}`
+                            : "Pending"}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5">
+                        <div className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white/40">
+                          AI Grade
+                        </div>
+                        <div className="mt-1 font-display text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200">
+                          {selectedReviewItem.aiGrade || selectedReviewItem.grade || "Pending"}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5">
+                        <div className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white/40">
+                          Submission
+                        </div>
+                        <div className="mt-1 font-display text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-200">
+                          {selectedReviewItem.answerCount
+                            ? `${selectedReviewItem.answerCount} answers`
+                            : selectedReviewItem.fileName
+                              ? "File uploaded"
+                              : "Manual"}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm leading-relaxed text-white/80 font-medium">
+                      {selectedReviewItem.aiFeedback || selectedReviewItem.feedback || "No AI feedback available yet."}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-white/45">
+                      AI score is an automated evaluation baseline. Professor grade and feedback below will form the final grade.
+                    </p>
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-2xl bg-black/20 p-3">
-                      <div className="text-[10px] uppercase tracking-[0.22em] text-white/35">
-                        AI score
-                      </div>
-                      <div className="mt-1 font-display text-xl text-white">
-                        {selectedReviewScore !== null
-                          ? `${selectedReviewScore} / ${selectedReviewTotalPoints}`
-                          : "Pending"}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl bg-black/20 p-3">
-                      <div className="text-[10px] uppercase tracking-[0.22em] text-white/35">
-                        AI grade
-                      </div>
-                      <div className="mt-1 font-display text-xl text-white">
-                        {selectedReviewItem.aiGrade || selectedReviewItem.grade || "Pending"}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl bg-black/20 p-3">
-                      <div className="text-[10px] uppercase tracking-[0.22em] text-white/35">
-                        Submission
-                      </div>
-                      <div className="mt-1 font-display text-xl text-white">
-                        {selectedReviewItem.answerCount
-                          ? `${selectedReviewItem.answerCount} answer${selectedReviewItem.answerCount === 1 ? "" : "s"}`
-                          : selectedReviewItem.fileName
-                            ? "File uploaded"
-                            : "Manual"}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/65">
-                    {selectedReviewItem.aiFeedback || selectedReviewItem.feedback || "No AI feedback yet."}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-white/45">
-                    AI score is only a suggestion. The saved grade and feedback below become the professor's final review for the student.
-                  </p>
+                  {selectedReviewItem.fileUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void openProtectedResource(selectedReviewItem.fileUrl || "", {
+                          openAndDownload: true,
+                          fallbackName: selectedReviewItem.fileName || "assignment-submission",
+                        })
+                      }
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+                    >
+                      <Download className="size-3.5" />
+                      Download File
+                    </button>
+                  )}
                 </div>
-                {selectedReviewItem.fileUrl && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void openProtectedResource(selectedReviewItem.fileUrl || "", {
-                        openAndDownload: true,
-                        fallbackName: selectedReviewItem.fileName || "assignment-submission",
-                      })
-                    }
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs text-white/70 transition hover:text-white"
-                  >
-                    <Download className="size-3.5" />
-                    Open file
-                  </button>
-                )}
+
+                <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  {(selectedReviewItem.aiReview?.criteria ?? []).map((criterion) => (
+                    <div key={criterion.label} className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                      <div className="text-xs font-semibold text-white">{criterion.label}</div>
+                      <div className="mt-1 text-xs text-white/50">{criterion.detail}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                {(selectedReviewItem.aiReview?.criteria ?? []).map((criterion) => (
-                  <div key={criterion.label} className="rounded-2xl bg-black/20 p-3">
-                    <div className="text-xs font-medium text-white">{criterion.label}</div>
-                    <div className="mt-1 text-xs text-white/45">{criterion.detail}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <form onSubmit={submitReview} className="mt-5 space-y-4">
-            <label className="block space-y-2">
-              <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">
-                Student
-              </span>
-              <Select
-                value={reviewStudentId}
-                onChange={(event) => {
-                  setReviewStudentId(event.target.value);
-                  setReviewSubmissionId(null);
-                  setReviewTitle("");
-                  setReviewSubject("");
-                  setReviewScore("");
-                  setReviewGrade("");
-                  setReviewFeedback("");
-                }}
-                required
-              >
-                <option value="" className="bg-neutral-950 text-white py-2">
-                  Select student
-                </option>
-                {students.map((student) => (
-                  <option key={student.id} value={student.id} className="bg-neutral-950 text-white py-2 font-medium">
-                    {student.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <label className="space-y-2">
-                <span className="block text-[10px] uppercase tracking-[0.25em] text-white/40">
-                  Assignment title
-                </span>
-                <Input
-                  value={reviewTitle}
-                  onChange={(event) => setReviewTitle(event.target.value)}
-                  placeholder="Assignment title"
-                  required
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="block text-[10px] uppercase tracking-[0.25em] text-white/40">
-                  Subject
-                </span>
-                <Input
-                  value={reviewSubject}
-                  onChange={(event) => setReviewSubject(event.target.value)}
-                  placeholder="Subject"
-                  required
-                />
-              </label>
-            </div>
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">Evaluation & Feedback</span>
-              <button
-                type="button"
-                onClick={fillAiReviewDraft}
-                className="inline-flex items-center justify-center gap-1.5 rounded-full border border-fuchsia-400/30 bg-fuchsia-400/10 px-3 py-1 text-xs text-fuchsia-200 transition hover:bg-fuchsia-400/20"
-              >
-                <Sparkles className="size-3.5" />
-                Load AI suggestion
-              </button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-[1fr_0.65fr]">
+            )}
+
+            <form onSubmit={submitReview} className="mt-6 space-y-5">
               <label className="block space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">
-                  Professor final marks
-                </span>
-                <Input
-                  type="number"
-                  min={0}
-                  max={selectedReviewTotalPoints}
-                  step="1"
-                  value={reviewScore}
-                  onChange={(event) => {
-                    setReviewScore(event.target.value);
-                    const score = Number(event.target.value);
-                    if (Number.isFinite(score)) {
-                      setReviewGrade(gradeCodeFromMarks(score, selectedReviewTotalPoints));
-                    }
-                  }}
-                  placeholder={`Marks out of ${selectedReviewTotalPoints}`}
-                />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">
-                  Grade code
+                <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                  Select Student
                 </span>
                 <Select
-                  value={finalGradeCode}
-                  onChange={(event) => setReviewGrade(event.target.value)}
-                  aria-label="Professor final grade code"
+                  value={reviewStudentId}
+                  onChange={(event) => {
+                    setReviewStudentId(event.target.value);
+                    setReviewSubmissionId(null);
+                    setReviewTitle("");
+                    setReviewSubject("");
+                    setReviewScore("");
+                    setReviewGrade("");
+                    setReviewFeedback("");
+                  }}
+                  required
+                  className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl text-white"
                 >
-                  {GRADE_OPTIONS.map((code) => (
-                    <option key={code} value={code} className="bg-neutral-950 text-white">
-                      {code}
+                  <option value="" className="bg-neutral-950 text-white py-2">
+                    Select student to evaluate
+                  </option>
+                  {students.map((student) => (
+                    <option key={student.id} value={student.id} className="bg-neutral-950 text-white py-2 font-medium">
+                      {student.name} ({student.studentCode})
                     </option>
                   ))}
                 </Select>
               </label>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-white/45">
-              Grade criteria: S 90+, A 80+, B 70+, C 60+, D 50+, E 40+, U below 40. Special codes: P pass, F fail, W not eligible, I incomplete.
-            </div>
-            <label className="block space-y-2">
-              <span className="text-[10px] uppercase tracking-[0.25em] text-white/40">
-                Professor feedback to student
-              </span>
-              <Textarea
-                value={reviewFeedback}
-                onChange={(event) => setReviewFeedback(event.target.value)}
-                placeholder="Feedback for the student"
-              />
-            </label>
-            <ActionButton
-              disabled={
-                saving ||
-                !reviewStudentId ||
-                Boolean(reviewSubmissionId && (parsedReviewScore === null || !Number.isFinite(parsedReviewScore)))
-              }
-              icon={Save}
-            >
-              Publish final review
-            </ActionButton>
-          </form>
-        </Panel>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <label className="space-y-2">
+                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                    Assignment Title
+                  </span>
+                  <Input
+                    value={reviewTitle}
+                    onChange={(event) => setReviewTitle(event.target.value)}
+                    placeholder="Assignment title"
+                    required
+                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                    Subject
+                  </span>
+                  <Input
+                    value={reviewSubject}
+                    onChange={(event) => setReviewSubject(event.target.value)}
+                    placeholder="Subject"
+                    required
+                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
+                  />
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                  Evaluation & Final Grade
+                </span>
+                <button
+                  type="button"
+                  onClick={fillAiReviewDraft}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-fuchsia-400/40 bg-fuchsia-500/15 px-3.5 py-1.5 text-xs font-semibold text-fuchsia-200 transition hover:bg-fuchsia-500/25 shadow-[0_0_15px_rgba(217,70,239,0.2)]"
+                >
+                  <Sparkles className="size-3.5" />
+                  Load AI Suggestion
+                </button>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-[1fr_0.65fr]">
+                <label className="block space-y-2">
+                  <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                    Professor Final Marks
+                  </span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={selectedReviewTotalPoints}
+                    step="1"
+                    value={reviewScore}
+                    onChange={(event) => {
+                      setReviewScore(event.target.value);
+                      const score = Number(event.target.value);
+                      if (Number.isFinite(score)) {
+                        setReviewGrade(gradeCodeFromMarks(score, selectedReviewTotalPoints));
+                      }
+                    }}
+                    placeholder={`Marks out of ${selectedReviewTotalPoints}`}
+                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
+                  />
+                </label>
+                <label className="block space-y-2">
+                  <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                    Grade Code
+                  </span>
+                  <Select
+                    value={finalGradeCode}
+                    onChange={(event) => setReviewGrade(event.target.value)}
+                    aria-label="Professor final grade code"
+                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
+                  >
+                    {GRADE_OPTIONS.map((code) => (
+                      <option key={code} value={code} className="bg-neutral-950 text-white">
+                        {code}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5 text-xs leading-5 text-white/50 font-mono">
+                Grade Scale: S (90+), A (80+), B (70+), C (60+), D (50+), E (40+), U (&lt;40). Special: P (Pass), F (Fail), W (Withdrawn), I (Incomplete).
+              </div>
+
+              <label className="block space-y-2">
+                <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                  Professor Feedback to Student
+                </span>
+                <Textarea
+                  value={reviewFeedback}
+                  onChange={(event) => setReviewFeedback(event.target.value)}
+                  placeholder="Provide constructive feedback for the student..."
+                  className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl min-h-[90px]"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={
+                  saving ||
+                  !reviewStudentId ||
+                  Boolean(reviewSubmissionId && (parsedReviewScore === null || !Number.isFinite(parsedReviewScore)))
+                }
+                className="w-full py-3.5 px-6 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-100 font-semibold text-xs tracking-[0.2em] uppercase shadow-[0_0_20px_rgba(16,185,129,0.2)] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
+              >
+                <Save className="size-4 text-emerald-300" />
+                <span>{saving ? "Publishing Review..." : "Publish Final Review & Save Grade"}</span>
+              </button>
+            </form>
+          </Panel>
         </div>
       </section>
 
@@ -2586,20 +2720,20 @@ function StudentAssignmentHistory({
   listClassName?: string;
 }) {
   return (
-    <div className={`flex min-h-0 flex-col rounded-3xl border border-white/10 bg-white/[0.03] p-4 ${className}`}>
+    <div className={`flex min-h-0 flex-col rounded-3xl border border-white/12 bg-white/[0.03] p-4.5 backdrop-blur-xl ${className}`}>
       <div className="flex shrink-0 items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.25em] text-white/40">
-            Selected student assignments
+          <div className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/40">
+            Selected Student Assignments
           </div>
-          <div className="mt-1 text-sm font-medium text-white">{studentName}</div>
+          <div className="mt-1 text-sm font-semibold text-white">{studentName}</div>
         </div>
-        <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-cyan-100">
-          {items.length} record{items.length === 1 ? "" : "s"}
+        <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-200 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
+          {items.length} {items.length === 1 ? "Record" : "Records"}
         </span>
       </div>
 
-      <div className={`mt-3 min-h-0 space-y-2 overflow-y-auto pr-1 ${listClassName}`}>
+      <div className={`mt-3 min-h-0 space-y-2.5 overflow-y-auto pr-1 ${listClassName}`}>
         {items.map((item) => {
           const selected = item.submissionId === selectedSubmissionId;
           const assignment = assignments?.find((row) => row.id === item.assignmentId);
@@ -2626,43 +2760,47 @@ function StudentAssignmentHistory({
               key={item.submissionId ?? item.id}
               type="button"
               onClick={() => onOpen(item)}
-              className={`w-full rounded-2xl border p-3 text-left transition hover:border-white/20 ${
-                selected ? "border-emerald-300/35 bg-emerald-400/10" : "border-white/10 bg-black/15"
+              className={`group w-full rounded-2xl border p-3.5 text-left transition-all duration-200 ${
+                selected
+                  ? "border-emerald-400/60 bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-transparent shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                  : "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-white">{item.title}</div>
-                  <div className="mt-1 text-xs text-white/40">
-                    {item.subject} / {item.submitted}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-white group-hover:text-cyan-200 transition">
+                    {item.title}
+                  </div>
+                  <div className="mt-1 text-xs text-white/40 truncate">
+                    {item.subject} • {item.submitted}
                   </div>
                 </div>
-                <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-white/55">
+                <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] font-mono font-medium uppercase tracking-[0.16em] text-white/60">
                   {item.assignmentType === "qa" ? "Q&A" : (item.assignmentType ?? "manual").toUpperCase()}
                 </span>
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.16em]">
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em]">
                 <span
-                  className={`rounded-full border px-2 py-1 ${
+                  className={`rounded-full border px-2.5 py-0.5 font-bold ${
                     submitted
-                      ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-                      : "border-white/10 bg-white/[0.04] text-white/45"
+                      ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
+                      : "border-white/10 bg-white/5 text-white/45"
                   }`}
                 >
                   {score !== null ? `${score}/${totalPoints}` : submitted ? "Marks pending" : "Assigned"}
                 </span>
                 <span
-                  className={`rounded-full border px-2 py-1 ${
+                  className={`rounded-full border px-2.5 py-0.5 font-bold ${
                     submitted
-                      ? "border-fuchsia-300/20 bg-fuchsia-400/10 text-fuchsia-100"
-                      : "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
+                      ? "border-fuchsia-400/30 bg-fuchsia-500/15 text-fuchsia-200"
+                      : "border-cyan-400/30 bg-cyan-500/15 text-cyan-200"
                   }`}
                 >
                   Grade {grade}
                 </span>
-                <span className="rounded-full bg-white/5 px-2 py-1 text-white/40">{statusLabel}</span>
-                <span className="ml-auto inline-flex items-center gap-1 text-cyan-100">
-                  <Eye className="size-3" />
+                <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-white/40">{statusLabel}</span>
+                <span className="ml-auto inline-flex items-center gap-1 font-sans text-xs font-medium text-cyan-300 group-hover:translate-x-0.5 transition-transform">
+                  <Eye className="size-3.5" />
                   {submitted ? "Open" : "View"}
                 </span>
               </div>
@@ -2671,7 +2809,7 @@ function StudentAssignmentHistory({
         })}
 
         {items.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-white/15 px-4 py-6 text-center text-sm text-white/45">
+          <div className="rounded-2xl border border-dashed border-white/15 px-4 py-6 text-center text-sm text-white/45 bg-white/[0.01]">
             Select a student to view their submitted and assigned coursework here.
           </div>
         )}

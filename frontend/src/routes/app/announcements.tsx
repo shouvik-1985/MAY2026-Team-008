@@ -5,7 +5,6 @@ import {
   Search,
   Bell,
   X,
-  Plus,
   CheckCircle2,
   Share2,
   Calendar,
@@ -20,9 +19,10 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
-import { getStudentDashboard, type StudentDashboard } from "@/lib/api";
+import { type StudentDashboard } from "@/lib/api";
 import { useStudentDashboard } from "@/lib/student-session";
 import { getStoredUser } from "@/lib/auth";
+
 
 export const Route = createFileRoute("/app/announcements")({ component: AnnouncementsPage });
 
@@ -60,17 +60,8 @@ function AnnouncementsPage() {
   const [q, setQ] = useState("");
   const [active, setActive] = useState<Announcement | null>(null);
   const [copied, setCopied] = useState(false);
-  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"newest" | "popular" | "pinned">("newest");
-
-  // Broadcast form state
-  const [newTitle, setNewTitle] = useState("");
-  const [newCategory, setNewCategory] = useState("Academic");
-  const [newAudience, setNewAudience] = useState("All Students");
-  const [newBody, setNewBody] = useState("");
-  const [newPinned, setNewPinned] = useState(false);
-  const [isPosting, setIsPosting] = useState(false);
 
   const currentList = announcements.length ? announcements : rawAnnouncements;
 
@@ -183,61 +174,25 @@ function AnnouncementsPage() {
     }
   }
 
-  async function handleCreateBroadcast(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newTitle.trim() || !newBody.trim()) return;
-
-    setIsPosting(true);
-    try {
-      const newAnn: Announcement = {
-        id: Date.now(),
-        pinned: newPinned,
-        title: newTitle.trim(),
-        category: newCategory,
-        audience: newAudience,
-        reads: 1,
-        time: "Just now",
-        unread: true,
-        body: newBody.trim(),
-      };
-      setAnnouncements([newAnn, ...currentList]);
-      setIsBroadcastOpen(false);
-      setNewTitle("");
-      setNewBody("");
-      setStatusMsg("Announcement published campus-wide!");
-      setTimeout(() => setStatusMsg(null), 4000);
-    } catch (err) {
-      setStatusMsg("Failed to publish announcement");
-    } finally {
-      setIsPosting(false);
-    }
-  }
 
   return (
     <PageTransition>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <SectionHeading
-          eyebrow="Campus Signal & Feed"
-          title="Announcements & Notices"
-          sub="Real-time institutional broadcasts, examination schedules, placement notices, and campus news."
+          eyebrow="Notices & Directives"
+          title="Announcements"
+          sub="Official campus notices, academic schedules, and department circulars."
         />
 
         <div className="flex items-center gap-3 self-start md:self-auto">
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="glass px-4 py-2 rounded-full text-xs font-medium uppercase tracking-wider text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10 transition flex items-center gap-1.5"
+              className="glass px-4 py-2 rounded-full text-xs font-mono font-medium uppercase tracking-wider text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/15 transition flex items-center gap-1.5 shadow-[0_0_10px_rgba(52,211,153,0.15)]"
             >
               <CheckCircle2 className="size-3.5" /> Mark All Read ({unreadCount})
             </button>
           )}
-
-          <button
-            onClick={() => setIsBroadcastOpen(true)}
-            className="bg-[var(--grad-aurora)] px-5 py-2 rounded-full text-xs font-semibold uppercase tracking-wider text-white shadow-lg flex items-center gap-2 hover:opacity-90 transition"
-          >
-            <Megaphone className="size-3.5" /> Broadcast Notice
-          </button>
         </div>
       </div>
 
@@ -250,7 +205,7 @@ function AnnouncementsPage() {
         >
           <div className="flex items-center gap-3">
             <span className="size-3 rounded-full bg-red-500 animate-ping" />
-            <span className="text-xs font-bold uppercase tracking-wider text-red-400">URGENT BROADCAST:</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-red-400">URGENT NOTICE:</span>
             <span className="text-xs text-white/90 font-medium line-clamp-1">{urgentItem.title}</span>
           </div>
           <button
@@ -285,15 +240,14 @@ function AnnouncementsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {categories.map((c) => (
             <button
               key={c}
               onClick={() => setCat(c)}
-              className={`px-4 py-2 rounded-full text-xs uppercase tracking-[0.15em] transition whitespace-nowrap flex items-center gap-1.5 ${
-                cat === c ? "text-white font-semibold shadow-lg" : "text-white/50 hover:text-white"
+              className={`px-4 py-2 rounded-full text-xs font-mono uppercase tracking-wider transition whitespace-nowrap flex items-center gap-1.5 ${
+                cat === c ? "text-white font-semibold shadow-lg bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-600" : "text-white/50 hover:text-white bg-white/[0.04] border border-white/10"
               }`}
-              style={cat === c ? { background: "var(--grad-aurora)" } : undefined}
             >
               <span>{c}</span>
               <span className="text-[10px] opacity-75 font-bold">({categoryCounts[c] || 0})</span>
@@ -303,11 +257,11 @@ function AnnouncementsPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="glass rounded-full px-3 py-2 text-xs text-white/80 outline-none bg-[#11131a] border border-white/10"
+            className="glass rounded-full px-3.5 py-2 text-xs font-mono text-white/80 outline-none bg-[#0d0d12] border border-white/10 cursor-pointer shrink-0"
           >
-            <option value="newest">Sort: Newest</option>
-            <option value="popular">Sort: Most Read</option>
-            <option value="pinned">Sort: Pinned First</option>
+            <option value="newest" className="bg-[#0d0d12] text-white">Newest First</option>
+            <option value="popular" className="bg-[#0d0d12] text-white">Most Read</option>
+            <option value="pinned" className="bg-[#0d0d12] text-white">Pinned First</option>
           </select>
         </div>
       </div>
@@ -358,9 +312,14 @@ function AnnouncementsPage() {
             </motion.div>
           ))}
           {filteredItems.length === 0 && (
-            <GlassCard className="text-center py-10">
-              <Bell className="size-10 mx-auto text-white/30 mb-3" />
-              <div className="text-sm font-medium text-white/60">No announcements match your selected filter.</div>
+            <GlassCard className="text-center py-12 space-y-3">
+              <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
+                <Megaphone className="size-6 text-fuchsia-300/60" />
+              </div>
+              <div className="text-sm font-semibold text-white/90">No Announcements Found</div>
+              <div className="text-xs text-white/40 max-w-sm mx-auto">
+                No campus notices match your search query or selected category filter.
+              </div>
             </GlassCard>
           )}
         </div>
@@ -457,128 +416,10 @@ function AnnouncementsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-white/10 text-xs text-white/40">
+              <div className="flex items-center justify-between pt-3 border-t border-white/10 text-xs text-white/40 font-mono">
                 <span>Issued by: Office of Academic Registrar</span>
-                <span className="flex items-center gap-1 text-white/50"><Eye className="size-3" /> {active.reads || 184} Reads</span>
+                <span className="flex items-center gap-1 text-white/50"><Eye className="size-3" /> {typeof active.reads === "number" && active.reads > 0 ? `${active.reads} Reads` : "Official Circular"}</span>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Broadcast Announcement Modal */}
-      <AnimatePresence>
-        {isBroadcastOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setIsBroadcastOpen(false)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#11131a] p-7 text-white relative shadow-2xl space-y-5"
-            >
-              <button
-                onClick={() => setIsBroadcastOpen(false)}
-                className="absolute top-6 right-6 text-white/50 hover:text-white glass p-2 rounded-full transition"
-              >
-                <X className="size-5" />
-              </button>
-
-              <div className="font-display text-xl font-bold flex items-center gap-2">
-                <Megaphone className="size-5 text-amber-400" /> Broadcast Campus Notice
-              </div>
-
-              <form onSubmit={handleCreateBroadcast} className="space-y-4">
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Title</label>
-                  <input
-                    required
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="e.g. End Semester Exam Schedule Announced"
-                    className="w-full glass rounded-xl px-3 py-2.5 text-xs bg-transparent text-white outline-none mt-1"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Category</label>
-                    <select
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                      className="w-full glass rounded-xl px-3 py-2.5 text-xs bg-[#11131a] text-white outline-none mt-1"
-                    >
-                      <option value="Academic">Academic</option>
-                      <option value="Exam">Exam</option>
-                      <option value="Placement">Placement</option>
-                      <option value="Events">Events</option>
-                      <option value="Urgent">Urgent</option>
-                      <option value="Sports">Sports</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Target Audience</label>
-                    <select
-                      value={newAudience}
-                      onChange={(e) => setNewAudience(e.target.value)}
-                      className="w-full glass rounded-xl px-3 py-2.5 text-xs bg-[#11131a] text-white outline-none mt-1"
-                    >
-                      <option value="All Students">All Students</option>
-                      <option value="Computer Science & AI">Computer Science & AI</option>
-                      <option value="Final Year / Semester 4">Final Year / Semester 4</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2">
-                  <input
-                    type="checkbox"
-                    id="pinToggle"
-                    checked={newPinned}
-                    onChange={(e) => setNewPinned(e.target.checked)}
-                    className="size-4 rounded accent-amber-400"
-                  />
-                  <label htmlFor="pinToggle" className="text-xs text-white/80 cursor-pointer">
-                    Pin Notice to Top
-                  </label>
-                </div>
-
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Notice Content</label>
-                  <textarea
-                    required
-                    rows={4}
-                    value={newBody}
-                    onChange={(e) => setNewBody(e.target.value)}
-                    placeholder="Write detailed announcement content..."
-                    className="w-full glass rounded-xl p-3 text-xs bg-transparent text-white outline-none mt-1"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsBroadcastOpen(false)}
-                    className="glass px-4 py-2 rounded-full text-xs text-white/60 hover:text-white"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isPosting}
-                    className="bg-[var(--grad-aurora)] px-6 py-2 rounded-full text-xs font-bold uppercase tracking-wider text-white shadow-lg hover:opacity-90"
-                  >
-                    {isPosting ? "Publishing..." : "Publish Broadcast"}
-                  </button>
-                </div>
-              </form>
             </motion.div>
           </motion.div>
         )}
@@ -657,10 +498,10 @@ function AnnouncementCard({
             {a.body}
           </p>
 
-          <div className="mt-3 flex items-center gap-3 text-[10px] text-white/40 border-t border-white/5 pt-2">
+          <div className="mt-3 flex items-center gap-3 text-[10px] text-white/40 border-t border-white/5 pt-2 font-mono">
             <span className="flex items-center gap-1"><Users className="size-3 text-white/50" /> {a.audience || "All Students"}</span>
             <span>•</span>
-            <span className="flex items-center gap-1"><Eye className="size-3 text-white/50" /> {a.reads || 184} Reads</span>
+            <span className="flex items-center gap-1"><Eye className="size-3 text-white/50" /> {typeof a.reads === "number" && a.reads > 0 ? `${a.reads} Reads` : "Official Circular"}</span>
           </div>
         </div>
       </div>
