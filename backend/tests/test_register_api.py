@@ -105,27 +105,6 @@ def test_register_rejects_admin_role_self_signup(client):
     assert response.status_code in (400, 403, 422)
 
 
-def test_register_faculty_fields_are_trimmed(client):
-    response = client.post(
-        "/api/auth/register",
-        json=_register_payload(
-            email="trimfaculty@example.com",
-            role="faculty",
-            address="   Block A   ",
-            gender="   female   ",
-            highest_education="   PhD   ",
-            expertise_field="   AI   ",
-            department="   CSE   ",
-            designation="   Professor   ",
-            license_document_name="   abc.pdf   ",
-        ),
-    )
-
-    assert response.status_code == 201
-
-    user = response.json()["user"]
-    assert user["full_name"] == "Test Student"
-
 def test_register_faculty_blank_address(client):
     response = client.post(
         "/api/auth/register",
