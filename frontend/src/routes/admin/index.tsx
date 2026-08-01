@@ -23,6 +23,7 @@ import {
   Search,
   ShieldCheck,
   Megaphone,
+  ShoppingBag,
   Send,
   Sparkles,
   Trash2,
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { ComplaintStageStrip } from "@/components/app/ComplaintStageStrip";
+import { MarketplaceExperience } from "@/components/marketplace/MarketplaceExperience";
 import {
   approveAdminCertificateRequest,
   createAdminAnnouncement,
@@ -66,7 +68,7 @@ export const Route = createFileRoute("/admin/")({
   component: AdminDeskPage,
 });
 
-const ADMIN_SECTIONS = ["dashboard", "student", "professor", "announcements", "management", "complaints", "fees", "certificate"] as const;
+const ADMIN_SECTIONS = ["dashboard", "student", "professor", "announcements", "management", "complaints", "fees", "certificate", "marketplace"] as const;
 
 type AdminSection = (typeof ADMIN_SECTIONS)[number];
 type AdminComplaint = ComplaintItem;
@@ -85,6 +87,7 @@ function normalizeAdminSection(hash: string): AdminSection {
     complaint: "complaints",
     "fee-management": "fees",
     certificates: "certificate",
+    marketplace: "marketplace",
   };
   const candidate = (aliases[raw] ?? raw) as AdminSection;
   return ADMIN_SECTIONS.includes(candidate) ? candidate : "dashboard";
@@ -753,11 +756,26 @@ function AdminDeskPage() {
           <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
             {filteredComplaints.length} complaints / {resolvedComplaints} resolved
           </div>
+        ) : activeSection === "marketplace" ? (
+          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
+            Shared marketplace inventory
+          </div>
         ) : (
           <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
             {dashboard?.students.length ?? 0} students / {dashboard?.professors.length ?? 0} professors
           </div>
         )}
+      </section>
+
+      <section id="marketplace" className={visible("marketplace") ? "space-y-6" : "hidden"}>
+        <div className="grid gap-4 md:grid-cols-3">
+          <MetricCard label="Shared Inventory" value="1 source" hint="Admin and students read the same listings" />
+          <MetricCard label="Permissions" value="Role-based" hint="Same records, different abilities" />
+          <MetricCard label="Experience" value="Marketplace-first" hint="Premium preview cards with admin tools" />
+        </div>
+        <Panel icon={ShoppingBag} eyebrow="Marketplace" title="Shared Campus Marketplace">
+          <MarketplaceExperience mode="admin" embedded />
+        </Panel>
       </section>
 
       <section id="dashboard" className={visible("dashboard") ? "space-y-6" : "hidden"}>
