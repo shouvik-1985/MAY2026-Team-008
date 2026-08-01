@@ -117,13 +117,7 @@ def placement_manager_headers(client):
 
 @pytest.fixture
 def make_eligible_student(client, make_student):
-    """Register a student and directly backdate their enrollment + raise CGPA so they
-    satisfy the placement portal's minimum-semester (3) / minimum-CGPA (7.5) criteria,
-    regardless of whatever semester-duration settings other tests may have left behind.
-    There is no public API to set enrollment date, so this reaches into the DB directly
-    (a common, pragmatic pattern for arranging otherwise-unreachable test state).
-    """
-
+   
     def _make(**overrides):
         student = make_student(**overrides)
         db = SessionLocal()
