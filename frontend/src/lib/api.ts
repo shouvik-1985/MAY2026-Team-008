@@ -1238,6 +1238,13 @@ export function updateMarketplaceItem(itemKey: string, payload: Record<string, u
   });
 }
 
+export function editMarketplaceItem(itemKey: string, formData: FormData) {
+  return request<{ ok: boolean; message: string; item: MarketplaceItem }>(`/marketplace/items/${itemKey}/edit`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
 export function deleteMarketplaceItem(itemKey: string) {
   return request<{ ok: boolean; message: string }>(`/marketplace/items/${itemKey}`, {
     method: "DELETE",

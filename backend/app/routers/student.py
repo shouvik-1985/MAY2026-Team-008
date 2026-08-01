@@ -355,78 +355,16 @@ def _event_rows(db: Session, user: User, semester: int, seed: int) -> list[dict]
 
 
 def _marketplace_items(db: Session, user: User, semester: int) -> list[dict]:
-    items = db.query(MarketplaceItem).order_by(MarketplaceItem.created_at.desc()).all()
-    first_name = user.full_name.split()[0] if user.full_name else "Student"
-    clamped_sem = min(4, max(1, semester))
-
-    if not items:
-        defaults = [
-            MarketplaceItem(
-                seller_id=user.id,
-                item_key="notes-bundle",
-                name=f"Sem {clamped_sem} Notes & PYQ Bundle",
-                category="Notes",
-                price="₹ 120",
-                seller_name=f"{first_name} / Sem {clamped_sem}",
-                tag="Verified",
-                image_url="https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=800&auto=format&fit=crop",
-                description="Curated lecture notes, summaries, and previous practice sheets.",
-                status="Available",
-            ),
-            MarketplaceItem(
-                seller_id=user.id,
-                item_key="engineering-calculator",
-                name="Casio FX-991EX Scientific Calculator",
-                category="Electronics",
-                price="₹ 650",
-                seller_name="Rahul / Sem 4",
-                tag="Like New",
-                image_url="https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?q=80&w=800&auto=format&fit=crop",
-                description="Exam-ready Casio FX-991EX scientific calculator with cover and fresh batteries.",
-                status="Available",
-            ),
-            MarketplaceItem(
-                seller_id=user.id,
-                item_key="reference-book-set",
-                name="Core CS Reference Book Set (3 Books)",
-                category="Books",
-                price="₹ 480",
-                seller_name="Library Circle",
-                tag="Clean Copy",
-                image_url="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800&auto=format&fit=crop",
-                description="Includes CLRS Algorithms, Silberschatz Operating Systems, and Tanenbaum Networks.",
-                status="Reserved",
-            ),
-            MarketplaceItem(
-                seller_id=user.id,
-                item_key="hostel-desk-lamp",
-                name="Adjustable LED Study Desk Lamp & Organizer",
-                category="Hostel",
-                price="₹ 350",
-                seller_name="Ananya / Sem 3",
-                tag="Excellent",
-                image_url="https://images.unsplash.com/photo-1534073828943-f801091bb18c?q=80&w=800&auto=format&fit=crop",
-                description="Dimmable 3-mode LED desk lamp with built-in pen holder and USB charging port for hostel room study.",
-                status="Available",
-            ),
-        ]
-        db.add_all(defaults)
-        db.commit()
-        items = db.query(MarketplaceItem).order_by(MarketplaceItem.created_at.desc()).all()
-    else:
-        import re
-        updated = False
-        for item in items:
-            if "Sem 16" in item.name or "Sem 16" in item.seller_name or item.item_key == "notes-bundle":
-                item.name = re.sub(r"Sem \d+", f"Sem {clamped_sem}", item.name)
-                item.seller_name = re.sub(r"Sem \d+", f"Sem {clamped_sem}", item.seller_name)
-                updated = True
-            elif re.search(r"Sem ([5-9]|\d{2,})", item.name) or re.search(r"Sem ([5-9]|\d{2,})", item.seller_name):
-                item.name = re.sub(r"Sem ([5-9]|\d{2,})", f"Sem {clamped_sem}", item.name)
-                item.seller_name = re.sub(r"Sem ([5-9]|\d{2,})", f"Sem {clamped_sem}", item.seller_name)
-                updated = True
-        if updated:
-            db.commit()
+    items = (
+        db.query(MarketplaceItem)
+        .filter(
+            MarketplaceItem.visibility != "hidden",
+            MarketplaceItem.is_deleted.is_(False),
+            MarketplaceItem.approval_status != "rejected",
+        )
+        .order_by(MarketplaceItem.created_at.desc())
+        .all()
+    )
 
     return [
         {
