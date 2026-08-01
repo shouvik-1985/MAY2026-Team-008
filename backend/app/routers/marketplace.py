@@ -195,6 +195,13 @@ def _query_items(db: Session, *, admin_view: bool) -> list[MarketplaceItem]:
     return [item for item in rows if _student_can_view(item)]
 
 
+def _replace_gallery_urls(existing_json: str | None, uploads: list[UploadFile] | None) -> tuple[list[str], bool]:
+    files = [upload for upload in (uploads or []) if upload.filename]
+    if not files:
+        return _json_list(existing_json), False
+    return [_save_upload(upload) for upload in files], True
+
+
 def _create_or_update_item(
     *,
     db: Session,
@@ -448,6 +455,81 @@ def update_marketplace_item(
     return {"ok": True, "message": f"Listing '{item.name}' updated.", "item": _item_payload(item, admin_view=_is_admin(current_user))}
 
 
+@router.post("/items/{item_key}/edit")
+def edit_marketplace_item(
+    item_key: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    title: Annotated[str, Form(...)],
+    price: Annotated[str, Form(...)],
+    description: Annotated[str, Form(...)],
+    category: Annotated[str | None, Form()] = None,
+    subcategory: Annotated[str | None, Form()] = None,
+    condition: Annotated[str | None, Form()] = None,
+    semester: Annotated[str | None, Form()] = None,
+    subject: Annotated[str | None, Form()] = None,
+    tag: Annotated[str | None, Form()] = None,
+    visibility: Annotated[str | None, Form()] = None,
+    availability: Annotated[str | None, Form()] = None,
+    approval_status: Annotated[str | None, Form()] = None,
+    featured: Annotated[bool | None, Form()] = None,
+    preview_mode: Annotated[str | None, Form()] = None,
+    preview_pages: Annotated[int | None, Form()] = None,
+    images: Annotated[list[UploadFile] | None, File()] = None,
+    preview_images: Annotated[list[UploadFile] | None, File()] = None,
+    thumbnail: Annotated[UploadFile | None, File()] = None,
+    notes_pdf: Annotated[UploadFile | None, File()] = None,
+) -> dict[str, Any]:
+    _ensure_marketplace_user(current_user)
+    item = db.query(MarketplaceItem).filter(MarketplaceItem.item_key == item_key).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Marketplace item not found")
+    if _is_student(current_user) and item.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own listings")
+
+    if _is_student(current_user):
+        category = "Notes"
+        if (subcategory or "").strip() not in STUDENT_ALLOWED_NOTE_TYPES:
+            raise HTTPException(status_code=403, detail="Students can create handwritten notes or short notes only")
+        approval_status = item.approval_status
+        featured = item.featured
+        visibility = item.visibility
+
+    gallery_urls, replaced_gallery = _replace_gallery_urls(item.image_urls_json, images)
+    preview_gallery_urls, replaced_preview_gallery = _replace_gallery_urls(item.preview_image_urls_json, preview_images)
+    thumbnail_url = _save_upload(thumbnail) if thumbnail and thumbnail.filename else item.thumbnail_url
+
+    item = _create_or_update_item(
+        db=db,
+        actor=current_user,
+        item=item,
+        title=_clean_text(title, field="Title", max_length=180) or item.name,
+        price=_normalize_price(price),
+        description=_clean_text(description, field="Description", max_length=3000) or item.description,
+        category=_normalize_category(category, fallback=item.category),
+        subcategory=_clean_text(subcategory, field="Subcategory", max_length=80, fallback=item.subcategory),
+        condition=_clean_text(condition, field="Condition", max_length=80, fallback=item.condition),
+        semester=_clean_text(semester, field="Semester", max_length=40, fallback=item.semester),
+        subject=_clean_text(subject, field="Subject", max_length=120, fallback=item.subject),
+        tag=_clean_text(tag, field="Tag", max_length=80, fallback=item.tag),
+        visibility=_clean_text(visibility, field="Visibility", max_length=20, fallback=item.visibility),
+        availability=_clean_text(availability, field="Availability", max_length=20, fallback=item.availability),
+        approval_status=_clean_text(approval_status, field="Approval", max_length=20, fallback=item.approval_status),
+        featured=featured if featured is not None else item.featured,
+        preview_mode=_clean_text(preview_mode, field="Preview Mode", max_length=40, fallback=item.notes_preview_mode),
+        preview_pages=preview_pages if preview_pages is not None else item.preview_pages,
+        gallery_urls=gallery_urls if replaced_gallery else _json_list(item.image_urls_json),
+        preview_gallery_urls=preview_gallery_urls if replaced_preview_gallery else _json_list(item.preview_image_urls_json),
+        thumbnail_url=thumbnail_url,
+        pdf_upload=notes_pdf,
+    )
+    if thumbnail_url:
+        item.thumbnail_url = thumbnail_url
+    db.commit()
+    db.refresh(item)
+    return {"ok": True, "message": f"Listing '{item.name}' updated.", "item": _item_payload(item, admin_view=_is_admin(current_user))}
+
+
 @router.delete("/items/{item_key}")
 def delete_marketplace_item(
     item_key: str,
@@ -459,11 +541,10 @@ def delete_marketplace_item(
     item = db.query(MarketplaceItem).filter(MarketplaceItem.item_key == item_key).first()
     if not item:
         raise HTTPException(status_code=404, detail="Marketplace item not found")
-    item.is_deleted = True
-    item.visibility = "hidden"
-    item.updated_at = datetime.now(timezone.utc)
+    item_name = item.name
+    db.delete(item)
     db.commit()
-    return {"ok": True, "message": f"Listing '{item.name}' removed from the marketplace."}
+    return {"ok": True, "message": f"Listing '{item_name}' removed from the marketplace."}
 
 
 @router.get("/items/{item_key}/notes-preview")

@@ -768,11 +768,6 @@ function AdminDeskPage() {
       </section>
 
       <section id="marketplace" className={visible("marketplace") ? "space-y-6" : "hidden"}>
-        <div className="grid gap-4 md:grid-cols-3">
-          <MetricCard label="Shared Inventory" value="1 source" hint="Admin and students read the same listings" />
-          <MetricCard label="Permissions" value="Role-based" hint="Same records, different abilities" />
-          <MetricCard label="Experience" value="Marketplace-first" hint="Premium preview cards with admin tools" />
-        </div>
         <Panel icon={ShoppingBag} eyebrow="Marketplace" title="Shared Campus Marketplace">
           <MarketplaceExperience mode="admin" embedded />
         </Panel>

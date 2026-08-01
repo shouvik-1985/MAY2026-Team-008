@@ -2,6 +2,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowUpDown,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   EyeOff,
   FileText,
@@ -22,6 +24,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type Re
 import {
   createMarketplaceItem,
   deleteMarketplaceItem,
+  editMarketplaceItem,
   getMarketplaceItems,
   getMarketplaceMeta,
   getMarketplaceNotesPreview,
@@ -85,6 +88,8 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
   const [preview, setPreview] = useState<NotesPreviewPayload | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<MarketplaceItem | null>(null);
+  const [galleryItem, setGalleryItem] = useState<MarketplaceItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -194,9 +199,12 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
       form.images.forEach((file) => data.append("images", file));
       form.previewImages.forEach((file) => data.append("preview_images", file));
       if (form.notesPdf) data.append("notes_pdf", form.notesPdf);
-      const res = await createMarketplaceItem(data);
+      const res = editingItem?.key
+        ? await editMarketplaceItem(editingItem.key, data)
+        : await createMarketplaceItem(data);
       setMessage(res.message);
       setIsComposerOpen(false);
+      setEditingItem(null);
       setForm({ ...emptyForm, category: isAdmin ? emptyForm.category : "Notes", subcategory: studentCreateOptions[0] });
       await refreshItems(res.item.key);
     } catch (error) {
@@ -204,6 +212,31 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function openEdit(item: MarketplaceItem) {
+    setEditingItem(item);
+    setForm({
+      title: item.name,
+      price: item.price.replace(/^[^\d]*/, ""),
+      description: item.description || "",
+      category: item.category || "Notes",
+      subcategory: item.subcategory || (item.category === "Notes" ? "Handwritten Notes" : "General"),
+      semester: item.semester || "",
+      subject: item.subject || "",
+      condition: item.condition || "Excellent",
+      tag: item.tag || "Campus Verified",
+      thumbnail: null,
+      images: [],
+      previewImages: [],
+      notesPdf: null,
+    });
+    setIsComposerOpen(true);
+  }
+
+  function openGallery(item: MarketplaceItem) {
+    if (!getGalleryImages(item).length) return;
+    setGalleryItem(item);
   }
 
   async function openPreview(item: MarketplaceItem) {
@@ -357,6 +390,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
                     adminMode
                     busy={busyKey === selected.key}
                     onPreview={openPreview}
+                    onGallery={openGallery}
                     onInquire={inquire}
                   />
                   <AdminActions
@@ -364,6 +398,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
                     busy={busyKey === selected.key}
                     onAction={toggleItem}
                     onDelete={removeItem}
+                    onEdit={openEdit}
                   />
                 </>
               ) : (
@@ -383,6 +418,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
                   busy={busyKey === item.key}
                   onView={() => setSelected(item)}
                   onPreview={() => openPreview(item)}
+                  onGallery={() => openGallery(item)}
                 />
               ))}
             </div>
@@ -397,8 +433,15 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
             busy={busyKey === selected.key}
             onClose={() => setSelected(null)}
             onPreview={openPreview}
+            onGallery={openGallery}
             onInquire={inquire}
           />
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {galleryItem ? (
+          <GalleryModal item={galleryItem} onClose={() => setGalleryItem(null)} />
         ) : null}
       </AnimatePresence>
 
@@ -412,9 +455,13 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
         {isComposerOpen ? (
           <ComposerModal
             mode={mode}
+            editing={Boolean(editingItem)}
             form={form}
             saving={isSaving}
-            onClose={() => setIsComposerOpen(false)}
+            onClose={() => {
+              setIsComposerOpen(false);
+              setEditingItem(null);
+            }}
             onChange={updateForm}
             onFiles={onFiles}
             onSubmit={submitListing}
@@ -430,12 +477,15 @@ function MarketplaceCard({
   busy,
   onView,
   onPreview,
+  onGallery,
 }: {
   item: MarketplaceItem;
   busy: boolean;
   onView: () => void;
   onPreview: () => void;
+  onGallery: () => void;
 }) {
+  const hasGallery = getGalleryImages(item).length > 0;
   return (
     <GlassCard hover className="group flex h-full flex-col overflow-hidden border border-white/10 p-4">
       <div className="relative h-56 overflow-hidden rounded-[28px] bg-white/[0.04]">
@@ -473,8 +523,9 @@ function MarketplaceCard({
       <div className="mt-5 flex gap-2">
         <button
           type="button"
-          onClick={onPreview}
-          className="flex-1 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/70"
+          onClick={item.isNotes ? onPreview : onGallery}
+          disabled={!item.isNotes && !hasGallery}
+          className="flex-1 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/70 disabled:opacity-40"
         >
           {item.isNotes ? "Preview" : "Gallery"}
         </button>
@@ -495,15 +546,18 @@ function MarketplaceHeroCard({
   adminMode = false,
   busy,
   onPreview,
+  onGallery,
   onInquire,
 }: {
   item: MarketplaceItem;
   adminMode?: boolean;
   busy: boolean;
   onPreview: (item: MarketplaceItem) => void;
+  onGallery: (item: MarketplaceItem) => void;
   onInquire: (item: MarketplaceItem) => void;
 }) {
   const gallery = item.gallery?.length ? item.gallery : [resolveCardImage(item)];
+  const hasGallery = getGalleryImages(item).length > 0;
   return (
     <GlassCard className="overflow-hidden border border-white/10 p-0">
       <div className="grid gap-0 lg:grid-cols-[1.2fr_minmax(0,0.8fr)]">
@@ -533,8 +587,9 @@ function MarketplaceHeroCard({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => onPreview(item)}
-              className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white"
+              onClick={() => (item.isNotes ? onPreview(item) : onGallery(item))}
+              disabled={!item.isNotes && !hasGallery}
+              className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white disabled:opacity-40"
             >
               {item.isNotes ? "Protected Preview" : "Open Gallery"}
             </button>
@@ -600,19 +655,32 @@ function AdminActions({
   busy,
   onAction,
   onDelete,
+  onEdit,
 }: {
   item: MarketplaceItem;
   busy: boolean;
   onAction: (item: MarketplaceItem, payload: Record<string, unknown>, success: string) => Promise<void>;
   onDelete: (item: MarketplaceItem) => Promise<void>;
+  onEdit: (item: MarketplaceItem) => void;
 }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <ActionCard title="Edit" body="Update title, price, category, description, and replace images on the shared listing.">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onEdit(item)}
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/75"
+        >
+          <Pencil className="size-4" />
+          Edit Listing
+        </button>
+      </ActionCard>
       <ActionCard title="Visibility" body="Hide or restore the listing without splitting the dataset.">
         <button
           type="button"
           disabled={busy}
-          onClick={() => void onAction(item, { visibility: item.visibility === "hidden" ? "visible" : "hidden" }, "Visibility updated")}
+          onClick={() => void onAction(item, { visibility: item.visibility === "hidden" ? "visible" : "hidden", deleted: false }, "Visibility updated")}
           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/75"
         >
           {item.visibility === "hidden" ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
@@ -658,7 +726,7 @@ function AdminActions({
           {item.status === "Sold" ? "Mark Available" : "Change Availability"}
         </button>
       </ActionCard>
-      <ActionCard title="Quick Edit" body="Promote notes to featured inventory or move categories with a lightweight patch.">
+      <ActionCard title="Category" body="Change the listing category inside the one shared marketplace inventory.">
         <button
           type="button"
           disabled={busy}
@@ -681,6 +749,7 @@ function AdminActions({
 
 function ComposerModal({
   mode,
+  editing,
   form,
   saving,
   onClose,
@@ -689,6 +758,7 @@ function ComposerModal({
   onSubmit,
 }: {
   mode: "student" | "admin";
+  editing: boolean;
   form: ListingFormState;
   saving: boolean;
   onClose: () => void;
@@ -698,7 +768,7 @@ function ComposerModal({
 }) {
   const isAdmin = mode === "admin";
   return (
-    <ModalFrame onClose={onClose} title={isAdmin ? "Add New Marketplace Listing" : "Post Item For Sale"}>
+    <ModalFrame onClose={onClose} title={editing ? "Edit Marketplace Listing" : isAdmin ? "Add New Marketplace Listing" : "Post Item For Sale"}>
       <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Title">
@@ -748,7 +818,7 @@ function ComposerModal({
             Cancel
           </button>
           <button type="submit" disabled={saving} className="rounded-full bg-white px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-black disabled:opacity-50">
-            {saving ? "Publishing..." : "Publish Listing"}
+            {saving ? (editing ? "Saving..." : "Publishing...") : editing ? "Save Changes" : "Publish Listing"}
           </button>
         </div>
       </form>
@@ -761,17 +831,122 @@ function DetailModal({
   busy,
   onClose,
   onPreview,
+  onGallery,
   onInquire,
 }: {
   item: MarketplaceItem;
   busy: boolean;
   onClose: () => void;
   onPreview: (item: MarketplaceItem) => void;
+  onGallery: (item: MarketplaceItem) => void;
   onInquire: (item: MarketplaceItem) => void;
 }) {
   return (
     <ModalFrame onClose={onClose} title="Listing Details" wide>
-      <MarketplaceHeroCard item={item} busy={busy} onPreview={onPreview} onInquire={onInquire} />
+      <MarketplaceHeroCard item={item} busy={busy} onPreview={onPreview} onGallery={onGallery} onInquire={onInquire} />
+    </ModalFrame>
+  );
+}
+
+function GalleryModal({ item, onClose }: { item: MarketplaceItem; onClose: () => void }) {
+  const images = getGalleryImages(item);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [zoomed, setZoomed] = useState(false);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  useEffect(() => {
+    setActiveIndex(0);
+    setZoomed(false);
+  }, [item.key]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowLeft") setActiveIndex((current) => (current - 1 + images.length) % images.length);
+      if (event.key === "ArrowRight") setActiveIndex((current) => (current + 1) % images.length);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [images.length, onClose]);
+
+  if (!images.length) return null;
+
+  const activeImage = images[activeIndex];
+  const canNavigate = images.length > 1;
+
+  function goPrev() {
+    setZoomed(false);
+    setActiveIndex((current) => (current - 1 + images.length) % images.length);
+  }
+
+  function goNext() {
+    setZoomed(false);
+    setActiveIndex((current) => (current + 1) % images.length);
+  }
+
+  return (
+    <ModalFrame onClose={onClose} title="Product Gallery" wide>
+      <div className="space-y-4">
+        <div
+          className="relative overflow-hidden rounded-[30px] border border-white/10 bg-black"
+          onTouchStart={(event) => setTouchStartX(event.changedTouches[0]?.clientX ?? null)}
+          onTouchEnd={(event) => {
+            const endX = event.changedTouches[0]?.clientX ?? null;
+            if (touchStartX === null || endX === null) return;
+            const delta = endX - touchStartX;
+            if (Math.abs(delta) < 40) return;
+            if (delta > 0) goPrev();
+            else goNext();
+          }}
+        >
+          <img
+            src={resolveResourceUrl(activeImage)}
+            alt={`${item.name} ${activeIndex + 1}`}
+            onClick={() => setZoomed((current) => !current)}
+            className={`h-[55vh] w-full object-contain transition duration-300 ${zoomed ? "scale-150 cursor-zoom-out" : "cursor-zoom-in"}`}
+          />
+          {canNavigate ? (
+            <>
+              <button
+                type="button"
+                onClick={goPrev}
+                className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/55 p-3 text-white/80 backdrop-blur-md"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/55 p-3 text-white/80 backdrop-blur-md"
+                aria-label="Next image"
+              >
+                <ChevronRight className="size-5" />
+              </button>
+            </>
+          ) : null}
+          <div className="absolute bottom-4 right-4 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-xs uppercase tracking-[0.18em] text-white/80 backdrop-blur-md">
+            {activeIndex + 1} / {images.length}
+          </div>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {images.map((image, index) => (
+            <button
+              key={`${image}-${index}`}
+              type="button"
+              onClick={() => {
+                setZoomed(false);
+                setActiveIndex(index);
+              }}
+              className={`overflow-hidden rounded-[20px] border transition ${
+                activeIndex === index ? "border-white/30 bg-white/[0.08]" : "border-white/10 bg-white/[0.03]"
+              }`}
+            >
+              <img src={resolveResourceUrl(image)} alt={`${item.name} thumbnail ${index + 1}`} className="h-20 w-20 object-cover" />
+            </button>
+          ))}
+        </div>
+      </div>
     </ModalFrame>
   );
 }
@@ -936,6 +1111,19 @@ function EmptyState({ text }: { text: string }) {
 
 function parsePrice(value?: string) {
   return Number((value || "").replace(/[^\d]/g, "")) || 0;
+}
+
+function getGalleryImages(item: MarketplaceItem) {
+  const unique = new Set<string>();
+  const images = [...(item.gallery ?? []), item.thumbnailUrl ?? "", item.imageUrl ?? ""]
+    .map((image) => image?.trim())
+    .filter((image): image is string => Boolean(image));
+  return images.filter((image) => {
+    const resolved = resolveResourceUrl(image);
+    if (!resolved || unique.has(resolved)) return false;
+    unique.add(resolved);
+    return true;
+  });
 }
 
 function resolveCardImage(item: MarketplaceItem) {
