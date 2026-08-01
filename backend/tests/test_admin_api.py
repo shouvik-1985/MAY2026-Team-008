@@ -141,12 +141,6 @@ def test_admin_create_slot_batch_success(client, admin_headers):
     batches = response.json()["slot_batches"]
     names = [batch["batch_name"] for batch in batches]
     assert "Batch 2026-A" in names
-
-    # `client`/the DB are session-scoped fixtures shared across the whole test
-    # run, and opening this small 60-slot batch for intake closes every other
-    # batch (including the large default one). Restore the default batch as
-    # the active one afterwards so later tests that register new students via
-    # `make_student`/`make_professor` aren't starved of intake slots.
     default_batch = next(b for b in batches if b["batch_name"] == "Sem 1 Open Intake")
     restore = client.patch(
         f"/api/admin/management/slot-batches/{default_batch['id']}",
