@@ -11,6 +11,7 @@ import {
   LogOut,
   MapPin,
   Megaphone,
+  ShoppingBag,
   Shield,
   Sparkles,
 } from "lucide-react";
@@ -55,6 +56,7 @@ const ADMIN_NAV: { href: string; label: string; icon: ComponentType<{ className?
   { href: "#complaints", label: "Complaints", icon: AlertCircle },
   { href: "#fees", label: "Fee Management", icon: CreditCard },
   { href: "#certificate", label: "Certificate", icon: Award },
+  { href: "#marketplace", label: "Marketplace", icon: ShoppingBag },
 ];
 
 function normalizeAdminHash(hash: string) {
@@ -70,6 +72,7 @@ function normalizeAdminHash(hash: string) {
     fees: "fees",
     "fee-management": "fees",
     certificates: "certificate",
+    marketplace: "marketplace",
   };
   return aliases[raw] ?? raw;
 }

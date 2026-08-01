@@ -241,20 +241,7 @@ export type StudentDashboard = {
     registeredAt?: string | null;
     details?: string;
   }[];
-  marketplace_items: {
-    id: number;
-    key?: string;
-    name: string;
-    category: string;
-    price: string;
-    seller: string;
-    seller_id?: number;
-    tag: string;
-    description?: string;
-    imageUrl?: string;
-    status?: "Available" | "Reserved" | "Sold" | string;
-    createdAt?: string | null;
-  }[];
+  marketplace_items: MarketplaceItem[];
   scholarship_items: {
     id: number;
     name: string;
@@ -729,6 +716,61 @@ export type AdminDashboard = {
   }[];
 };
 
+export type MarketplaceItem = {
+  id: number;
+  key?: string;
+  name: string;
+  title?: string;
+  category: string;
+  subcategory?: string | null;
+  price: string;
+  seller: string;
+  seller_id?: number;
+  tag: string;
+  description?: string;
+  imageUrl?: string;
+  thumbnailUrl?: string;
+  gallery?: string[];
+  previewGallery?: string[];
+  status?: "Available" | "Reserved" | "Sold" | string;
+  availability?: string;
+  visibility?: string;
+  approvalStatus?: string;
+  featured?: boolean;
+  deleted?: boolean;
+  condition?: string | null;
+  semester?: string | null;
+  subject?: string | null;
+  previewMode?: string;
+  previewPages?: number;
+  hasProtectedPdf?: boolean;
+  isNotes?: boolean;
+  isVisibleToStudents?: boolean;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  createdByRole?: string | null;
+  campusVerified?: boolean;
+  adminMeta?: {
+    pdfFilename?: string | null;
+  } | null;
+};
+
+export type MarketplaceMeta = {
+  ok: boolean;
+  categories: string[];
+  studentAllowedSubcategories: string[];
+};
+
+export type NotesPreviewPayload = {
+  ok: boolean;
+  item_key: string;
+  previewMode: string;
+  previewPages: number;
+  gallery: string[];
+  watermarkLines: string[];
+  pdfAvailableAfterPurchase: boolean;
+};
+
 export type StudentBiometricCheckIn = {
   id: number;
   studentId: number;
@@ -1171,6 +1213,39 @@ export function inquireMarketplaceItem(itemKey: string, payload?: { note?: strin
   return request<{ ok: boolean; message: string }>(`/student/marketplace/${itemKey}/inquire${query}`, {
     method: "POST",
   });
+}
+
+export function getMarketplaceMeta() {
+  return request<MarketplaceMeta>("/marketplace/meta");
+}
+
+export function getMarketplaceItems(options?: { includeHidden?: boolean }) {
+  const query = options?.includeHidden ? "?include_hidden=true" : "";
+  return request<{ ok: boolean; items: MarketplaceItem[] }>(`/marketplace/items${query}`);
+}
+
+export function createMarketplaceItem(formData: FormData) {
+  return request<{ ok: boolean; message: string; item: MarketplaceItem }>("/marketplace/items", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function updateMarketplaceItem(itemKey: string, payload: Record<string, unknown>) {
+  return request<{ ok: boolean; message: string; item: MarketplaceItem }>(`/marketplace/items/${itemKey}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteMarketplaceItem(itemKey: string) {
+  return request<{ ok: boolean; message: string }>(`/marketplace/items/${itemKey}`, {
+    method: "DELETE",
+  });
+}
+
+export function getMarketplaceNotesPreview(itemKey: string) {
+  return request<NotesPreviewPayload>(`/marketplace/items/${itemKey}/notes-preview`);
 }
 
 export function sendStudentAssistantMessage(payload: {

@@ -2826,6 +2826,7 @@ def register_event(
 class MarketplaceItemCreate(BaseModel):
     name: str
     category: str = "Notes"
+    subcategory: str | None = None
     price: str
     tag: str = "Verified"
     image_url: str | None = None
@@ -2846,6 +2847,11 @@ def create_marketplace_item(
 ) -> dict:
     _require_student(current_user)
     profile = _ensure_student_profile(db, current_user)
+    allowed_subcategories = {"Handwritten Notes", "Short Notes"}
+    if data.category.strip() != "Notes":
+        raise HTTPException(status_code=403, detail="Students can create notes listings only")
+    if (data.subcategory or "").strip() not in allowed_subcategories:
+        raise HTTPException(status_code=403, detail="Students can create handwritten notes or short notes only")
     first_name = current_user.full_name.split()[0] if current_user.full_name else "Student"
     item_key = f"item-{current_user.id}-{int(datetime.now(timezone.utc).timestamp())}"
     price_fmt = data.price if data.price.startswith("₹") else f"₹ {data.price}"
@@ -2854,14 +2860,23 @@ def create_marketplace_item(
         seller_id=current_user.id,
         item_key=item_key,
         name=data.name.strip(),
-        category=data.category.strip(),
+        category="Notes",
+        subcategory=(data.subcategory or "").strip(),
         price=price_fmt,
         seller_name=f"{first_name} / Sem {profile.semester or 1}",
         tag=data.tag.strip(),
         image_url=data.image_url.strip() if data.image_url else None,
+        thumbnail_url=data.image_url.strip() if data.image_url else None,
         description=data.description.strip(),
         status="Available",
+        visibility="visible",
+        approval_status="pending",
+        availability="in_stock",
+        notes_preview_mode="watermarked-pages",
+        preview_pages=2,
+        created_by_role="student",
         created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     db.add(item)
     db.commit()
@@ -2880,7 +2895,10 @@ def update_marketplace_item_status(
     item = db.query(MarketplaceItem).filter(MarketplaceItem.item_key == item_key).first()
     if not item:
         raise HTTPException(status_code=404, detail="Marketplace item not found")
+    if item.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only update your own marketplace listing")
     item.status = status
+    item.updated_at = datetime.now(timezone.utc)
     db.commit()
     return {"ok": True, "message": f"Item status updated to {status}", "item_key": item_key, "status": status}
 

@@ -696,12 +696,37 @@ class MarketplaceItem(Base):
     item_key: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(180), nullable=False)
     category: Mapped[str] = mapped_column(String(80), default="Notes", nullable=False)
+    subcategory: Mapped[str | None] = mapped_column(String(80), nullable=True)
     price: Mapped[str] = mapped_column(String(40), nullable=False)
     seller_name: Mapped[str] = mapped_column(String(120), nullable=False)
     tag: Mapped[str] = mapped_column(String(80), default="Verified", nullable=False)
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    thumbnail_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    image_urls_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    preview_image_urls_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="Available", nullable=False)  # Available, Reserved, Sold
+    visibility: Mapped[str] = mapped_column(String(20), default="visible", nullable=False)
+    approval_status: Mapped[str] = mapped_column(String(20), default="approved", nullable=False)
+    availability: Mapped[str] = mapped_column(String(20), default="in_stock", nullable=False)
+    condition: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    semester: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    notes_preview_mode: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    preview_pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pdf_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pdf_content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    pdf_file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pdf_file_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_by_role: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

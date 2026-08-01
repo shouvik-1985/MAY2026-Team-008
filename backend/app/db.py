@@ -161,6 +161,32 @@ def ensure_database_shape() -> None:
         "updated_at": _column_sql("timestamp_now"),
     }
 
+    marketplace_columns = set()
+    if "marketplace_items" in tables:
+        marketplace_columns = {column["name"] for column in inspector.get_columns("marketplace_items")}
+    marketplace_additions = {
+        "subcategory": "VARCHAR(80)",
+        "thumbnail_url": "VARCHAR(500)",
+        "image_urls_json": _column_sql("text"),
+        "preview_image_urls_json": _column_sql("text"),
+        "visibility": "VARCHAR(20) NOT NULL DEFAULT 'visible'",
+        "approval_status": "VARCHAR(20) NOT NULL DEFAULT 'approved'",
+        "availability": "VARCHAR(20) NOT NULL DEFAULT 'in_stock'",
+        "condition": "VARCHAR(80)",
+        "semester": "VARCHAR(40)",
+        "subject": "VARCHAR(120)",
+        "notes_preview_mode": "VARCHAR(40)",
+        "preview_pages": "INTEGER",
+        "pdf_filename": "VARCHAR(255)",
+        "pdf_content_type": "VARCHAR(120)",
+        "pdf_file_size": "INTEGER",
+        "pdf_file_data": _column_sql("blob"),
+        "featured": _column_sql("bool"),
+        "is_deleted": _column_sql("bool"),
+        "created_by_role": "VARCHAR(40)",
+        "updated_at": _column_sql("timestamp_now"),
+    }
+
     with engine.begin() as connection:
         if engine.dialect.name == "postgresql":
             connection.execute(text("ALTER TYPE role ADD VALUE IF NOT EXISTS 'placement'"))
@@ -216,6 +242,11 @@ def ensure_database_shape() -> None:
             for name, definition in placement_role_application_additions.items():
                 if name not in placement_role_application_columns:
                     connection.execute(text(f"ALTER TABLE placement_role_applications ADD COLUMN {name} {definition}"))
+
+        if "marketplace_items" in tables:
+            for name, definition in marketplace_additions.items():
+                if name not in marketplace_columns:
+                    connection.execute(text(f"ALTER TABLE marketplace_items ADD COLUMN {name} {definition}"))
 
         if "campus_attendance_settings" in tables and "semester_duration_months" not in campus_setting_columns:
             connection.execute(
