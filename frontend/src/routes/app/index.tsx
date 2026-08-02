@@ -159,7 +159,7 @@ const TONE: Record<string, { bg: string; border: string; text: string }> = {
   },
 };
 
-function Dashboard() {
+export function Dashboard() {
   const [dashboard, setDashboard] = useState<StudentDashboard>(
     () => getStoredDashboard() ?? FALLBACK_DASHBOARD,
   );
