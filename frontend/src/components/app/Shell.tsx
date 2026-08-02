@@ -64,6 +64,7 @@ import {
 } from "@/lib/student-assistant-session";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { startVoiceCommand, type VoiceCommandController } from "@/lib/voice-command";
+import { useTheme } from "@/lib/theme";
 
 type NavItem = {
   to: string;
@@ -98,6 +99,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const [notifUnread, setNotifUnread] = useState(0);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -130,32 +133,51 @@ export function Shell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="relative min-h-screen text-white">
+    <div className={`relative min-h-screen ${isDark ? "text-white" : "text-slate-900"}`}>
       {/* Sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 84 : 264 }}
         transition={{ type: "spring", stiffness: 220, damping: 28 }}
         className="fixed inset-y-0 left-0 z-40 hidden md:flex flex-col p-3"
       >
-        <div className="relative h-full glass-strong rounded-3xl flex flex-col overflow-hidden">
+        <div
+          className={`relative h-full rounded-3xl flex flex-col overflow-hidden transition-all duration-300 ${
+            isDark
+              ? "bg-[#0b0e17]/95 border border-white/10 shadow-2xl text-white"
+              : "text-slate-900 shadow-lg shadow-slate-900/5"
+          }`}
+          style={
+            !isDark
+              ? {
+                  backgroundColor: "#F8FAFC",
+                  borderColor: "#E5E7EB",
+                  borderWidth: "1px",
+                  borderStyle: "solid",
+                }
+              : undefined
+          }
+        >
           {/* logo */}
-          <div className="flex items-center justify-between px-4 py-5">
+          <div
+            className="flex items-center justify-between px-4 py-5"
+            style={{ borderBottom: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #E5E7EB" }}
+          >
             <Link to="/app" className="flex items-center gap-2.5 min-w-0">
               <span
-                className="size-7 rounded-xl flex items-center justify-center shrink-0"
+                className="size-7.5 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/20"
                 style={{ background: "var(--grad-aurora)" }}
               >
-                <Sparkles className="size-3.5 text-white" />
+                <Sparkles className="size-4 text-white" />
               </span>
               {!collapsed && (
-                <span className="font-display text-sm tracking-[0.25em] uppercase truncate">
+                <span className={`font-display text-sm tracking-[0.25em] uppercase truncate font-black ${isDark ? "text-white" : "text-slate-950"}`}>
                   CampusVerse
                 </span>
               )}
             </Link>
             <button
               onClick={() => setCollapsed((c) => !c)}
-              className="text-white/40 hover:text-white"
+              className={isDark ? "text-slate-400 hover:text-white p-1 rounded-lg transition" : "text-slate-400 hover:text-slate-900 hover:bg-[#EEF2FF] p-1 rounded-lg transition"}
             >
               <motion.span animate={{ rotate: collapsed ? 180 : 0 }}>
                 <ChevronLeft className="size-4" />
@@ -163,7 +185,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
 
-          <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-0.5">
+          <nav className="flex-1 min-h-0 overflow-y-auto px-2.5 py-3 space-y-1">
             {NAV.map((item) => {
               const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
               const Icon = item.icon;
@@ -171,33 +193,60 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm transition ${active ? "text-white" : "text-white/55 hover:text-white"}`}
+                  className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
+                    active
+                      ? isDark
+                        ? "text-white font-bold bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
+                        : "text-[#3730A3] font-extrabold shadow-2xs"
+                      : isDark
+                        ? "text-slate-300/80 font-medium hover:text-white hover:bg-white/10"
+                        : "text-slate-700 font-semibold hover:text-[#3730A3]"
+                  }`}
+                  style={
+                    !isDark
+                      ? {
+                          backgroundColor: active ? "#EEF2FF" : undefined,
+                          borderLeft: active ? "4px solid #6D5DF6" : "4px solid transparent",
+                        }
+                      : undefined
+                  }
+                  onMouseEnter={(e) => {
+                    if (!isDark && !active) {
+                      e.currentTarget.style.backgroundColor = "#EEF2FF";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isDark && !active) {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }
+                  }}
                 >
-                  {active && (
-                    <motion.span
-                      layoutId="nav-active"
-                      className="absolute inset-0 rounded-2xl"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, oklch(0.65 0.28 305 / 0.25), oklch(0.65 0.25 260 / 0.1))",
-                        border: "1px solid oklch(0.7 0.25 310 / 0.4)",
-                      }}
-                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                    />
-                  )}
-                  <Icon className="relative z-10 size-4 shrink-0" />
+                  <Icon className={`size-4 shrink-0 transition-colors ${
+                    active
+                      ? isDark ? "text-white" : "text-[#6D5DF6]"
+                      : isDark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-[#6D5DF6]"
+                  }`} />
                   {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
                 </Link>
               );
             })}
 
-            <div className="mt-2 pt-2 border-t border-white/10">
+            <div
+              className="mt-3 pt-3"
+              style={{ borderTop: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #E5E7EB" }}
+            >
               <button
                 onClick={logout}
                 disabled={loggingOut}
-                className="group relative flex w-full items-center gap-3 px-3 py-2.5 rounded-2xl text-sm text-rose-100 bg-rose-500/10 border border-rose-300/20 hover:bg-rose-500/20 hover:border-rose-200/40 transition disabled:opacity-60 disabled:cursor-wait"
+                className={`group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-bold transition disabled:cursor-wait disabled:opacity-60 ${
+                  isDark
+                    ? "border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-400/50"
+                    : "border-rose-200/80 bg-rose-50/80 text-rose-600 hover:bg-rose-100/90 hover:text-rose-700 hover:border-rose-300 shadow-2xs"
+                }`}
               >
-                <LogOut className="relative z-10 size-4 shrink-0" />
+                <div className={`size-7 rounded-xl flex items-center justify-center shrink-0 ${isDark ? "bg-rose-500/20 text-rose-300" : "bg-rose-100 text-rose-600"}`}>
+                  <LogOut className="size-4" />
+                </div>
                 {!collapsed && (
                   <span className="relative z-10 truncate">
                     {loggingOut ? "Logging out" : "Logout"}
@@ -248,7 +297,7 @@ function TopBar({
   assistantOpen: boolean;
   notifUnread: number;
 }) {
-  const [dark, setDark] = useState(true);
+  const { theme, toggleTheme } = useTheme();
   const [authUser, setAuthUser] = useState(() => getStoredUser());
   const [studentProfile, setStudentProfile] = useState<EditableStudentProfile | null>(() =>
     getStoredStudentProfile(),
@@ -274,30 +323,35 @@ function TopBar({
       ? initialsFromName(studentProfile.name)
       : dashboard?.user.avatar) ?? initialsFromName(displayName);
   const resolvedAvatarUrl = avatarUrl || dashboard?.user.avatarUrl || null;
+  const isDark = theme === "dark";
 
   return (
-    <div className="sticky top-0 z-30 px-5 md:px-10 pt-4 pb-3 backdrop-blur-xl bg-[#050505]/60">
+    <div className="sticky top-0 z-30 bg-[color:var(--glass-nav-bg)] px-5 pb-3 pt-4 backdrop-blur-xl md:px-10">
       <div className="flex items-center gap-3">
         <div className="hidden md:block min-w-0">
           <motion.div
             key={greet}
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-xs uppercase tracking-[0.3em] text-white/40"
+            className={`text-xs uppercase tracking-[0.3em] font-semibold ${isDark ? "text-white/50" : "text-slate-700"}`}
           >
             {greet}
           </motion.div>
-          <div className="font-display text-lg truncate">
+          <div className={`font-display text-lg font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
             {displayName.split(" ")[0]} {semester ? `/ Sem ${semester}` : ""}
           </div>
         </div>
         <button
           onClick={onSearch}
-          className="flex-1 max-w-xl flex items-center gap-3 glass rounded-full px-4 py-2.5 text-sm text-white/50 hover:text-white hover:border-white/20 transition"
+          className={`flex max-w-xl flex-1 items-center gap-3 rounded-full glass px-4 py-2.5 text-sm transition ${
+            isDark
+              ? "text-white/60 hover:text-white hover:border-white/20"
+              : "text-slate-700 hover:text-slate-950 hover:border-slate-400 font-medium"
+          }`}
         >
           <Search className="size-4" />
           <span className="flex-1 text-left">Search assignments, faculty, events...</span>
-          <kbd className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-white/10">
+          <kbd className={`hidden md:inline text-[10px] px-1.5 py-0.5 rounded font-mono ${isDark ? "bg-white/10 text-white/70" : "bg-slate-200 text-slate-700 font-semibold"}`}>
             Ctrl K
           </kbd>
         </button>
@@ -307,7 +361,9 @@ function TopBar({
           className={`group flex shrink-0 items-center gap-2 rounded-full border px-2 py-1.5 pr-2.5 text-left transition ${
             assistantOpen
               ? "border-cyan-300/35 bg-cyan-300/10 text-white shadow-[0_0_24px_oklch(0.82_0.18_200_/_0.16)]"
-              : "glass text-white/70 hover:text-white hover:border-white/20"
+              : isDark
+                ? "glass text-white/80 hover:text-white hover:border-white/20"
+                : "glass text-slate-800 hover:text-slate-950 hover:border-slate-300/80 font-medium"
           }`}
           aria-label="Open AI mentor"
           aria-pressed={assistantOpen}
@@ -319,18 +375,29 @@ function TopBar({
             <GraduationCap className="relative size-4 text-white" />
           </span>
           <span className="hidden lg:flex flex-col leading-none">
-            <span className="font-display text-xs tracking-wide">AI Mentor</span>
-            <span className="mt-1 text-[9px] uppercase tracking-[0.22em] text-white/38">
+            <span className="font-display text-xs tracking-wide font-semibold">AI Mentor</span>
+            <span className={`mt-1 text-[9px] uppercase tracking-[0.22em] font-medium ${isDark ? "text-white/45" : "text-slate-600"}`}>
               Tutor synced
             </span>
           </span>
         </button>
-        <IconBtn onClick={() => setDark((d) => !d)} aria-label="Theme">
-          {dark ? <Moon className="size-4" /> : <Sun className="size-4" />}
+        <IconBtn
+          onClick={toggleTheme}
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          dark={isDark}
+        >
+          {isDark ? (
+            <Sun className="size-4 text-amber-400 fill-amber-400/20" />
+          ) : (
+            <Moon className="size-4 text-indigo-600 fill-indigo-600/20" />
+          )}
         </IconBtn>
         <IconBtn 
           onClick={onNotif}
           aria-label="Notifications"
+          title="Notifications"
+          dark={isDark}
         >
           <Bell className="size-4" />
           {notifUnread > 0 && (
@@ -349,11 +416,19 @@ function TopBar({
   );
 }
 
-function IconBtn({ children, ...p }: ButtonHTMLAttributes<HTMLButtonElement>) {
+function IconBtn({
+  children,
+  dark = true,
+  ...p
+}: ButtonHTMLAttributes<HTMLButtonElement> & { dark?: boolean }) {
   return (
     <button
       {...p}
-      className="relative size-10 rounded-full glass flex items-center justify-center text-white/70 hover:text-white hover:border-white/20 transition"
+      className={`relative flex size-10 items-center justify-center rounded-full glass transition ${
+        dark
+          ? "text-white/70 hover:text-white hover:border-white/20"
+          : "text-slate-500 hover:text-slate-900 hover:border-slate-300/60"
+      }`}
     >
       {children}
     </button>
@@ -369,6 +444,8 @@ function Fab({
   setOpen: (v: boolean) => void;
   currentPath: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const { dashboard } = useStudentDashboard();
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
@@ -532,9 +609,14 @@ function Fab({
             initial={{ opacity: 0, y: 24, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.94 }}
-            className="pointer-events-auto w-[min(calc(100vw-32px),430px)] overflow-hidden rounded-3xl border border-white/12 bg-[#080808]/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
+            className={`pointer-events-auto w-[min(calc(100vw-32px),430px)] overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-xl ${
+              isDark
+                ? "border-white/12 bg-[#080808]/95 shadow-black/50"
+                : "border-[#C6DBFF] shadow-blue-100/80"
+            }`}
+            style={isDark ? {} : { background: "linear-gradient(160deg, #F0F6FF 0%, #E8F0FF 50%, #EEF5FF 100%)" }}
           >
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
+            <div className={`flex items-center justify-between border-b px-4 py-4 ${isDark ? "border-white/10" : "border-slate-100"}`}>
               <div className="flex items-center gap-3">
                 <span
                   className="size-10 rounded-2xl flex items-center justify-center"
@@ -543,8 +625,8 @@ function Fab({
                   <Sparkles className="size-4" />
                 </span>
                 <div>
-                  <div className="font-display text-lg leading-none">Student AI Assistant</div>
-                  <div className="mt-1 text-[10px] uppercase tracking-[0.24em] text-white/40">
+                  <div className={`font-display text-lg leading-none ${isDark ? "text-white" : "text-slate-900"}`}>Student AI Assistant</div>
+                  <div className={`mt-1 text-[10px] uppercase tracking-[0.24em] ${isDark ? "text-white/40" : "text-slate-400"}`}>
                     Backend synced
                   </div>
                 </div>
@@ -553,7 +635,7 @@ function Fab({
                 <button
                   type="button"
                   onClick={clearChat}
-                  className="inline-flex h-9 items-center gap-2 rounded-full bg-white/5 px-3 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+                  className={`inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs transition ${isDark ? "bg-white/5 text-white/55 hover:bg-white/10 hover:text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900"}`}
                   aria-label="Clear assistant chat"
                   title="Clear chat"
                 >
@@ -563,7 +645,7 @@ function Fab({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="size-9 rounded-full bg-white/5 text-white/55 hover:text-white"
+                  className={`size-9 rounded-full transition ${isDark ? "bg-white/5 text-white/55 hover:text-white" : "bg-slate-100 text-slate-500 hover:text-slate-900"}`}
                   aria-label="Close assistant"
                 >
                   <X className="mx-auto size-4" />
@@ -589,20 +671,22 @@ function Fab({
                 >
                   <div
                     className={`max-w-[82%] whitespace-pre-wrap break-words rounded-3xl px-4 py-2.5 text-sm leading-6 ${
-                      message.role === "user" ? "bg-white text-black" : "glass text-white"
+                      message.role === "user"
+                        ? isDark ? "bg-white text-black" : "bg-[#2563EB] text-white"
+                        : isDark ? "glass text-white" : "bg-white/90 text-slate-800 border border-[#C6DBFF]"
                     }`}
                   >
                     {message.text}
                   </div>
                   <div
-                    className={`mt-1 flex items-center gap-1 px-1 text-white/45 transition group-hover:text-white/70 ${
+                    className={`mt-1 flex items-center gap-1 px-1 transition ${isDark ? "text-white/45 group-hover:text-white/70" : "text-slate-300 group-hover:text-slate-500"} ${
                       message.role === "user" ? "justify-end" : "justify-start"
                     }`}
                   >
                     <button
                       type="button"
                       onClick={() => void copyMessage(`${message.role}-${index}`, message.text)}
-                      className="rounded-full p-1.5 hover:bg-white/10 hover:text-white"
+                      className={`rounded-full p-1.5 transition ${isDark ? "hover:bg-white/10 hover:text-white" : "hover:bg-slate-100 hover:text-slate-700"}`}
                       aria-label="Copy message"
                       title="Copy"
                     >
@@ -616,7 +700,7 @@ function Fab({
                       <button
                         type="button"
                         onClick={() => editMessage(index)}
-                        className="rounded-full p-1.5 hover:bg-white/10 hover:text-white"
+                        className={`rounded-full p-1.5 transition ${isDark ? "hover:bg-white/10 hover:text-white" : "hover:bg-slate-100 hover:text-slate-700"}`}
                         aria-label="Edit and send again"
                         title="Edit and send again"
                       >
@@ -627,7 +711,7 @@ function Fab({
                 </div>
               ))}
               {typing && (
-                <div className="inline-flex rounded-3xl glass px-4 py-2 text-sm text-white/55">
+                <div className={`inline-flex rounded-3xl px-4 py-2 text-sm ${isDark ? "glass text-white/55" : "bg-slate-100 text-slate-500 border border-slate-200"}`}>
                   Thinking...
                 </div>
               )}
@@ -639,7 +723,7 @@ function Fab({
                   key={prompt}
                   type="button"
                   onClick={() => void sendAi(prompt, null)}
-                  className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs text-white/65 hover:text-white"
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs transition ${isDark ? "border-white/10 bg-white/[0.05] text-white/65 hover:text-white" : "border-[#C6DBFF] bg-white/70 text-[#1E40AF] hover:bg-[#DCEBFF] hover:text-[#1E3A8A]"}`}
                 >
                   {prompt}
                 </button>
@@ -651,7 +735,7 @@ function Fab({
                 event.preventDefault();
                 void sendAi(input);
               }}
-              className="border-t border-white/10 p-3"
+              className={`border-t p-3 ${isDark ? "border-white/10" : "border-slate-100"}`}
             >
               {editingIndex !== null && (
                 <div className="mb-2 flex items-center justify-between rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs text-cyan-50">
@@ -665,13 +749,15 @@ function Fab({
                   </button>
                 </div>
               )}
-              <div className="glass flex items-center gap-2 rounded-2xl px-3 py-2">
+              <div className={`flex items-center gap-2 rounded-2xl px-3 py-2 ${isDark ? "glass" : "bg-white/80 border border-[#C6DBFF]"}`}>
                 <button
                   type="button"
                   onClick={toggleVoice}
                   disabled={!voiceSupported}
                   className={`size-9 rounded-xl transition ${
-                    listening ? "bg-cyan-400/15 text-cyan-100" : "text-white/55 hover:text-white"
+                    listening
+                      ? "bg-cyan-400/15 text-cyan-600"
+                      : isDark ? "text-white/55 hover:text-white" : "text-slate-400 hover:text-slate-700"
                   }`}
                   aria-label={listening ? "Stop voice input" : "Start voice input"}
                 >
@@ -682,7 +768,7 @@ function Fab({
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   placeholder={listening ? "Listening..." : "Ask your student assistant..."}
-                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-white/35"
+                  className={`min-w-0 flex-1 bg-transparent text-sm outline-none ${isDark ? "text-white placeholder:text-white/35" : "text-slate-900 placeholder:text-slate-400"}`}
                 />
                 <button
                   type="submit"
@@ -703,6 +789,8 @@ function Fab({
 }
 
 function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const { dashboard } = useStudentDashboard();
   const groups = dashboard
     ? Object.values(
@@ -753,15 +841,18 @@ function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
             transition={{ type: "spring", stiffness: 260, damping: 30 }}
             className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[420px] p-4"
           >
-            <div className="h-full glass-strong rounded-3xl flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between p-5 border-b border-white/10">
+            <div
+              className={`h-full rounded-3xl flex flex-col overflow-hidden ${isDark ? "glass-strong" : "border border-[#C6DBFF] shadow-2xl shadow-blue-100/60"}`}
+              style={isDark ? {} : { background: "linear-gradient(160deg, #F0F6FF 0%, #E8F0FF 50%, #EEF5FF 100%)" }}
+            >
+              <div className={`flex items-center justify-between p-5 border-b ${isDark ? "border-white/10" : "border-slate-100"}`}>
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Inbox</div>
-                  <div className="font-display text-xl">Notifications</div>
+                  <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-400"}`}>Inbox</div>
+                  <div className={`font-display text-xl ${isDark ? "text-white" : "text-slate-900"}`}>Notifications</div>
                 </div>
                 <button
                   onClick={onClose}
-                  className="size-9 rounded-full glass flex items-center justify-center"
+                  className={`size-9 rounded-full flex items-center justify-center transition ${isDark ? "glass text-white/60 hover:text-white" : "bg-slate-100 text-slate-500 hover:text-slate-900"}`}
                 >
                   <X className="size-4" />
                 </button>
@@ -769,7 +860,7 @@ function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
               <div className="flex-1 overflow-y-auto px-3 py-3 space-y-5">
                 {groups.map((group) => (
                   <div key={group.group}>
-                    <div className="px-2 mb-2 text-[10px] uppercase tracking-[0.3em] text-white/40">
+                    <div className={`px-2 mb-2 text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-400"}`}>
                       {group.group}
                     </div>
                     <div className="space-y-2">
@@ -778,13 +869,13 @@ function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                           key={n.id}
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="glass rounded-2xl p-4 hover:border-white/20 transition cursor-pointer"
+                          className={`rounded-2xl p-4 transition cursor-pointer ${isDark ? "glass hover:border-white/20" : "bg-white/80 border border-[#C6DBFF] hover:border-[#93C5FD] hover:bg-[#EEF5FF]"}`}
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <div className="font-medium text-sm">{n.title}</div>
-                            <div className="text-[10px] text-white/40 shrink-0">{n.time}</div>
+                            <div className={`font-medium text-sm ${isDark ? "text-white" : "text-slate-900"}`}>{n.title}</div>
+                            <div className={`text-[10px] shrink-0 ${isDark ? "text-white/40" : "text-slate-400"}`}>{n.time}</div>
                           </div>
-                          <p className="mt-1 text-xs text-white/55">{n.body}</p>
+                          <p className={`mt-1 text-xs ${isDark ? "text-white/55" : "text-slate-500"}`}>{n.body}</p>
                         </motion.div>
                       ))}
                     </div>
@@ -801,6 +892,8 @@ function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
 
 function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState("");
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const all = [
     ...NAV.map((n) => ({ kind: "Page", label: n.label, to: n.to })),
     { kind: "Faculty", label: "Dr. Anaya Krishnan / Adv. ML", to: "/app/profile" },
@@ -818,47 +911,72 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-start justify-center pt-32 px-4"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-start justify-center pt-32 px-4"
         >
           <motion.div
             onClick={(e) => e.stopPropagation()}
             initial={{ y: -20, scale: 0.96 }}
             animate={{ y: 0, scale: 1 }}
             exit={{ y: -20, scale: 0.96 }}
-            className="w-full max-w-2xl glass-strong rounded-3xl overflow-hidden"
+            className={`w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl border ${
+              isDark
+                ? "glass-strong border-white/10"
+                : "bg-white border-slate-200"
+            }`}
           >
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
-              <Search className="size-4 text-white/50" />
+            {/* Search input */}
+            <div className={`flex items-center gap-3 px-5 py-4 border-b ${
+              isDark ? "border-white/10" : "border-slate-200"
+            }`}>
+              <Search className={`size-4 ${isDark ? "text-white/50" : "text-slate-400"}`} />
               <input
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search anything across CampusVerse..."
-                className="flex-1 bg-transparent focus:outline-none text-sm"
+                className={`flex-1 bg-transparent focus:outline-none text-sm font-medium ${
+                  isDark ? "text-white placeholder:text-white/40" : "text-slate-900 placeholder:text-slate-400"
+                }`}
               />
               <button
                 onClick={onClose}
-                className="text-[10px] uppercase tracking-widest text-white/40"
+                className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border transition ${
+                  isDark
+                    ? "text-white/40 border-white/10 hover:border-white/20"
+                    : "text-slate-500 border-slate-300 bg-slate-100 hover:bg-slate-200"
+                }`}
               >
-                esc
+                ESC
               </button>
             </div>
+
+            {/* Results */}
             <div className="max-h-[50vh] overflow-y-auto py-2">
               {results.map((r) => (
                 <Link
                   key={r.kind + r.label}
                   to={r.to}
                   onClick={onClose}
-                  className="flex items-center justify-between px-5 py-3 hover:bg-white/5 transition"
+                  className={`flex items-center justify-between px-5 py-3 transition ${
+                    isDark
+                      ? "hover:bg-white/5 text-white/80 hover:text-white"
+                      : "hover:bg-indigo-50 text-slate-800 hover:text-slate-950"
+                  }`}
                 >
-                  <span className="text-sm">{r.label}</span>
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                  <span className="text-sm font-medium">{r.label}</span>
+                  <span className={`text-[10px] uppercase tracking-[0.2em] font-bold px-2 py-0.5 rounded-full ${
+                    isDark
+                      ? "text-white/40 bg-white/5"
+                      : "text-indigo-600 bg-indigo-50 border border-indigo-200"
+                  }`}>
                     {r.kind}
                   </span>
                 </Link>
               ))}
               {results.length === 0 && (
-                <div className="px-5 py-10 text-center text-white/40 text-sm">No results.</div>
+                <div className={`px-5 py-10 text-center text-sm ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                  No results.
+                </div>
               )}
             </div>
           </motion.div>

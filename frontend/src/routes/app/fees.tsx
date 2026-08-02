@@ -10,6 +10,7 @@ import {
   verifyStudentFeePayment,
 } from "@/lib/api";
 import { setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/fees")({ component: FeesPage });
 
@@ -72,6 +73,8 @@ function loadRazorpayCheckout() {
 }
 
 function FeesPage() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const { dashboard } = useStudentDashboard();
   const [status, setStatus] = useState<string | null>(null);
   const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
@@ -163,36 +166,55 @@ function FeesPage() {
       />
 
       {status ? (
-        <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white/70">
+        <div className={`mb-5 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+          isDark ? "border-white/10 bg-white/[0.05] text-white/70" : "border-emerald-300 bg-emerald-50 text-emerald-950 font-bold"
+        }`}>
           {status}
         </div>
       ) : null}
 
       <div className="grid lg:grid-cols-3 gap-5 mb-8">
-        <GlassCard glow className="lg:col-span-2 relative overflow-hidden">
-          <div
-            className="absolute inset-0 opacity-30"
-            style={{ background: "var(--grad-aurora)" }}
-          />
-          <div className="absolute inset-px rounded-3xl bg-[#0a0a0a]/60" />
+        <GlassCard
+          glow
+          className={`lg:col-span-2 relative overflow-hidden transition-all ${
+            isDark ? "bg-slate-900 text-white shadow-xl" : "border-[#E2E8F0] shadow-md text-[#1F2937]"
+          }`}
+          style={!isDark ? { background: "linear-gradient(135deg, #FFFFFF 0%, #F7F9FF 45%, #EEF4FF 100%)" } : undefined}
+        >
+          {isDark && (
+            <>
+              <div
+                className="absolute inset-0 opacity-40"
+                style={{ background: "var(--grad-aurora)" }}
+              />
+              <div className="absolute inset-px rounded-3xl bg-[#0a0a0a]/70" />
+            </>
+          )}
+          {!isDark && (
+            <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(109,93,246,0.08),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(6,182,212,0.06),transparent_40%)]" />
+          )}
           <div className="relative">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/60">
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-extrabold ${isDark ? "text-white/70" : "text-[#64748B]"}`}>
               Outstanding balance
             </div>
-            <div className="font-display text-6xl md:text-7xl font-bold mt-3">
+            <div className={`font-display text-6xl md:text-7xl font-extrabold mt-3 drop-shadow-sm ${isDark ? "text-white" : "text-[#1F2937]"}`}>
               {"\u20B9"} <Counter value={summary.outstanding} />
             </div>
-            <div className="mt-2 text-sm text-white/60">
+            <div className={`mt-2 text-sm font-bold ${isDark ? "text-white/70" : "text-[#64748B]"}`}>
               {summary.semester} / {hasDue ? `Due ${summary.dueDate}` : summary.clearance}
             </div>
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 flex flex-wrap gap-3">
               <button
                 disabled={!hasDue || paying}
                 onClick={handlePayNow}
-                className="relative inline-flex items-center gap-2 overflow-hidden px-7 py-3 rounded-full text-xs uppercase tracking-[0.25em] disabled:cursor-wait disabled:opacity-55"
+                className={`relative inline-flex items-center gap-2 overflow-hidden px-7 py-3 rounded-full text-xs font-extrabold uppercase tracking-[0.25em] shadow-md transition hover:scale-105 disabled:cursor-wait disabled:opacity-55 ${
+                  isDark
+                    ? "text-black"
+                    : "bg-[#6D5DF6] hover:bg-[#5b4be3] text-white"
+                }`}
               >
-                <span className="absolute inset-0 rounded-full bg-white text-black" />
-                <span className="relative flex items-center gap-2 text-black">
+                {isDark ? <span className="absolute inset-0 rounded-full bg-white text-black" /> : null}
+                <span className={`relative flex items-center gap-2 ${isDark ? "text-black" : "text-white"}`}>
                   {paying ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
                   {paying ? "Opening" : hasDue ? "Pay now" : "Cleared"}
                 </span>
@@ -207,7 +229,11 @@ function FeesPage() {
                     setStatus(error instanceof Error ? error.message : "Could not view invoice"),
                   );
                 }}
-                className="glass inline-flex items-center gap-2 rounded-full px-7 py-3 text-xs uppercase tracking-[0.25em] text-white/80"
+                className={`inline-flex items-center gap-2 rounded-full px-7 py-3 text-xs font-extrabold uppercase tracking-[0.25em] transition ${
+                  isDark
+                    ? "border border-white/30 bg-white/10 text-white hover:bg-white/20 backdrop-blur-md"
+                    : "border border-[#CBD5E1] bg-white text-[#1E293B] hover:bg-slate-50 shadow-2xs"
+                }`}
               >
                 <Eye className="size-4" />
                 View invoice
@@ -216,11 +242,11 @@ function FeesPage() {
           </div>
         </GlassCard>
 
-        <GlassCard>
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+        <GlassCard className={!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}>
+          <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>
             Configured semesters
           </div>
-          <div className="font-display text-xl mt-1 mb-5">Fee trend</div>
+          <div className={`font-display text-xl font-extrabold mt-1 mb-5 ${isDark ? "text-white" : "text-slate-950"}`}>Fee trend</div>
           <div className="flex items-end gap-2 h-32">
             {series.map((v, i) => (
               <motion.div
@@ -228,10 +254,11 @@ function FeesPage() {
                 initial={{ height: 0 }}
                 animate={{ height: `${(v / max) * 100}%` }}
                 transition={{ delay: i * 0.06, duration: 0.8 }}
-                className="flex-1 rounded-t-lg"
+                className="flex-1 rounded-t-lg shadow-2xs"
                 style={{
-                  background:
-                    "linear-gradient(180deg, oklch(0.85 0.12 60), oklch(0.72 0.27 350 / 0.3))",
+                  background: isDark
+                    ? "linear-gradient(180deg, oklch(0.85 0.12 60), oklch(0.72 0.27 350 / 0.3))"
+                    : "linear-gradient(180deg, #6366f1, #818cf8)",
                 }}
               />
             ))}
@@ -239,12 +266,14 @@ function FeesPage() {
         </GlassCard>
       </div>
 
-      <GlassCard>
-        <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">History</div>
-        <div className="font-display text-xl mt-1 mb-5">Payments & receipts</div>
+      <GlassCard className={!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}>
+        <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>History</div>
+        <div className={`font-display text-xl font-extrabold mt-1 mb-5 ${isDark ? "text-white" : "text-slate-950"}`}>Payments & receipts</div>
         <div className="space-y-3">
           {history.length === 0 && (
-            <div className="rounded-2xl glass p-4 text-sm text-white/50">
+            <div className={`rounded-2xl p-4 text-sm font-medium border ${
+              isDark ? "glass border-white/10 text-white/50" : "bg-slate-50 border-slate-200 text-slate-600"
+            }`}>
               Receipts will appear here after your backend fee sync completes.
             </div>
           )}
@@ -254,19 +283,25 @@ function FeesPage() {
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="flex items-center justify-between gap-3 p-4 rounded-2xl glass"
+              className={`flex items-center justify-between gap-3 p-4 rounded-2xl border transition ${
+                isDark ? "glass border-white/10" : "bg-slate-50 border-slate-200 hover:bg-slate-100/80"
+              }`}
             >
               <div>
-                <div className="font-medium">
+                <div className={`font-bold text-sm ${isDark ? "text-white" : "text-slate-950"}`}>
                   {f.semester} / {f.id}
                 </div>
-                <div className="text-xs text-white/45 mt-0.5">{f.date}</div>
+                <div className={`text-xs mt-0.5 font-medium ${isDark ? "text-white/45" : "text-slate-600"}`}>{f.date}</div>
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <div className="font-display text-lg">{"\u20B9"} {f.amount.toLocaleString()}</div>
+                  <div className={`font-display text-lg font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>{"\u20B9"} {f.amount.toLocaleString()}</div>
                   <div
-                    className={`text-[10px] uppercase tracking-[0.2em] ${f.status === "paid" ? "text-emerald-300" : "text-amber-300"}`}
+                    className={`text-[10px] uppercase tracking-[0.2em] font-extrabold ${
+                      f.status === "paid"
+                        ? isDark ? "text-emerald-300" : "text-emerald-700"
+                        : isDark ? "text-amber-300" : "text-amber-700"
+                    }`}
                   >
                     {f.status === "paid" ? "paid" : "due"}
                   </div>
@@ -280,7 +315,9 @@ function FeesPage() {
                       setStatus(error instanceof Error ? error.message : "Could not download receipt"),
                     )
                   }
-                  className="size-9 glass rounded-full flex items-center justify-center text-white/60 hover:text-white"
+                  className={`size-9 rounded-full flex items-center justify-center transition border ${
+                    isDark ? "glass border-white/10 text-white/60 hover:text-white" : "bg-white border-slate-300 text-slate-700 hover:text-slate-950 shadow-2xs"
+                  }`}
                   aria-label={`Download ${f.id}`}
                 >
                   <Download className="size-4" />

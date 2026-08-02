@@ -26,6 +26,7 @@ import {
   YAxis,
 } from "recharts";
 import { GlassCard, PageTransition } from "@/components/app/cinematic";
+import { useTheme } from "@/lib/theme";
 import {
   createStudentTodo,
   deleteStudentTodo,
@@ -37,6 +38,21 @@ import {
 import { getStoredDashboard, setStoredDashboard } from "@/lib/student-session";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
+
+function getChartTheme(isDark: boolean) {
+  return {
+    grid: isDark ? "rgba(255, 255, 255, 0.12)" : "#cbd5e1",
+    axis: isDark ? "#cbd5e1" : "#1e293b",
+    axisFontWeight: isDark ? 500 : 700,
+    tooltipBackground: isDark ? "oklch(0.08 0.01 280 / 0.95)" : "#ffffff",
+    tooltipBorder: isDark ? "1px solid oklch(1 0 0 / 0.15)" : "1px solid #94a3b8",
+    tooltipText: isDark ? "#ffffff" : "#0f172a",
+    cgpaStroke: isDark ? "oklch(0.82 0.18 200)" : "#2563eb",
+    cgpaGradientStart: isDark ? "oklch(0.82 0.18 200)" : "#2563eb",
+    attendanceStroke: isDark ? "#10b981" : "#059669",
+    attendanceDot: isDark ? "#10b981" : "#059669",
+  };
+}
 
 const FALLBACK_DASHBOARD: StudentDashboard = {
   user: {
@@ -136,30 +152,35 @@ const FALLBACK_DASHBOARD: StudentDashboard = {
   student_todos: [],
 };
 
-const TONE: Record<string, { bg: string; border: string; text: string }> = {
+const TONE: Record<string, { bg: string; border: string; textDark: string; textLight: string }> = {
   cyan: {
-    bg: "oklch(0.82 0.18 200 / 0.16)",
-    border: "oklch(0.82 0.18 200 / 0.35)",
-    text: "oklch(0.86 0.14 200)",
+    bg: "rgba(2, 132, 199, 0.15)",
+    border: "rgba(2, 132, 199, 0.35)",
+    textDark: "#38bdf8",
+    textLight: "#0284c7",
   },
   green: {
-    bg: "oklch(0.72 0.18 150 / 0.16)",
-    border: "oklch(0.72 0.18 150 / 0.35)",
-    text: "oklch(0.82 0.16 150)",
+    bg: "rgba(16, 185, 129, 0.15)",
+    border: "rgba(16, 185, 129, 0.35)",
+    textDark: "#34d399",
+    textLight: "#059669",
   },
   pink: {
-    bg: "oklch(0.72 0.27 350 / 0.16)",
-    border: "oklch(0.72 0.27 350 / 0.35)",
-    text: "oklch(0.82 0.2 350)",
+    bg: "rgba(244, 114, 182, 0.15)",
+    border: "rgba(244, 114, 182, 0.35)",
+    textDark: "#f472b6",
+    textLight: "#db2777",
   },
   amber: {
-    bg: "oklch(0.85 0.12 60 / 0.16)",
-    border: "oklch(0.85 0.12 60 / 0.35)",
-    text: "oklch(0.9 0.1 70)",
+    bg: "rgba(245, 158, 11, 0.15)",
+    border: "rgba(245, 158, 11, 0.35)",
+    textDark: "#fbbf24",
+    textLight: "#d97706",
   },
 };
 
 function Dashboard() {
+  const { theme } = useTheme();
   const [dashboard, setDashboard] = useState<StudentDashboard>(
     () => getStoredDashboard() ?? FALLBACK_DASHBOARD,
   );
@@ -226,6 +247,14 @@ function Dashboard() {
   const attendanceTrendPreviewing =
     apiState === "loading" && attendanceTrend.length === 0 && attendancePreviewTrend.length > 0;
   const displayAttendanceTrend = attendanceTrend.length ? attendanceTrend : attendancePreviewTrend;
+  const isDark = theme === "dark";
+  const chartTheme = getChartTheme(isDark);
+  const tooltipStyle = {
+    background: chartTheme.tooltipBackground,
+    border: chartTheme.tooltipBorder,
+    borderRadius: 12,
+    color: chartTheme.tooltipText,
+  };
 
   function syncTodos(nextTodos: StudentTodo[]) {
     setDashboard((current) => {
@@ -286,27 +315,33 @@ function Dashboard() {
     <PageTransition>
       <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-white/45">
-            <GraduationCap className="size-3.5" />
+          <div className={`mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] font-semibold ${
+            isDark ? "border-white/15 bg-white/5 text-white/70" : "border-slate-300 bg-white/90 text-slate-700 shadow-sm"
+          }`}>
+            <GraduationCap className="size-3.5 text-indigo-500" />
             Student dashboard
           </div>
-          <h1 className="font-display text-4xl font-bold leading-tight md:text-6xl bg-gradient-to-br from-white via-white to-fuchsia-400 bg-clip-text text-transparent drop-shadow-sm">
+          <h1 className={`font-display text-4xl font-bold leading-tight md:text-6xl bg-clip-text text-transparent drop-shadow-sm ${
+            isDark
+              ? "bg-gradient-to-br from-white via-white to-fuchsia-400"
+              : "bg-gradient-to-br from-slate-950 via-indigo-900 to-fuchsia-700"
+          }`}>
             {dashboard.user.name.split(" ")[0]}'s academic command center
           </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-white/58">
+          <p className={`mt-4 max-w-2xl text-sm leading-6 font-medium ${isDark ? "text-white/70" : "text-slate-700"}`}>
             One place for CGPA, attendance, deadlines, fee status, complaints, certificates,
             assignments, resources, events, and campus updates.
           </p>
         </div>
 
-        <div className="glass rounded-2xl px-4 py-3 text-sm text-white/65">
-          <div className="text-[10px] uppercase tracking-[0.25em] text-white/35">
+        <div className={`glass rounded-2xl px-4 py-3 text-sm border shadow-sm ${isDark ? "border-white/10 text-white/80" : "border-slate-300 bg-white/90 text-slate-800"}`}>
+          <div className={`text-[10px] uppercase tracking-[0.25em] font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>
             {apiState === "live" ? "Backend live" : apiState === "loading" ? "Syncing" : "Demo data"}
           </div>
-          <div className="mt-1 font-medium text-white">
+          <div className={`mt-1 font-bold ${isDark ? "text-white" : "text-slate-950"}`}>
             {dashboard.user.studentCode} / Sem {dashboard.user.semester}
           </div>
-          <div className="text-xs text-white/45">{dashboard.user.department}</div>
+          <div className={`text-xs font-semibold ${isDark ? "text-white/60" : "text-slate-700"}`}>{dashboard.user.department}</div>
         </div>
       </div>
 
@@ -336,19 +371,21 @@ function Dashboard() {
               <AreaChart data={dashboard.cgpa_trend} margin={{ left: 0, right: 10, top: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="cgpaFill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="oklch(0.82 0.18 200)" stopOpacity={0.48} />
-                    <stop offset="100%" stopColor="oklch(0.82 0.18 200)" stopOpacity={0} />
+                    <stop offset="0%" stopColor={chartTheme.cgpaGradientStart} stopOpacity={0.45} />
+                    <stop offset="100%" stopColor={chartTheme.cgpaGradientStart} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="oklch(1 0 0 / 0.08)" vertical={false} />
-                <XAxis dataKey="term" stroke="oklch(1 0 0 / 0.35)" tickLine={false} axisLine={false} />
-                <YAxis domain={[7.5, 10]} stroke="oklch(1 0 0 / 0.35)" tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "white" }} />
+                <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="term" stroke={chartTheme.axis} tickLine={false} axisLine={false} tick={{ fill: chartTheme.axis, fontSize: 12, fontWeight: chartTheme.axisFontWeight }} />
+                <YAxis domain={[7.5, 10]} stroke={chartTheme.axis} tickLine={false} axisLine={false} tick={{ fill: chartTheme.axis, fontSize: 12, fontWeight: chartTheme.axisFontWeight }} />
+                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chartTheme.tooltipText, fontWeight: "bold" }} />
                 <Area
                   type="monotone"
                   dataKey="cgpa"
-                  stroke="oklch(0.82 0.18 200)"
-                  strokeWidth={3}
+                  stroke={chartTheme.cgpaStroke}
+                  strokeWidth={3.5}
+                  dot={{ r: 5, fill: chartTheme.cgpaStroke, stroke: "#ffffff", strokeWidth: 2 }}
+                  activeDot={{ r: 7, fill: chartTheme.cgpaStroke }}
                   fill="url(#cgpaFill)"
                   isAnimationActive={false}
                 />
@@ -377,16 +414,22 @@ function Dashboard() {
             action="/app/attendance"
           />
           <div className="mt-4 flex justify-end">
-            <div className="inline-flex rounded-full border border-white/10 bg-white/[0.04] p-1 text-[10px] uppercase tracking-[0.18em] text-white/45">
+            <div className={`inline-flex rounded-full border p-1 text-[10px] uppercase tracking-[0.18em] font-bold ${
+              isDark ? "border-white/15 bg-white/[0.04] text-white/60" : "border-slate-300 bg-white/90 text-slate-700 shadow-sm"
+            }`}>
               {(["days", "months"] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => setAttendanceGraphMode(mode)}
-                  className={`rounded-full px-3 py-1.5 transition ${
+                  className={`rounded-full px-3.5 py-1.5 transition ${
                     attendanceGraphMode === mode
-                      ? "bg-white/14 text-white shadow-[0_0_20px_oklch(0.72_0.27_350_/_0.25)]"
-                      : "hover:text-white"
+                      ? isDark
+                        ? "bg-white/20 text-white shadow-[0_0_20px_oklch(0.72_0.27_350_/_0.25)]"
+                        : "bg-indigo-600 text-white shadow-md font-bold"
+                      : isDark
+                        ? "hover:text-white"
+                        : "hover:text-slate-950"
                   }`}
                 >
                   {mode}
@@ -399,42 +442,46 @@ function Dashboard() {
               <div className="relative h-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={displayAttendanceTrend} margin={{ left: 0, right: 10, top: 10, bottom: 0 }}>
-                    <CartesianGrid stroke="oklch(1 0 0 / 0.08)" vertical={false} />
+                    <CartesianGrid stroke={chartTheme.grid} strokeDasharray="3 3" vertical={false} />
                     <XAxis
                       dataKey="label"
-                      stroke="oklch(1 0 0 / 0.35)"
+                      stroke={chartTheme.axis}
                       tickLine={false}
                       axisLine={false}
                       interval={0}
-                      tick={{ fontSize: 11 }}
+                      tick={{ fill: chartTheme.axis, fontSize: 12, fontWeight: chartTheme.axisFontWeight }}
                     />
-                    <YAxis domain={[0, 100]} stroke="oklch(1 0 0 / 0.35)" tickLine={false} axisLine={false} />
+                    <YAxis domain={[0, 100]} stroke={chartTheme.axis} tickLine={false} axisLine={false} tick={{ fill: chartTheme.axis, fontSize: 12, fontWeight: chartTheme.axisFontWeight }} />
                     <Tooltip
                       contentStyle={tooltipStyle}
-                      labelStyle={{ color: "white" }}
+                      labelStyle={{ color: chartTheme.tooltipText, fontWeight: "bold" }}
                       formatter={(value) => [`${value}%`, "Attendance"]}
                     />
                     <Line
                       type="monotone"
                       dataKey="attendance"
-                      stroke="oklch(0.85 0.12 60)"
-                      strokeWidth={3}
-                      dot={{ r: 4, fill: "oklch(0.85 0.12 60)" }}
-                      activeDot={{ r: 6, fill: "oklch(0.85 0.12 60)" }}
+                      stroke={chartTheme.attendanceStroke}
+                      strokeWidth={3.5}
+                      dot={{ r: 5, fill: chartTheme.attendanceDot, stroke: "#ffffff", strokeWidth: 2 }}
+                      activeDot={{ r: 7, fill: chartTheme.attendanceDot }}
                       isAnimationActive={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
                 {attendanceTrendPreviewing ? (
                   <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-start px-2">
-                    <div className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-white/45">
+                    <div className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.22em] font-semibold ${
+                      isDark ? "border-white/10 bg-black/30 text-white/60" : "border-slate-300 bg-white/90 text-slate-700"
+                    }`}>
                       Syncing live attendance...
                     </div>
                   </div>
                 ) : null}
               </div>
             ) : (
-              <div className="flex h-full items-center justify-center rounded-2xl border border-white/10 bg-white/[0.025] text-sm text-white/45">
+              <div className={`flex h-full items-center justify-center rounded-2xl border text-sm font-medium ${
+                isDark ? "border-white/10 bg-white/[0.025] text-white/60" : "border-slate-200 bg-white/65 text-slate-700"
+              }`}>
                 No attendance records marked yet.
               </div>
             )}
@@ -448,14 +495,22 @@ function Dashboard() {
           <PanelHeader icon={CheckCircle2} eyebrow="Single source of truth" title="Module status" />
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             {dashboard.module_health.map((item) => (
-              <div key={item.module} className="group rounded-2xl border border-white/8 bg-white/[0.02] p-4 transition duration-300 hover:border-white/20 hover:bg-white/[0.05] hover:shadow-lg">
+              <div key={item.module} className={`group rounded-2xl border p-4 transition duration-300 hover:shadow-lg ${
+                isDark
+                  ? "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]"
+                  : "border-slate-300/80 bg-white/80 hover:border-indigo-300 hover:bg-white shadow-sm"
+              }`}>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium text-white/90 group-hover:text-white transition-colors">{item.module}</div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/60 shadow-sm transition group-hover:bg-white/10 group-hover:text-white">
+                  <div className={`font-bold transition-colors ${isDark ? "text-white/90 group-hover:text-white" : "text-slate-900 group-hover:text-indigo-950"}`}>{item.module}</div>
+                  <div className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] font-bold shadow-sm transition ${
+                    isDark
+                      ? "border-white/10 bg-white/5 text-white/70 group-hover:bg-white/10 group-hover:text-white"
+                      : "border-slate-300 bg-slate-100 text-slate-800 group-hover:bg-indigo-50 group-hover:text-indigo-900"
+                  }`}>
                     {item.status}
                   </div>
                 </div>
-                <div className="mt-2 text-sm text-white/48">{item.detail}</div>
+                <div className={`mt-2 text-sm font-medium ${isDark ? "text-white/60" : "text-slate-700"}`}>{item.detail}</div>
               </div>
             ))}
           </div>
@@ -465,11 +520,13 @@ function Dashboard() {
           <PanelHeader icon={CalendarClock} eyebrow="Deadlines" title="Next actions" />
           <div className="mt-5 space-y-3">
             {dashboard.upcoming_deadlines.map((item) => (
-              <div key={item.title} className="flex gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+              <div key={item.title} className={`flex gap-3 rounded-2xl border p-4 shadow-sm ${
+                isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-300/80 bg-white/80"
+              }`}>
                 <RiskDot risk={item.risk} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{item.title}</div>
-                  <div className="mt-1 text-xs text-white/45">
+                  <div className={`truncate text-sm font-bold ${isDark ? "text-white" : "text-slate-950"}`}>{item.title}</div>
+                  <div className={`mt-1 text-xs font-semibold ${isDark ? "text-white/60" : "text-slate-700"}`}>
                     {item.module} / {item.due}
                   </div>
                 </div>
@@ -485,10 +542,10 @@ function Dashboard() {
               <div key={item.title} className="group relative pl-7 transition-all duration-300 hover:translate-x-1">
                 <span className="absolute left-1 top-1.5 size-3 rounded-full bg-[oklch(0.82_0.18_200)] shadow-[0_0_12px_oklch(0.82_0.18_200_/_0.8)] group-hover:scale-125 transition-transform" />
                 {index < dashboard.request_timeline.length - 1 && (
-                  <span className="absolute bottom-[-18px] left-[9px] top-5 w-px bg-white/10" />
+                  <span className={`absolute bottom-[-18px] left-[9px] top-5 w-px ${isDark ? "bg-white/15" : "bg-slate-300"}`} />
                 )}
-                <div className="text-sm font-medium text-white/90 group-hover:text-white">{item.title}</div>
-                <div className="mt-1 text-xs text-white/45 group-hover:text-white/60 transition-colors">
+                <div className={`text-sm font-bold transition-colors ${isDark ? "text-white/90 group-hover:text-white" : "text-slate-900 group-hover:text-indigo-950"}`}>{item.title}</div>
+                <div className={`mt-1 text-xs font-semibold transition-colors ${isDark ? "text-white/60 group-hover:text-white/80" : "text-slate-700 group-hover:text-slate-900"}`}>
                   {item.kind} / {item.stage} / {item.updated}
                 </div>
               </div>
@@ -518,13 +575,6 @@ function Dashboard() {
   );
 }
 
-const tooltipStyle = {
-  background: "oklch(0.08 0.01 280 / 0.95)",
-  border: "1px solid oklch(1 0 0 / 0.12)",
-  borderRadius: 12,
-  color: "white",
-};
-
 function TodoPlannerCard({
   todos,
   title,
@@ -546,7 +596,9 @@ function TodoPlannerCard({
   onToggle: (todo: StudentTodo) => void;
   onDelete: (todo: StudentTodo) => void;
 }) {
+  const { theme } = useTheme();
   const openCount = todos.filter((todo) => !todo.completed).length;
+  const isDark = theme === "dark";
 
   return (
     <GlassCard className="flex min-h-[390px] flex-col">
@@ -557,19 +609,31 @@ function TodoPlannerCard({
           onChange={(event) => onTitle(event.target.value)}
           maxLength={180}
           placeholder="Write today's plan or future task..."
-          className="w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-fuchsia-400/50 focus:bg-white/[0.075] focus:shadow-[0_0_20px_rgba(232,121,249,0.15)]"
+          className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition font-medium ${
+            isDark
+              ? "border-white/10 bg-white/[0.035] text-white placeholder:text-white/40 focus:border-fuchsia-400/50 focus:bg-white/[0.075]"
+              : "border-slate-300 bg-white/90 text-slate-900 placeholder:text-slate-500 focus:border-fuchsia-500 focus:bg-white shadow-sm"
+          } focus:shadow-[0_0_20px_rgba(232,121,249,0.15)]`}
         />
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <input
             value={dueAt}
             onChange={(event) => onDueAt(event.target.value)}
             type="datetime-local"
-            className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-white outline-none transition [color-scheme:dark] focus:border-fuchsia-400/50 focus:bg-white/[0.075] focus:shadow-[0_0_20px_rgba(232,121,249,0.15)]"
+            className={`min-w-0 rounded-2xl border px-4 py-3 text-sm outline-none font-medium transition focus:shadow-[0_0_20px_rgba(232,121,249,0.15)] ${
+              isDark
+                ? "border-white/10 bg-white/[0.035] text-white [color-scheme:dark] focus:border-fuchsia-400/50 focus:bg-white/[0.075]"
+                : "border-slate-300 bg-white/90 text-slate-900 [color-scheme:light] focus:border-fuchsia-500 focus:bg-white shadow-sm"
+            }`}
           />
           <button
             type="submit"
             disabled={!title.trim() || busy === "create"}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-fuchsia-300/25 bg-fuchsia-400/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-fuchsia-400/18 disabled:cursor-not-allowed disabled:opacity-45"
+            className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-xs font-bold uppercase tracking-[0.2em] transition disabled:cursor-not-allowed disabled:opacity-45 ${
+              isDark
+                ? "border-fuchsia-300/25 bg-fuchsia-400/10 text-white hover:bg-fuchsia-400/18"
+                : "border-fuchsia-300 bg-fuchsia-600 text-white hover:bg-fuchsia-700 shadow-sm"
+            }`}
           >
             <Plus className="size-4" />
             Add
@@ -577,9 +641,11 @@ function TodoPlannerCard({
         </div>
       </form>
 
-      <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-        <div className="text-xs text-white/48">Open plans</div>
-        <div className="font-display text-2xl">{openCount}</div>
+      <div className={`mt-4 flex items-center justify-between rounded-2xl border px-4 py-3 shadow-sm ${
+        isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-300 bg-white/85"
+      }`}>
+        <div className={`text-xs font-bold ${isDark ? "text-white/60" : "text-slate-700"}`}>Open plans</div>
+        <div className={`font-display text-2xl font-bold ${isDark ? "text-white" : "text-slate-950"}`}>{openCount}</div>
       </div>
 
       <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
@@ -587,7 +653,11 @@ function TodoPlannerCard({
           todos.map((todo) => (
             <div
               key={todo.id}
-              className="group flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3 transition hover:border-white/16 hover:bg-white/[0.055]"
+              className={`group flex items-start gap-3 rounded-2xl border p-3 transition ${
+                isDark
+                  ? "border-white/8 bg-white/[0.03] hover:border-white/16 hover:bg-white/[0.055]"
+                  : "border-slate-200 bg-white/80 hover:border-slate-300 hover:bg-white shadow-sm"
+              }`}
             >
               <button
                 type="button"
@@ -595,18 +665,22 @@ function TodoPlannerCard({
                 onClick={() => onToggle(todo)}
                 className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-full border transition ${
                   todo.completed
-                    ? "border-emerald-300/35 bg-emerald-400/15 text-emerald-100"
-                    : "border-white/12 bg-white/[0.04] text-white/40 hover:text-white"
+                    ? "border-emerald-500 bg-emerald-500 text-white"
+                    : isDark
+                      ? "border-white/15 bg-white/[0.04] text-white/50 hover:text-white"
+                      : "border-slate-300 bg-slate-50 text-slate-500 hover:text-slate-900"
                 }`}
                 aria-label={todo.completed ? "Mark todo incomplete" : "Mark todo complete"}
               >
                 <CheckCircle2 className="size-4" />
               </button>
               <div className="min-w-0 flex-1">
-                <div className={`break-words text-sm font-medium ${todo.completed ? "text-white/45 line-through" : ""}`}>
+                <div className={`break-words text-sm font-semibold ${
+                  todo.completed ? (isDark ? "text-white/45 line-through" : "text-slate-400 line-through") : isDark ? "text-white" : "text-slate-950"
+                }`}>
                   {todo.title}
                 </div>
-                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-white/40">
+                <div className={`mt-1 flex items-center gap-1.5 text-[11px] font-medium ${isDark ? "text-white/50" : "text-slate-600"}`}>
                   <CalendarClock className="size-3.5" />
                   {formatTodoDue(todo.dueAt)}
                 </div>
@@ -615,7 +689,11 @@ function TodoPlannerCard({
                 type="button"
                 disabled={busy === todo.id}
                 onClick={() => onDelete(todo)}
-                className="grid size-8 shrink-0 place-items-center rounded-full border border-white/8 bg-white/[0.035] text-white/35 opacity-100 transition hover:border-rose-300/25 hover:bg-rose-500/10 hover:text-rose-100 sm:opacity-0 sm:group-hover:opacity-100"
+                className={`grid size-8 shrink-0 place-items-center rounded-full border opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 ${
+                  isDark
+                    ? "border-white/8 bg-white/[0.035] text-white/35 hover:border-rose-300/25 hover:bg-rose-500/10 hover:text-rose-100"
+                    : "border-slate-200 bg-slate-50 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+                }`}
                 aria-label="Delete todo"
               >
                 <Trash2 className="size-3.5" />
@@ -623,7 +701,9 @@ function TodoPlannerCard({
             </div>
           ))
         ) : (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm leading-6 text-white/45">
+          <div className={`rounded-2xl border border-dashed p-5 text-sm leading-6 font-medium ${
+            isDark ? "border-white/10 bg-white/[0.02] text-white/60" : "border-slate-300 bg-white/80 text-slate-700"
+          }`}>
             Add a plan for today, a deadline reminder, or anything future-you should not have to remember alone.
           </div>
         )}
@@ -633,24 +713,31 @@ function TodoPlannerCard({
 }
 
 function MetricCard({ metric }: { metric: StudentDashboard["metrics"][number] }) {
+  const { theme } = useTheme();
   const tone = TONE[metric.tone] ?? TONE.cyan;
+  const isDark = theme === "dark";
+  const textColor = isDark ? tone.textDark : tone.textLight;
   return (
     <GlassCard hover className="group relative overflow-hidden">
       <div 
         className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-10 pointer-events-none" 
-        style={{ background: `linear-gradient(135deg, transparent, ${tone.text})` }} 
+        style={{ background: `linear-gradient(135deg, transparent, ${textColor})` }} 
       />
       <div className="relative z-10 flex items-start justify-between gap-3">
-        <div className="text-[10px] uppercase tracking-[0.25em] text-white/40 group-hover:text-white/60 transition-colors">{metric.label}</div>
+        <div className={`text-[10px] uppercase tracking-[0.25em] font-bold transition-colors ${
+          isDark ? "text-white/60 group-hover:text-white/80" : "text-slate-700 group-hover:text-slate-900"
+        }`}>{metric.label}</div>
         <span
-          className="size-8 rounded-full border shadow-[0_0_15px_rgba(255,255,255,0.03)] transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(255,255,255,0.12)]"
+          className="size-8 rounded-full border shadow-sm transition-all duration-300 group-hover:scale-110"
           style={{ background: tone.bg, borderColor: tone.border }}
         />
       </div>
-      <div className="relative z-10 mt-3 font-display text-4xl font-bold transition-transform duration-300 group-hover:translate-x-1" style={{ color: tone.text }}>
+      <div className="relative z-10 mt-3 font-display text-4xl font-extrabold transition-transform duration-300 group-hover:translate-x-1" style={{ color: textColor }}>
         {metric.value}
       </div>
-      <div className="relative z-10 mt-2 text-xs text-white/48 group-hover:text-white/60 transition-colors">{metric.hint}</div>
+      <div className={`relative z-10 mt-2 text-xs font-semibold transition-colors ${
+        isDark ? "text-white/60 group-hover:text-white/80" : "text-slate-700 group-hover:text-slate-900"
+      }`}>{metric.hint}</div>
     </GlassCard>
   );
 }
@@ -666,19 +753,21 @@ function PanelHeader({
   title: string;
   action?: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="flex items-start gap-3">
-        <span className="glass flex size-10 shrink-0 items-center justify-center rounded-2xl">
-          <Icon className="size-4 text-white/70" />
+        <span className={`glass flex size-10 shrink-0 items-center justify-center rounded-2xl border ${isDark ? "border-white/10" : "border-slate-300 bg-white/90 shadow-sm"}`}>
+          <Icon className={`size-4 ${isDark ? "text-white/80" : "text-indigo-600"}`} />
         </span>
         <div>
-          <div className="text-[10px] uppercase tracking-[0.25em] text-white/38">{eyebrow}</div>
-          <div className="font-display text-xl">{title}</div>
+          <div className={`text-[10px] uppercase tracking-[0.25em] font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>{eyebrow}</div>
+          <div className={`font-display text-xl font-bold ${isDark ? "text-white" : "text-slate-950"}`}>{title}</div>
         </div>
       </div>
       {action && (
-        <Link to={action} className="text-xs text-white/45 transition hover:text-white">
+        <Link to={action} className={`text-xs transition font-semibold ${isDark ? "text-white/60 hover:text-white" : "text-indigo-600 hover:text-indigo-800"}`}>
           View
         </Link>
       )}
@@ -701,20 +790,32 @@ function formatTodoDue(value: string | null) {
 function RiskDot({ risk }: { risk: string }) {
   const color =
     risk === "high"
-      ? "bg-red-300"
+      ? "bg-red-500"
       : risk === "medium"
-        ? "bg-[oklch(0.85_0.12_60)]"
-        : "bg-emerald-300";
+        ? "bg-amber-500"
+        : "bg-emerald-500";
   return <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${color}`} />;
 }
 
 function EligibilityRow({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="group flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 transition hover:border-white/20 hover:bg-white/[0.04]">
-      <span className="text-sm text-white/70 group-hover:text-white transition-colors">{label}</span>
+    <div className={`group flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition shadow-sm ${
+      isDark
+        ? "border-white/8 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]"
+        : "border-slate-200 bg-white/80 hover:border-slate-300 hover:bg-white"
+    }`}>
+      <span className={`text-sm font-semibold transition-colors ${isDark ? "text-white/80 group-hover:text-white" : "text-slate-800 group-hover:text-slate-950"}`}>{label}</span>
       <span
-        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border ${
-          ok ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200/90" : "border-amber-500/20 bg-amber-500/10 text-amber-200/90"
+        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold border ${
+          ok
+            ? isDark
+              ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-200"
+              : "border-emerald-300 bg-emerald-50 text-emerald-800"
+            : isDark
+              ? "border-amber-500/30 bg-amber-500/15 text-amber-200"
+              : "border-amber-300 bg-amber-50 text-amber-800"
         } transition-all duration-300 group-hover:scale-105`}
       >
         {ok ? <CheckCircle2 className="size-3.5" /> : <AlertCircle className="size-3.5" />}

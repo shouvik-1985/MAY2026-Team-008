@@ -29,6 +29,7 @@ import { getStudentProfile, updateStudentAvatar, updateStudentProfile, type Stud
 import { setCustomAvatar, useUserAvatar } from "@/lib/avatar";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { getStoredDashboard, setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/profile")({ component: ProfilePage });
 
@@ -93,6 +94,8 @@ function validateURL(url: string, type: "linkedin" | "github"): string | null {
 }
 
 function ProfilePage() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const { dashboard, loading: dashboardLoading } = useStudentDashboard();
   const { avatarUrl, updateAvatar, removeAvatar } = useUserAvatar();
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -395,18 +398,54 @@ function ProfilePage() {
         </div>
       )}
 
-      <section className="relative mb-6 overflow-hidden rounded-[32px] border border-white/12 bg-[#08080b]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.23),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(6,182,212,0.24),transparent_32%),linear-gradient(135deg,rgba(125,31,98,0.72),rgba(7,16,37,0.9))]" />
-        <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:28px_28px]" />
+      <section
+        className={`relative mb-6 overflow-hidden rounded-[32px] transition-all ${
+          isDark ? "border border-white/12 bg-[#08080b] text-white shadow-xl" : ""
+        }`}
+        style={
+          !isDark
+            ? {
+                background: "linear-gradient(135deg, #FFFFFF 0%, #FAF8FF 30%, #F2F5FF 65%, #EAF2FF 100%)",
+                border: "1px solid rgba(100,116,139,0.10)",
+                boxShadow: "0 20px 60px rgba(15,23,42,0.08), 0 6px 18px rgba(15,23,42,0.05)",
+              }
+            : undefined
+        }
+      >
+        <div
+          className={`absolute inset-0 ${
+            isDark
+              ? "bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.23),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(6,182,212,0.24),transparent_32%),linear-gradient(135deg,rgba(125,31,98,0.72),rgba(7,16,37,0.9))]"
+              : ""
+          }`}
+          style={
+            !isDark
+              ? {
+                  backgroundImage:
+                    "radial-gradient(circle at 15% 20%, rgba(109,93,246,0.10), transparent 35%)",
+                }
+              : undefined
+          }
+        />
+        {!isDark && (
+          <>
+            <div className="absolute top-[-40px] right-[10%] size-72 rounded-full bg-[#6D5DF6]/5 blur-3xl pointer-events-none" />
+            <div className="absolute inset-0 opacity-[0.04] pointer-events-none [background-image:linear-gradient(rgba(109,93,246,0.15)_1px,transparent_1px),linear-gradient(90deg,rgba(109,93,246,0.15)_1px,transparent_1px)] [background-size:24px_24px]" />
+          </>
+        )}
         <div className="relative grid gap-8 p-6 md:p-8 xl:grid-cols-[1.35fr_0.95fr]">
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-5 md:flex-row md:items-start">
               <motion.div
                 initial={{ opacity: 0, scale: 0.92 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="group relative flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-[28px] text-4xl font-bold text-white shadow-[0_20px_60px_rgba(0,0,0,0.28)] border border-white/20"
+                className="group relative flex size-28 shrink-0 items-center justify-center overflow-hidden rounded-[28px] text-4xl font-bold text-white shadow-md border border-white/20"
               >
-                <span className="absolute inset-0 bg-[linear-gradient(135deg,#ff41c4_0%,#f11ab9_35%,#6c6cff_72%,#00d4ff_100%)]" />
+                <span className={`absolute inset-0 ${
+                  isDark
+                    ? "bg-[linear-gradient(135deg,#ff41c4_0%,#f11ab9_35%,#6c6cff_72%,#00d4ff_100%)]"
+                    : "bg-gradient-to-br from-[#6D5DF6] to-[#3BA9F4]"
+                }`} />
                 {avatarUrl || view.avatarUrl ? (
                   <img src={avatarUrl || view.avatarUrl || ""} alt={view.name} className="relative size-full object-cover" />
                 ) : (
@@ -420,20 +459,20 @@ function ProfilePage() {
               </motion.div>
 
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] uppercase tracking-[0.42em] text-white/60">
+                <div className={`text-[11px] uppercase tracking-[0.42em] font-bold ${isDark ? "text-white/80" : "text-[#64748B]"}`}>
                   {view.studentCode}
                 </div>
-                <h1 className="mt-2 font-display text-4xl font-semibold leading-tight md:text-5xl">
+                <h1 className={`mt-2 font-display text-4xl font-extrabold leading-tight md:text-5xl ${isDark ? "text-white" : "text-[#1F2937]"}`}>
                   {view.name}
                 </h1>
-                <p className="mt-2 text-lg text-white/70">
+                <p className={`mt-2 text-lg font-bold ${isDark ? "text-white/90" : "text-[#64748B]"}`}>
                   {view.department} / Semester {view.semester}
                 </p>
-                <p className="mt-4 max-w-3xl text-sm leading-7 text-white/64">
+                <p className={`mt-4 max-w-3xl text-sm leading-7 font-medium ${isDark ? "text-white/80" : "text-[#64748B]"}`}>
                   {view.bio ||
                     "Build a strong campus identity here with your profile story, contact details, focus area, and personal academic context."}
                 </p>
-                <div className="mt-5 flex flex-wrap gap-3 text-sm text-white/58">
+                <div className="mt-5 flex flex-wrap gap-3 text-sm font-medium">
                   <InfoChip icon={Mail} value={view.email} />
                   <InfoChip icon={Phone} value={view.phone || "Add phone"} muted={!view.phone} />
                   <InfoChip icon={MapPin} value={joinParts([view.address, view.city, view.state])} />
@@ -457,28 +496,53 @@ function ProfilePage() {
                   setDraft(toDraft(view));
                   setIsEditOpen(true);
                 }}
-                className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/10 px-5 py-2.5 text-xs uppercase tracking-[0.22em] text-white transition hover:border-white/25 hover:bg-white/14"
+                className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs uppercase tracking-[0.22em] font-extrabold transition-all duration-200 ${
+                  isDark
+                    ? "border border-white/20 bg-white/15 text-white hover:bg-white/25"
+                    : "border border-[#D7DDF3] bg-white text-[#6D5DF6] hover:bg-[#6D5DF6] hover:text-white shadow-2xs"
+                }`}
               >
                 <Edit3 className="size-3.5" />
                 Edit Profile
               </button>
             </div>
 
-            <div className="rounded-[28px] border border-white/12 bg-[#071425]/70 p-5 backdrop-blur">
+            <div
+              className={`rounded-[28px] p-5 backdrop-blur transition-all ${
+                isDark ? "border border-white/15 bg-[#071425]/90 text-white shadow-md" : "text-[#1F2937]"
+              }`}
+              style={
+                !isDark
+                  ? {
+                      background: "linear-gradient(180deg, #FCFCFF, #F5F8FF)",
+                      border: "1px solid rgba(109,93,246,0.12)",
+                      boxShadow: "0 8px 30px rgba(15,23,42,0.05)",
+                    }
+                  : undefined
+              }
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.34em] text-white/42">
+                  <div className={`text-[10px] uppercase tracking-[0.34em] font-extrabold ${isDark ? "text-white/70" : "text-[#64748B]"}`}>
                     Completion
                   </div>
-                  <div className="mt-3 font-display text-4xl">{view.profileCompletion}%</div>
+                  <div className={`mt-3 font-display text-4xl font-extrabold ${isDark ? "text-white" : "text-[#1F2937]"}`}>{view.profileCompletion}%</div>
                 </div>
-                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-white/52">
+                <div className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.25em] font-bold ${
+                  isDark
+                    ? "border-white/20 bg-white/10 text-white/80"
+                    : "border-[#D7DDF3] bg-white text-[#6D5DF6] shadow-2xs"
+                }`}>
                   {view.profileCompletion >= 85 ? "Verified-ready" : "Improve details"}
                 </div>
               </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+              <div className={`mt-4 h-2 overflow-hidden rounded-full ${isDark ? "bg-white/20" : "bg-slate-200/80"}`}>
                 <div
-                  className="h-full rounded-full bg-[linear-gradient(90deg,#d946ef_0%,#f472b6_30%,#818cf8_62%,#22d3ee_100%)]"
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isDark
+                      ? "bg-[linear-gradient(90deg,#d946ef_0%,#f472b6_30%,#818cf8_62%,#22d3ee_100%)]"
+                      : "bg-gradient-to-r from-[#6D5DF6] to-[#3BA9F4]"
+                  }`}
                   style={{ width: `${view.profileCompletion}%` }}
                 />
               </div>
@@ -503,15 +567,17 @@ function ProfilePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.06 }}
             >
-              <GlassCard className="h-full overflow-hidden">
+              <GlassCard className={`h-full overflow-hidden ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">{item.label}</div>
-                    <div className="mt-2 font-display text-2xl leading-tight">{item.value}</div>
-                    <div className="mt-2 text-sm text-white/48">{item.detail}</div>
+                    <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>{item.label}</div>
+                    <div className={`mt-2 font-display text-2xl leading-tight font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>{item.value}</div>
+                    <div className={`mt-2 text-sm font-medium ${isDark ? "text-white/48" : "text-slate-600"}`}>{item.detail}</div>
                   </div>
-                  <div className="flex size-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(217,70,239,0.22),rgba(34,211,238,0.18))]">
-                    <Icon className="size-5 text-white/80" />
+                  <div className={`flex size-12 items-center justify-center rounded-2xl ${
+                    isDark ? "bg-[linear-gradient(135deg,rgba(217,70,239,0.22),rgba(34,211,238,0.18))]" : "bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-2xs"
+                  }`}>
+                    <Icon className={`size-5 ${isDark ? "text-white/80" : "text-indigo-600"}`} />
                   </div>
                 </div>
               </GlassCard>
@@ -521,23 +587,25 @@ function ProfilePage() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.18fr_0.82fr]">
-        <GlassCard className="overflow-hidden">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Live Overview</div>
-          <div className="mb-5 mt-1 font-display text-2xl">Academic Snapshot</div>
+        <GlassCard className={`overflow-hidden ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+          <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Live Overview</div>
+          <div className={`mb-5 mt-1 font-display text-2xl font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>Academic Snapshot</div>
           <div className="grid gap-3">
             {snapshot.map((item) => (
-              <div key={item.label} className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-4">
-                <div className="text-[10px] uppercase tracking-[0.3em] text-white/35">{item.label}</div>
-                <div className="mt-2 text-2xl font-medium text-white/90">{item.value}</div>
-                <div className="mt-1 text-sm text-white/48">{item.detail}</div>
+              <div key={item.label} className={`rounded-2xl border px-4 py-4 ${
+                isDark ? "border-white/8 bg-white/[0.02]" : "border-slate-200 bg-slate-50/80 shadow-2xs"
+              }`}>
+                <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/35" : "text-slate-500"}`}>{item.label}</div>
+                <div className={`mt-2 text-2xl font-extrabold ${isDark ? "text-white/90" : "text-slate-950"}`}>{item.value}</div>
+                <div className={`mt-1 text-sm font-medium ${isDark ? "text-white/48" : "text-slate-600"}`}>{item.detail}</div>
               </div>
             ))}
           </div>
 
-          <div className="my-6 h-px bg-white/8" />
+          <div className={`my-6 h-px ${isDark ? "bg-white/8" : "bg-slate-200"}`} />
 
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Identity</div>
-          <div className="mb-5 mt-1 font-display text-2xl">Student Card</div>
+          <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Identity</div>
+          <div className={`mb-5 mt-1 font-display text-2xl font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>Student Card</div>
           <div className="grid gap-3">
             <MiniRow label="Roll number" value={view.studentCode} />
             <MiniRow label="Department" value={view.department} />
@@ -548,14 +616,20 @@ function ProfilePage() {
         </GlassCard>
 
         <div className="space-y-5">
-          <GlassCard>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Skills</div>
+          <GlassCard className={!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}>
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Skills</div>
             <div className="mt-4 flex flex-wrap gap-2">
               {(view.skills.length ? view.skills : ["Communication", "Research", "Teamwork"]).map((skill) => (
                 <span
                   key={skill}
-                  className={`rounded-full px-3 py-1.5 text-xs ${
-                    view.skills.length ? "glass-strong text-white/90" : "border border-dashed border-white/10 text-white/42"
+                  className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                    view.skills.length
+                      ? isDark
+                        ? "glass-strong text-white/90"
+                        : "bg-indigo-50 border border-indigo-200 text-indigo-950 shadow-2xs"
+                      : isDark
+                        ? "border border-dashed border-white/10 text-white/42"
+                        : "border border-dashed border-slate-300 text-slate-500"
                   }`}
                 >
                   {skill}
@@ -564,8 +638,8 @@ function ProfilePage() {
             </div>
           </GlassCard>
 
-          <GlassCard>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Links</div>
+          <GlassCard className={!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}>
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Links</div>
             <div className="mt-4 grid gap-3">
               <LinkRow icon={Linkedin} label="LinkedIn" value={view.linkedinUrl} />
               <LinkRow icon={Github} label="GitHub" value={view.githubUrl} />
@@ -573,14 +647,20 @@ function ProfilePage() {
             </div>
           </GlassCard>
 
-          <GlassCard className="xl:min-h-[320px]">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Milestones</div>
+          <GlassCard className={`xl:min-h-[320px] ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Milestones</div>
             <div className="mt-4 grid gap-3">
               {buildBadges(view).map((badge, index) => (
                 <div
                   key={badge.name}
                   className={`relative overflow-hidden rounded-2xl border p-4 ${
-                    badge.earned ? "border-white/12 bg-white/[0.04]" : "border-white/8 bg-black/20"
+                    badge.earned
+                      ? isDark
+                        ? "border-white/12 bg-white/[0.04]"
+                        : "border-slate-200 bg-slate-50 shadow-2xs"
+                      : isDark
+                        ? "border-white/8 bg-black/20"
+                        : "border-slate-200 bg-slate-100/70 opacity-75 shadow-2xs"
                   }`}
                 >
                   <div
@@ -594,12 +674,18 @@ function ProfilePage() {
                   />
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-medium text-white">{badge.name}</div>
-                      <div className="mt-1 text-xs text-white/46">{badge.detail}</div>
+                      <div className={`font-bold ${isDark ? "text-white" : "text-slate-950"}`}>{badge.name}</div>
+                      <div className={`mt-1 text-xs font-medium ${isDark ? "text-white/46" : "text-slate-600"}`}>{badge.detail}</div>
                     </div>
                     <span
-                      className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.22em] ${
-                        badge.earned ? "bg-white/10 text-white/75" : "bg-black/25 text-white/35"
+                      className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.22em] font-bold ${
+                        badge.earned
+                          ? isDark
+                            ? "bg-white/10 text-white/75"
+                            : "bg-emerald-100 text-emerald-900"
+                          : isDark
+                            ? "bg-black/25 text-white/35"
+                            : "bg-slate-200 text-slate-700"
                       }`}
                     >
                       {badge.earned ? "Earned" : "Locked"}
@@ -611,11 +697,11 @@ function ProfilePage() {
           </GlassCard>
         </div>
 
-        <GlassCard className="min-h-[420px]">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Activity</div>
-          <div className="mb-5 mt-1 font-display text-2xl">Recent Timeline</div>
+        <GlassCard className={`min-h-[420px] ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+          <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Activity</div>
+          <div className={`mb-5 mt-1 font-display text-2xl font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>Recent Timeline</div>
           <div className="relative pl-6">
-            <div className="absolute bottom-0 left-2 top-0 w-px bg-gradient-to-b from-white/30 via-white/10 to-transparent" />
+            <div className={`absolute bottom-0 left-2 top-0 w-px ${isDark ? "bg-gradient-to-b from-white/30 via-white/10 to-transparent" : "bg-slate-300"}`} />
             {activity.map((entry, index) => (
               <motion.div
                 key={`${entry.t}-${entry.l}`}
@@ -624,17 +710,17 @@ function ProfilePage() {
                 transition={{ delay: index * 0.05 }}
                 className="relative pb-6"
               >
-                <span className="absolute -left-[18px] top-1.5 size-2.5 rounded-full bg-[linear-gradient(135deg,#f0abfc,#22d3ee)]" />
-                <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">{entry.t}</div>
-                <div className="mt-1 text-sm text-white/84">{entry.l}</div>
+                <span className="absolute -left-[18px] top-1.5 size-2.5 rounded-full bg-[linear-gradient(135deg,#f0abfc,#22d3ee)] shadow-xs" />
+                <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>{entry.t}</div>
+                <div className={`mt-1 text-sm font-semibold ${isDark ? "text-white/84" : "text-slate-900"}`}>{entry.l}</div>
               </motion.div>
             ))}
           </div>
         </GlassCard>
 
-        <GlassCard>
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Achievements</div>
-          <div className="mb-5 mt-1 font-display text-2xl">Highlights</div>
+        <GlassCard className={!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}>
+          <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Achievements</div>
+          <div className={`mb-5 mt-1 font-display text-2xl font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>Highlights</div>
           <div className="grid gap-3 sm:grid-cols-2">
             {achievements.map((item, index) => (
               <motion.div
@@ -642,11 +728,13 @@ function ProfilePage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.04 }}
-                className="rounded-2xl border border-white/8 bg-white/[0.02] p-4"
+                className={`rounded-2xl border p-4 ${
+                  isDark ? "border-white/8 bg-white/[0.02]" : "border-slate-200 bg-slate-50 shadow-2xs"
+                }`}
               >
-                <Award className="size-4 text-white/60" />
-                <div className="mt-3 text-lg font-medium text-white/90">{item.name}</div>
-                <div className="text-sm text-white/45">{item.year}</div>
+                <Award className={`size-4 ${isDark ? "text-white/60" : "text-indigo-600"}`} />
+                <div className={`mt-3 text-lg font-bold ${isDark ? "text-white/90" : "text-slate-950"}`}>{item.name}</div>
+                <div className={`text-sm font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>{item.year}</div>
               </motion.div>
             ))}
           </div>
@@ -654,43 +742,63 @@ function ProfilePage() {
       </div>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-h-[88vh] overflow-y-auto border-white/10 bg-[#0b0b0f] text-white sm:max-w-3xl">
+        <DialogContent className={`max-h-[88vh] overflow-y-auto sm:max-w-3xl transition-all ${
+          isDark ? "border-white/10 bg-[#0b0b0f] text-white" : "border-slate-200 bg-white text-slate-900 shadow-2xl"
+        }`}>
           <DialogHeader>
-            <DialogTitle className="font-display text-2xl">Edit Student Profile</DialogTitle>
-            <DialogDescription className="text-white/50">
+            <DialogTitle className={`font-display text-2xl ${isDark ? "text-white" : "text-slate-950 font-extrabold"}`}>Edit Student Profile</DialogTitle>
+            <DialogDescription className={isDark ? "text-white/50" : "text-slate-500 font-medium"}>
               These changes save to the backend and immediately refresh your live student identity.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-5">
             {error && (
-              <div className="flex items-start gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4">
-                <AlertCircle className="mt-0.5 size-5 shrink-0 text-rose-400" />
+              <div className={`flex items-start gap-3 rounded-2xl border p-4 ${
+                isDark ? "border-rose-500/20 bg-rose-500/10 text-rose-300" : "border-rose-200 bg-rose-50 text-rose-800"
+              }`}>
+                <AlertCircle className="mt-0.5 size-5 shrink-0 text-rose-500" />
                 <div>
-                  <div className="font-medium text-rose-300">{error}</div>
+                  <div className="font-semibold">{error}</div>
                 </div>
               </div>
             )}
             
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
-              <label className="text-[10px] uppercase tracking-[0.28em] text-white/40">Profile Photo</label>
+            <div className={`rounded-2xl border p-4 space-y-3 ${
+              isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50/80"
+            }`}>
+              <label className={`text-[10px] uppercase tracking-[0.28em] font-bold ${isDark ? "text-white/40" : "text-slate-700"}`}>Profile Photo</label>
               <div className="flex items-center gap-4">
-                <div className="size-16 rounded-2xl overflow-hidden bg-white/10 flex items-center justify-center text-xl font-bold border border-white/15 shrink-0">
+                <div className={`size-16 rounded-2xl overflow-hidden flex items-center justify-center text-xl font-bold border shrink-0 ${
+                  isDark ? "bg-white/10 border-white/15 text-white" : "bg-white border-slate-300 text-slate-800 shadow-2xs"
+                }`}>
                   {avatarUrl || view.avatarUrl ? <img src={avatarUrl || view.avatarUrl || ""} alt="Avatar" className="size-full object-cover" /> : view.avatar || initialsFromName(view.name)}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <label className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white transition hover:bg-white/20">
-                    <Camera className="size-3.5" /> Upload Photo
+                  <label className={`cursor-pointer inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-wider transition ${
+                    isDark
+                      ? "border-white/15 bg-white/10 text-white hover:bg-white/20"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100 shadow-2xs"
+                  }`}>
+                    <Camera className="size-3.5 text-[#6D5DF6]" /> Upload Photo
                     <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                   </label>
                   {(avatarUrl || view.avatarUrl) && (
-                    <button type="button" onClick={() => void handleAvatarRemove()} className="inline-flex items-center gap-2 rounded-full border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-rose-200 transition hover:bg-rose-500/20">
+                    <button
+                      type="button"
+                      onClick={() => void handleAvatarRemove()}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-wider transition ${
+                        isDark
+                          ? "border-rose-500/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
+                          : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 shadow-2xs"
+                      }`}
+                    >
                       <Trash2 className="size-3.5" /> Remove Photo
                     </button>
                   )}
                 </div>
               </div>
-              {avatarError && <div className="text-xs text-rose-400">{avatarError}</div>}
+              {avatarError && <div className="text-xs text-rose-500 font-semibold">{avatarError}</div>}
             </div>
             
             <div className="grid gap-4 md:grid-cols-2">
@@ -775,18 +883,26 @@ function ProfilePage() {
               onChange={(value) => setDraft((current) => ({ ...current, skills: value }))}
             />
 
-            <DialogFooter className="gap-3 sm:justify-between sm:space-x-0">
+            <DialogFooter className="gap-3 sm:justify-between sm:space-x-0 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setIsEditOpen(false)}
-                className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/65 transition hover:border-white/20 hover:text-white"
+                className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+                  isDark
+                    ? "border-white/10 text-white/65 hover:border-white/20 hover:text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 shadow-2xs"
+                }`}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving || Object.keys(fieldErrors).length > 0}
-                className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(90deg,#d946ef,#22d3ee)] px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 transition ${
+                  isDark
+                    ? "bg-[linear-gradient(90deg,#d946ef,#22d3ee)] hover:opacity-95"
+                    : "bg-[#6D5DF6] hover:bg-[#5b4be3]"
+                }`}
               >
                 {saving ? (
                   <>
@@ -954,10 +1070,35 @@ function clampNumber(value: string, min: number, max: number) {
 }
 
 function HeroStat({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  
+  const accentColor =
+    label === "CGPA"
+      ? "#6D5DF6"
+      : label === "Attendance"
+        ? "#06B6D4"
+        : label === "Credits"
+          ? "#3B82F6"
+          : "#10B981";
+
   return (
-    <div className="rounded-[22px] border border-white/10 bg-white/8 px-4 py-3 backdrop-blur">
-      <div className="text-[9px] uppercase tracking-[0.32em] text-white/55">{label}</div>
-      <div className="mt-1 font-display text-xl text-white">{value}</div>
+    <div
+      className={`relative overflow-hidden rounded-[22px] px-4 py-3.5 transition-all duration-200 ${
+        isDark
+          ? "border border-white/10 bg-white/8 backdrop-blur"
+          : "border border-[#E2E8F0] bg-white hover:-translate-y-0.5"
+      }`}
+      style={!isDark ? { boxShadow: "0 2px 8px rgba(15,23,42,0.04)" } : undefined}
+    >
+      {!isDark && (
+        <span
+          className="absolute top-0 left-0 right-0 h-[3px]"
+          style={{ background: accentColor }}
+        />
+      )}
+      <div className={`text-[9px] uppercase tracking-[0.32em] font-bold ${isDark ? "text-white/55" : "text-[#64748B]"}`}>{label}</div>
+      <div className={`mt-1 font-display text-xl font-extrabold ${isDark ? "text-white" : "text-[#1F2937]"}`}>{value}</div>
     </div>
   );
 }
@@ -971,32 +1112,42 @@ function InfoChip({
   value: string;
   muted?: boolean;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${
-        muted ? "border-dashed border-white/12 text-white/35" : "border-white/10 bg-white/6 text-white/62"
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-medium text-xs transition ${
+        isDark
+          ? muted ? "border-dashed border-white/12 text-white/35" : "border-white/10 bg-white/6 text-white/80"
+          : muted ? "border-dashed border-slate-300 text-slate-400 bg-white" : "border-[#D7DDF3] bg-white text-[#475569] shadow-2xs"
       }`}
     >
-      <Icon className="size-4" />
+      <Icon className={`size-4 ${isDark ? "" : "text-[#6D5DF6]"}`} />
       {value || "Not added yet"}
     </span>
   );
 }
 
 function InlineMeta({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-[0.25em] text-white/38">{label}</div>
-      <div className="mt-1 text-sm text-white/78">{value}</div>
+      <div className={`text-[10px] uppercase tracking-[0.25em] font-bold ${isDark ? "text-white/38" : "text-[#64748B]"}`}>{label}</div>
+      <div className={`mt-1 text-sm font-semibold ${isDark ? "text-white/78" : "text-[#1F2937]"}`}>{value}</div>
     </div>
   );
 }
 
 function MiniRow({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3">
-      <div className="text-[10px] uppercase tracking-[0.25em] text-white/35">{label}</div>
-      <div className="max-w-[60%] text-right text-sm text-white/78">{value}</div>
+    <div className={`flex items-start justify-between gap-4 rounded-2xl border px-4 py-3 ${
+      isDark ? "border-white/8 bg-white/[0.02]" : "border-slate-200 bg-slate-50 shadow-2xs"
+    }`}>
+      <div className={`text-[10px] uppercase tracking-[0.25em] font-bold ${isDark ? "text-white/35" : "text-slate-500"}`}>{label}</div>
+      <div className={`max-w-[60%] text-right text-sm font-bold ${isDark ? "text-white/78" : "text-slate-950"}`}>{value}</div>
     </div>
   );
 }
@@ -1010,13 +1161,17 @@ function LinkRow({
   label: string;
   value: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3">
-      <div className="inline-flex items-center gap-2 text-sm text-white/72">
-        <Icon className="size-4 text-white/55" />
+    <div className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${
+      isDark ? "border-white/8 bg-white/[0.02]" : "border-slate-200 bg-slate-50 shadow-2xs"
+    }`}>
+      <div className={`inline-flex items-center gap-2 text-sm font-bold ${isDark ? "text-white/72" : "text-slate-950"}`}>
+        <Icon className={`size-4 ${isDark ? "text-white/55" : "text-indigo-600"}`} />
         {label}
       </div>
-      <div className="max-w-[65%] truncate text-sm text-white/50">{value || "Not added yet"}</div>
+      <div className={`max-w-[65%] truncate text-sm font-medium ${isDark ? "text-white/50" : "text-slate-600"}`}>{value || "Not added yet"}</div>
     </div>
   );
 }
@@ -1040,12 +1195,14 @@ function Field({
 }) {
   const max = maxLength || FIELD_MAX_LENGTHS[label.toLowerCase().replace(/ /g, "")] || 255;
   const isValid = !error;
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-[10px] uppercase tracking-[0.28em] text-white/40">{label}</label>
-        <div className="text-[9px] text-white/30">
+        <label className={`text-[10px] uppercase tracking-[0.28em] font-bold ${isDark ? "text-white/40" : "text-slate-700"}`}>{label}</label>
+        <div className={`text-[9px] font-semibold ${isDark ? "text-white/30" : "text-slate-500"}`}>
           {value.length}/{max}
         </div>
       </div>
@@ -1058,20 +1215,20 @@ function Field({
         aria-label={label}
         aria-invalid={!!error}
         aria-describedby={error ? `${label}-error` : undefined}
-        className={`w-full rounded-2xl border bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/25 ${
-          error
-            ? "border-rose-500/50 focus:border-rose-400/60"
-            : "border-white/10"
+        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+          isDark
+            ? "bg-white/[0.03] text-white placeholder:text-white/25 focus:border-white/25 " + (error ? "border-rose-500/50 focus:border-rose-400/60" : "border-white/10")
+            : "bg-slate-50 text-slate-900 border-slate-300 placeholder:text-slate-400 focus:border-[#6D5DF6] focus:bg-white " + (error ? "border-rose-500/50" : "")
         }`}
       />
       {error && (
-        <div id={`${label}-error`} className="flex items-center gap-2 text-xs text-rose-400">
+        <div id={`${label}-error`} className={`flex items-center gap-2 text-xs font-semibold ${isDark ? "text-rose-400" : "text-rose-600"}`}>
           <AlertCircle className="size-3" />
           {error}
         </div>
       )}
       {isValid && value && (
-        <div className="flex items-center gap-2 text-xs text-emerald-400">
+        <div className={`flex items-center gap-2 text-xs font-semibold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
           <CheckCircle2 className="size-3" />
           Valid
         </div>
@@ -1101,12 +1258,14 @@ function TextArea({
 }) {
   const max = maxLength || FIELD_MAX_LENGTHS[label.toLowerCase().replace(/ /g, "")] || 2000;
   const isValid = !error;
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-[10px] uppercase tracking-[0.28em] text-white/40">{label}</label>
-        <div className="text-[9px] text-white/30">
+        <label className={`text-[10px] uppercase tracking-[0.28em] font-bold ${isDark ? "text-white/40" : "text-slate-700"}`}>{label}</label>
+        <div className={`text-[9px] font-semibold ${isDark ? "text-white/30" : "text-slate-500"}`}>
           {value.length}/{max}
         </div>
       </div>
@@ -1119,25 +1278,25 @@ function TextArea({
         aria-label={label}
         aria-invalid={!!error}
         aria-describedby={error ? `${label}-error` : undefined}
-        className={`w-full rounded-2xl border bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/25 ${
-          error
-            ? "border-rose-500/50 focus:border-rose-400/60"
-            : "border-white/10"
+        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+          isDark
+            ? "bg-white/[0.03] text-white placeholder:text-white/25 focus:border-white/25 " + (error ? "border-rose-500/50 focus:border-rose-400/60" : "border-white/10")
+            : "bg-slate-50 text-slate-900 border-slate-300 placeholder:text-slate-400 focus:border-[#6D5DF6] focus:bg-white " + (error ? "border-rose-500/50" : "")
         }`}
       />
       {error && (
-        <div id={`${label}-error`} className="flex items-center gap-2 text-xs text-rose-400">
+        <div id={`${label}-error`} className={`flex items-center gap-2 text-xs font-semibold ${isDark ? "text-rose-400" : "text-rose-600"}`}>
           <AlertCircle className="size-3" />
           {error}
         </div>
       )}
       {isValid && value && (
-        <div className="flex items-center gap-2 text-xs text-emerald-400">
+        <div className={`flex items-center gap-2 text-xs font-semibold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
           <CheckCircle2 className="size-3" />
           Valid
         </div>
       )}
-      {hint && <div className="text-xs text-white/35">{hint}</div>}
+      {hint && <div className={`text-xs ${isDark ? "text-white/35" : "text-slate-500"}`}>{hint}</div>}
     </div>
   );
 }

@@ -35,6 +35,7 @@ import {
   type NotesPreviewPayload,
 } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 
 type Props = {
@@ -80,6 +81,8 @@ const inputClass =
 const studentCreateOptions = ["Handwritten Notes", "Short Notes"];
 
 export function MarketplaceExperience({ mode, embedded = false }: Props) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [query, setQuery] = useState("");
@@ -314,7 +317,9 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
           <button
             type="button"
             onClick={() => setIsComposerOpen(true)}
-            className="inline-flex items-center gap-2 self-start rounded-full border border-fuchsia-300/20 bg-[var(--grad-aurora)] px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-2xl"
+            className={`inline-flex items-center gap-2 self-start rounded-full px-5 py-3 text-xs font-extrabold uppercase tracking-[0.2em] text-white shadow-md transition hover:opacity-90 ${
+              isDark ? "border border-fuchsia-300/20 bg-[var(--grad-aurora)] shadow-2xl" : "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600"
+            }`}
           >
             <Plus className="size-4" />
             {isAdmin ? "Add New Listing" : "Post Item For Sale"}
@@ -330,12 +335,16 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
 
         <div className="mb-5 flex flex-col gap-3 xl:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+            <Search className={`absolute left-4 top-1/2 size-4 -translate-y-1/2 ${isDark ? "text-white/35" : "text-slate-400"}`} />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={isAdmin ? "Search listings, sellers, categories..." : "Search products, notes, sellers..."}
-              className="w-full rounded-full border border-white/10 bg-white/[0.04] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/30"
+              className={`w-full rounded-full border py-3 pl-11 pr-4 text-sm outline-none transition ${
+                isDark
+                  ? "border-white/10 bg-white/[0.04] text-white placeholder:text-white/30"
+                  : "border-slate-300 bg-white text-slate-950 font-semibold placeholder:text-slate-400 shadow-2xs focus:border-indigo-600"
+              }`}
             />
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -344,26 +353,31 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
                 key={category}
                 type="button"
                 onClick={() => setActiveCategory(category)}
-                className={`rounded-full px-4 py-2 text-xs uppercase tracking-[0.22em] transition ${
+                className={`rounded-full px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] transition ${
                   activeCategory === category
-                    ? "bg-white text-black"
-                    : "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"
+                    ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white shadow-md"
+                    : isDark
+                      ? "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"
+                      : "border border-slate-300 bg-white text-slate-700 hover:text-slate-950 shadow-2xs"
                 }`}
               >
                 {category}
               </button>
             ))}
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs uppercase tracking-[0.18em] text-white/50">
+          <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-bold uppercase tracking-[0.18em] ${
+            isDark ? "border-white/10 bg-white/[0.04] text-white/50" : "border-slate-300 bg-white text-slate-700 shadow-2xs"
+          }`}>
             <ArrowUpDown className="size-3.5" />
             <select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-              className="bg-transparent text-white outline-none"
+              className="bg-transparent text-slate-900 dark:text-white outline-none font-bold"
+              style={{ color: isDark ? "#ffffff" : "#0f172a" }}
             >
-              <option value="latest">Latest</option>
-              <option value="priceAsc">Price Low to High</option>
-              <option value="priceDesc">Price High to Low</option>
+              <option value="latest" style={{ backgroundColor: isDark ? "#101010" : "#ffffff", color: isDark ? "#ffffff" : "#0f172a" }}>Latest</option>
+              <option value="priceAsc" style={{ backgroundColor: isDark ? "#101010" : "#ffffff", color: isDark ? "#ffffff" : "#0f172a" }}>Price Low to High</option>
+              <option value="priceDesc" style={{ backgroundColor: isDark ? "#101010" : "#ffffff", color: isDark ? "#ffffff" : "#0f172a" }}>Price High to Low</option>
             </select>
           </div>
         </div>
@@ -472,6 +486,32 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
   );
 }
 
+function CardImage({ item }: { item: MarketplaceItem }) {
+  const [failed, setFailed] = useState(false);
+  const src = resolveCardImage(item);
+
+  if (failed || !src) {
+    return (
+      <div
+        className="h-full w-full flex flex-col items-center justify-center p-4 text-center"
+        style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed, #06b6d4)" }}
+      >
+        <ImageIcon className="size-10 text-white/80 mb-2" />
+        <span className="font-display font-bold text-white text-base line-clamp-1">{item.name}</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={item.name}
+      onError={() => setFailed(true)}
+      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+    />
+  );
+}
+
 function MarketplaceCard({
   item,
   busy,
@@ -485,16 +525,17 @@ function MarketplaceCard({
   onPreview: () => void;
   onGallery: () => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const hasGallery = getGalleryImages(item).length > 0;
+
   return (
-    <GlassCard hover className="group flex h-full flex-col overflow-hidden border border-white/10 p-4">
-      <div className="relative h-56 overflow-hidden rounded-[28px] bg-white/[0.04]">
-        <img
-          src={resolveCardImage(item)}
-          alt={item.name}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+    <GlassCard hover className={`group flex h-full flex-col overflow-hidden border p-4 ${
+      isDark ? "border-white/10" : "bg-white/95 border-slate-200 shadow-sm"
+    }`}>
+      <div className="relative h-56 overflow-hidden rounded-[28px] bg-slate-900">
+        <CardImage item={item} />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
           <Badge text={item.category} tone="emerald" />
           <Badge text={item.status ?? "Available"} tone="neutral" />
@@ -502,37 +543,39 @@ function MarketplaceCard({
         </div>
         <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
           <div>
-            <div className="inline-flex rounded-full bg-black/60 px-3 py-1 text-lg font-bold text-white backdrop-blur-md">
+            <div className="inline-flex rounded-full bg-black/75 px-3 py-1 text-lg font-bold text-white backdrop-blur-md">
               {item.price}
             </div>
-            <div className="mt-2 text-xs text-white/70">{item.seller}</div>
+            <div className="mt-2 text-xs font-medium text-white/80">{item.seller}</div>
           </div>
           <button
             type="button"
             onClick={onPreview}
             disabled={busy || !item.isNotes}
-            className="rounded-full border border-white/15 bg-black/40 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-white/80 disabled:opacity-40"
+            className="rounded-full border border-white/20 bg-black/60 px-3 py-2 text-[10px] uppercase tracking-[0.18em] font-bold text-white backdrop-blur-md disabled:opacity-40"
           >
             {busy ? "Opening..." : item.isNotes ? "Preview" : "Gallery"}
           </button>
         </div>
       </div>
-      <div className="mt-4 text-[10px] uppercase tracking-[0.24em] text-white/35">{item.subcategory || item.category}</div>
-      <div className="mt-2 font-display text-xl text-white">{item.name}</div>
-      <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/55">{item.description}</p>
+      <div className={`mt-4 text-[10px] uppercase tracking-[0.24em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>{item.subcategory || item.category}</div>
+      <div className={`mt-2 font-display text-xl font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>{item.name}</div>
+      <p className={`mt-2 line-clamp-3 text-sm leading-6 font-medium ${isDark ? "text-white/55" : "text-slate-700"}`}>{item.description}</p>
       <div className="mt-5 flex gap-2">
         <button
           type="button"
           onClick={item.isNotes ? onPreview : onGallery}
           disabled={!item.isNotes && !hasGallery}
-          className="flex-1 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/70 disabled:opacity-40"
+          className={`flex-1 rounded-full border px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] transition ${
+            isDark ? "border-white/10 bg-white/[0.05] text-white/70" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200 shadow-2xs"
+          } disabled:opacity-40`}
         >
           {item.isNotes ? "Preview" : "Gallery"}
         </button>
         <button
           type="button"
           onClick={onView}
-          className="flex-1 rounded-full bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-black"
+          className="flex-1 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 px-4 py-3 text-xs font-extrabold uppercase tracking-[0.18em] text-white shadow-md hover:opacity-90 transition"
         >
           View Details
         </button>
@@ -1106,7 +1149,17 @@ function LoadingCards({ grid = false }: { grid?: boolean }) {
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="rounded-[30px] border border-dashed border-white/12 bg-white/[0.02] px-5 py-10 text-center text-sm text-white/45">{text}</div>;
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  return (
+    <div className={`rounded-[30px] border border-dashed px-5 py-10 text-center text-sm font-bold ${
+      isDark
+        ? "border-white/12 bg-white/[0.02] text-white/45"
+        : "border-slate-300 bg-white/95 text-slate-800 shadow-2xs"
+    }`}>
+      {text}
+    </div>
+  );
 }
 
 function parsePrice(value?: string) {

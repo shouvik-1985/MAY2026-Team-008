@@ -3,11 +3,14 @@ import { motion } from "framer-motion";
 import { TrendingUp } from "lucide-react";
 import { GlassCard, PageTransition, SectionHeading, Counter } from "@/components/app/cinematic";
 import { useStudentDashboard } from "@/lib/student-session";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/attendance")({ component: AttendancePage });
 
 function AttendancePage() {
+  const { theme } = useTheme();
   const { dashboard } = useStudentDashboard();
+  const isDark = theme === "dark";
   const overall = Math.round(dashboard?.user.attendance ?? 0);
   const weekly = dashboard?.attendance_weekly ?? [];
   const timeline = dashboard?.attendance_timeline ?? [];
@@ -35,25 +38,24 @@ function AttendancePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
         <GlassCard className="lg:col-span-1 flex flex-col items-center text-center">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Overall</div>
+          <div className={`text-[10px] uppercase tracking-[0.3em] ${isDark ? "text-white/40" : "text-slate-500"}`}>Overall</div>
           <Ring pct={overall} />
-          <div className="text-xs text-white/55 mt-2 flex items-center gap-1">
+          <div className={`mt-2 flex items-center gap-1 text-xs ${isDark ? "text-white/55" : "text-slate-600"}`}>
             <TrendingUp className="size-3" /> {monthlyChangeText}
           </div>
-          <div className="text-xs text-white/55 mt-1">
-            Prediction at semester end: <span className="text-white font-medium">{predicted}%</span>
+          <div className={`mt-1 text-xs ${isDark ? "text-white/55" : "text-slate-600"}`}>
+            Prediction at semester end: <span className={`font-medium ${isDark ? "text-white" : "text-slate-900"}`}>{predicted}%</span>
           </div>
         </GlassCard>
 
         <GlassCard className="lg:col-span-2">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Weekly</div>
-              <div className="font-display text-xl">Last 7 days</div>
+              <div className={`text-[10px] uppercase tracking-[0.3em] ${isDark ? "text-white/40" : "text-slate-500"}`}>Weekly</div>
+              <div className={`font-display text-xl ${isDark ? "text-white" : "text-slate-900"}`}>Last 7 days</div>
             </div>
-            <div className="text-sm text-white/55">
-              Avg{" "}
-              <span className="text-white font-medium">{weeklyAverage}%</span>
+            <div className={`text-sm ${isDark ? "text-white/55" : "text-slate-600"}`}>
+              Avg <span className={`font-medium ${isDark ? "text-white" : "text-slate-900"}`}>{weeklyAverage}%</span>
             </div>
           </div>
           <div className="flex items-end gap-3 h-48">
@@ -73,7 +75,9 @@ function AttendancePage() {
                     ? isPresent
                       ? "linear-gradient(180deg, oklch(0.7 0.25 310), oklch(0.65 0.25 260 / 0.3))"
                       : "linear-gradient(180deg, oklch(0.68 0.22 20), oklch(0.48 0.18 20 / 0.28))"
-                    : "linear-gradient(180deg, oklch(1 0 0 / 0.20), oklch(1 0 0 / 0.04))",
+                    : isDark
+                      ? "linear-gradient(180deg, oklch(1 0 0 / 0.20), oklch(1 0 0 / 0.04))"
+                      : "linear-gradient(180deg, rgba(148,163,184,0.32), rgba(148,163,184,0.08))",
                 }}
                 title={`${item.day}${item.label ? `, ${item.label}` : ""}: ${
                   marked ? `${item.attendance}% ${item.status ?? ""}` : "Not marked"
@@ -81,7 +85,7 @@ function AttendancePage() {
               >
                 <div
                   className={`absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] ${
-                    marked ? "text-white/50" : "text-white/28"
+                    marked ? (isDark ? "text-white/50" : "text-slate-500") : isDark ? "text-white/28" : "text-slate-300"
                   }`}
                 >
                   {marked ? `${item.attendance}%` : "-"}
@@ -90,16 +94,16 @@ function AttendancePage() {
               );
             })}
           </div>
-          <div className="flex justify-between mt-2 text-[10px] uppercase tracking-widest text-white/40">
+          <div className={`mt-2 flex justify-between text-[10px] uppercase tracking-widest ${isDark ? "text-white/40" : "text-slate-500"}`}>
             {weekly.map((item, index) => (
               <span
                 key={item.date ?? `${item.day}-${index}`}
                 className={`flex min-w-0 flex-1 flex-col items-center gap-1 ${
-                  item.isToday ? "text-white/80" : ""
+                  item.isToday ? (isDark ? "text-white/80" : "text-slate-800") : ""
                 }`}
               >
                 <span>{item.day}</span>
-                {item.label && <span className="text-[9px] normal-case tracking-normal text-white/30">{item.label}</span>}
+                {item.label && <span className={`text-[9px] normal-case tracking-normal ${isDark ? "text-white/30" : "text-slate-400"}`}>{item.label}</span>}
               </span>
             ))}
           </div>
@@ -109,15 +113,15 @@ function AttendancePage() {
       <GlassCard className="mb-8">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Monthly</div>
-            <div className="font-display text-xl">Last 12 months</div>
+            <div className={`text-[10px] uppercase tracking-[0.3em] ${isDark ? "text-white/40" : "text-slate-500"}`}>Monthly</div>
+            <div className={`font-display text-xl ${isDark ? "text-white" : "text-slate-900"}`}>Last 12 months</div>
           </div>
         </div>
         <svg viewBox="0 0 600 160" className="w-full h-40">
           <defs>
             <linearGradient id="a-fill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="oklch(0.7 0.25 310)" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="oklch(0.7 0.25 310)" stopOpacity="0" />
+              <stop offset="0%" stopColor={isDark ? "oklch(0.7 0.25 310)" : "#4f46e5"} stopOpacity="0.45" />
+              <stop offset="100%" stopColor={isDark ? "oklch(0.7 0.25 310)" : "#4f46e5"} stopOpacity="0" />
             </linearGradient>
           </defs>
           <motion.path
@@ -126,8 +130,8 @@ function AttendancePage() {
             transition={{ duration: 2 }}
             d={`M ${monthly.map((item, i) => `${(i / Math.max(monthly.length - 1, 1)) * 580 + 10},${150 - item.attendance * 1.2}`).join(" L ")}`}
             fill="none"
-            stroke="oklch(0.82 0.18 200)"
-            strokeWidth="2"
+            stroke={isDark ? "oklch(0.82 0.18 200)" : "#2563eb"}
+            strokeWidth="3.5"
           />
           <path
             d={`M 10,150 L ${monthly.map((item, i) => `${(i / Math.max(monthly.length - 1, 1)) * 580 + 10},${150 - item.attendance * 1.2}`).join(" L ")} L 590,150 Z`}
@@ -137,7 +141,7 @@ function AttendancePage() {
       </GlassCard>
 
       <div>
-        <div className="text-[10px] uppercase tracking-[0.3em] text-white/40 mb-3">Daily records</div>
+        <div className={`mb-3 text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>Daily records</div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {timeline.slice(-9).reverse().map((item, i) => (
             <motion.div
@@ -149,11 +153,11 @@ function AttendancePage() {
               <GlassCard hover>
                 <div className="flex items-center justify-between">
                   <div className="font-medium">{item.label}</div>
-                  <div className="text-sm text-white/80">
+                  <div className={`text-sm ${isDark ? "text-white/80" : "text-slate-700"}`}>
                     {item.attendance}%
                   </div>
                 </div>
-                <div className="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div className={`mt-3 h-1.5 overflow-hidden rounded-full ${isDark ? "bg-white/10" : "bg-slate-200"}`}>
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${item.attendance}%` }}
@@ -164,7 +168,7 @@ function AttendancePage() {
                     }}
                   />
                 </div>
-                <div className="mt-2 text-xs text-white/45">
+                <div className={`mt-2 text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>
                   {item.status === "present" ? "Marked present" : "Marked absent"}
                 </div>
               </GlassCard>
@@ -172,7 +176,7 @@ function AttendancePage() {
           ))}
           {!timeline.length && (
             <GlassCard>
-              <div className="text-sm text-white/55">No attendance records marked yet.</div>
+              <div className={`text-sm ${isDark ? "text-white/55" : "text-slate-600"}`}>No attendance records marked yet.</div>
             </GlassCard>
           )}
         </div>
@@ -182,12 +186,14 @@ function AttendancePage() {
 }
 
 function Ring({ pct }: { pct: number }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const r = 70,
     c = 2 * Math.PI * r;
   return (
     <div className="relative size-48 my-4">
       <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90">
-        <circle cx="100" cy="100" r={r} fill="none" stroke="oklch(1 0 0 / 0.08)" strokeWidth="12" />
+        <circle cx="100" cy="100" r={r} fill="none" stroke={isDark ? "oklch(1 0 0 / 0.08)" : "rgba(148,163,184,0.22)"} strokeWidth="12" />
         <motion.circle
           cx="100"
           cy="100"
@@ -212,7 +218,7 @@ function Ring({ pct }: { pct: number }) {
         <div className="font-display text-5xl font-bold">
           <Counter value={pct} suffix="%" />
         </div>
-        <div className="text-[10px] uppercase tracking-[0.3em] text-white/40 mt-1">attendance</div>
+        <div className={`mt-1 text-[10px] uppercase tracking-[0.3em] ${isDark ? "text-white/40" : "text-slate-500"}`}>attendance</div>
       </div>
     </div>
   );

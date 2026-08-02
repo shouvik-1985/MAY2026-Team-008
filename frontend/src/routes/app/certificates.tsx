@@ -25,6 +25,7 @@ import { getStudentDashboard, openProtectedResource, requestStudentCertificate, 
 import { getAuthToken } from "@/lib/auth";
 import { setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
 import { getStoredUser } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/certificates")({ component: CertificatesPage });
 
@@ -68,6 +69,8 @@ function resumeDownloadName(name: string) {
 }
 
 function CertificatesPage() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [activeTab, setActiveTab] = useState<Tab>("certificates");
   const [processing, setProcessing] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -224,11 +227,15 @@ function CertificatesPage() {
           sub="Verified academic credentials and ATS-optimized resume builder."
         />
 
-        <div className="flex rounded-full glass p-1 gap-1 self-start md:self-auto">
+        <div className={`flex rounded-full p-1 gap-1 self-start md:self-auto border ${isDark ? "glass border-white/10" : "bg-slate-100 border-slate-300 shadow-2xs"}`}>
           <button
             onClick={() => setActiveTab("certificates")}
-            className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-medium uppercase tracking-wider transition ${
-              activeTab === "certificates" ? "bg-[var(--grad-aurora)] text-white shadow-lg" : "text-white/60 hover:text-white"
+            className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition ${
+              activeTab === "certificates"
+                ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white shadow-md"
+                : isDark
+                  ? "text-white/60 hover:text-white"
+                  : "text-slate-700 hover:text-slate-950 hover:bg-slate-200"
             }`}
           >
             <Award className="size-3.5" />
@@ -236,8 +243,12 @@ function CertificatesPage() {
           </button>
           <button
             onClick={() => setActiveTab("resume-builder")}
-            className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-medium uppercase tracking-wider transition ${
-              activeTab === "resume-builder" ? "bg-[var(--grad-aurora)] text-white shadow-lg" : "text-white/60 hover:text-white"
+            className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition ${
+              activeTab === "resume-builder"
+                ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white shadow-md"
+                : isDark
+                  ? "text-white/60 hover:text-white"
+                  : "text-slate-700 hover:text-slate-950 hover:bg-slate-200"
             }`}
           >
             <FileText className="size-3.5" />
@@ -247,8 +258,10 @@ function CertificatesPage() {
       </div>
 
       {status ? (
-        <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white/80 flex items-center gap-2">
-          <ShieldCheck className="size-4 text-emerald-400 shrink-0" />
+        <div className={`mb-5 rounded-2xl border px-4 py-3 text-sm font-medium flex items-center gap-2 ${
+          isDark ? "border-white/10 bg-white/[0.05] text-white/80" : "border-emerald-300 bg-emerald-50 text-emerald-950 font-bold"
+        }`}>
+          <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
           <span>{status}</span>
         </div>
       ) : null}
@@ -272,7 +285,7 @@ function CertificatesPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05 }}
                 >
-                  <GlassCard hover className={`h-full flex flex-col relative overflow-hidden ${isGrad ? "border-amber-400/30" : ""}`}>
+                  <GlassCard hover className={`h-full flex flex-col relative overflow-hidden ${isGrad ? "border-amber-400/40" : ""} ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
                     {isGrad && (
                       <div className="absolute top-0 right-0 bg-amber-500 text-black font-bold text-[9px] uppercase tracking-widest px-3 py-1 rounded-bl-xl shadow-md flex items-center gap-1">
                         <GraduationCap className="size-3" /> Auto Degree
@@ -289,10 +302,10 @@ function CertificatesPage() {
                           background: isGrad
                             ? "linear-gradient(135deg, oklch(0.75 0.22 65), oklch(0.85 0.18 80))"
                             : "var(--grad-aurora)",
-                          opacity: 0.75,
+                          opacity: 0.85,
                         }}
                       />
-                      <div className="absolute inset-px rounded-2xl bg-[#0a0a0a]/50" />
+                      <div className={`absolute inset-px rounded-2xl ${isDark ? "bg-[#0a0a0a]/50" : "bg-slate-950/25"}`} />
                       {isGrad ? (
                         <GraduationCap className="relative size-11 text-amber-300" />
                       ) : (
@@ -300,17 +313,19 @@ function CertificatesPage() {
                       )}
                     </motion.div>
 
-                    <div className="font-display text-lg leading-snug">{c.name}</div>
-                    <div className="text-xs text-white/55 mt-1.5 flex-1 leading-relaxed">{c.desc}</div>
+                    <div className={`font-display text-lg font-extrabold leading-snug ${isDark ? "text-white" : "text-slate-950"}`}>{c.name}</div>
+                    <div className={`text-xs mt-1.5 flex-1 leading-relaxed ${isDark ? "text-white/55" : "text-slate-600 font-medium"}`}>{c.desc}</div>
 
-                    <div className="mt-3 flex items-center justify-between text-[10px] uppercase tracking-wider text-white/45">
+                    <div className={`mt-3 flex items-center justify-between text-[10px] uppercase tracking-wider ${isDark ? "text-white/45" : "text-slate-500 font-semibold"}`}>
                       <span className="flex items-center gap-1">
                         <Clock className="size-3" /> {c.eta || "Instant"}
                       </span>
                       {c.req && (
                         <span
-                          className={`px-2 py-0.5 rounded-full border border-white/10 bg-white/5 font-medium ${
-                            isGrad ? "text-amber-300" : "text-emerald-400/90"
+                          className={`px-2 py-0.5 rounded-full border font-bold ${
+                            isDark
+                              ? (isGrad ? "border-white/10 bg-white/5 text-amber-300" : "border-white/10 bg-white/5 text-emerald-400/90")
+                              : (isGrad ? "border-amber-300 bg-amber-50 text-amber-900" : "border-emerald-300 bg-emerald-50 text-emerald-900")
                           }`}
                         >
                           {c.req}
@@ -392,20 +407,26 @@ function CertificatesPage() {
                               )
                               .finally(() => setProcessing(null));
                           }}
-                          className={`flex-1 glass py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 text-[11px] font-medium transition ${
+                          className={`flex-1 py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 text-[11px] font-bold border transition ${
                             canDownload
-                              ? "text-white/80 hover:text-white"
-                              : "cursor-not-allowed text-white/35 opacity-55"
+                              ? isDark
+                                ? "glass border-white/10 text-white/80 hover:text-white"
+                                : "bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200 shadow-2xs"
+                              : "cursor-not-allowed opacity-50 " + (isDark ? "text-white/35" : "text-slate-400 bg-slate-100 border-slate-200")
                           }`}
                           disabled={processing === c.id || !canDownload}
                         >
-                          <Download className="size-3 text-emerald-400" /> PDF
+                          <Download className="size-3 text-emerald-500" /> PDF
                         </button>
 
                         <button
                           title="Add Credential to LinkedIn"
                           onClick={() => shareToLinkedin(c.name)}
-                          className="flex-1 glass py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 text-[11px] font-medium text-sky-300/90 hover:text-sky-200 transition"
+                          className={`flex-1 py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 text-[11px] font-bold border transition ${
+                            isDark
+                              ? "glass border-white/10 text-sky-300/90 hover:text-sky-200"
+                              : "bg-sky-50 border-sky-300 text-sky-900 hover:bg-sky-100 shadow-2xs"
+                          }`}
                         >
                           <Linkedin className="size-3" /> LinkedIn
                         </button>
@@ -415,7 +436,11 @@ function CertificatesPage() {
                           href={`/verify/CV-${(c.key || 'CERT').toUpperCase()}-2026`}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex-1 glass py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 text-[11px] font-medium text-amber-300/90 hover:text-amber-200 transition"
+                          className={`flex-1 py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 text-[11px] font-bold border transition ${
+                            isDark
+                              ? "glass border-white/10 text-amber-300/90 hover:text-amber-200"
+                              : "bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 shadow-2xs"
+                          }`}
                         >
                           <span className="text-[10px] font-bold">QR</span> Verify
                         </a>
@@ -427,9 +452,9 @@ function CertificatesPage() {
             })}
           </div>
 
-          <GlassCard className="overflow-hidden">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Request & Verification History</div>
-            <div className="font-display text-xl mt-1 mb-5">Certificate request updates</div>
+          <GlassCard className={`overflow-hidden ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Request & Verification History</div>
+            <div className={`font-display text-xl font-extrabold mt-1 mb-5 ${isDark ? "text-white" : "text-slate-950"}`}>Certificate request updates</div>
             <div className="max-h-[280px] space-y-3 overflow-y-auto pr-2" data-lenis-prevent>
               {history.length ? (
                 history.map((r, i) => (
@@ -438,22 +463,30 @@ function CertificatesPage() {
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 transition"
+                    className={`flex items-center justify-between p-3 rounded-2xl transition ${
+                      isDark ? "hover:bg-white/5" : "hover:bg-slate-100/80 border-b border-slate-100"
+                    }`}
                   >
                     <div>
-                      <div className="font-medium text-sm">{r.title}</div>
-                      <div className="text-xs text-white/45">{r.updated}</div>
+                      <div className={`font-bold text-sm ${isDark ? "text-white" : "text-slate-950"}`}>{r.title}</div>
+                      <div className={`text-xs ${isDark ? "text-white/45" : "text-slate-600 font-medium"}`}>{r.updated}</div>
                     </div>
                     <span
-                      className="text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 rounded-full"
-                      style={{ background: "oklch(0.6 0.2 150 / 0.2)", color: "oklch(0.85 0.18 150)" }}
+                      className="text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 rounded-full font-bold"
+                      style={{
+                        background: isDark ? "oklch(0.6 0.2 150 / 0.2)" : "#dcfce7",
+                        color: isDark ? "oklch(0.85 0.18 150)" : "#14532d",
+                        border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #bbf7d0"
+                      }}
                     >
                       {r.stage}
                     </span>
                   </motion.div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-5 py-8 text-center text-sm text-white/45">
+                <div className={`rounded-2xl border border-dashed px-5 py-8 text-center text-sm font-medium ${
+                  isDark ? "border-white/10 bg-white/[0.02] text-white/45" : "border-slate-300 bg-slate-50 text-slate-600"
+                }`}>
                   No certificate request updates yet.
                 </div>
               )}
@@ -465,7 +498,7 @@ function CertificatesPage() {
         <div className="space-y-8">
           {/* Template Selection Cards */}
           <div>
-            <div className="text-xs uppercase tracking-widest text-white/50 mb-3">Choose Resume Template (3-4 Professional Designs)</div>
+            <div className={`text-xs uppercase tracking-widest mb-3 font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>Choose Resume Template (3-4 Professional Designs)</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { id: "modern-tech", title: "Modern Tech", desc: "Gradient accent header, 2-column layout" },
@@ -478,16 +511,20 @@ function CertificatesPage() {
                   onClick={() => setSelectedTemplate(t.id as ResumeTemplate)}
                   className={`text-left p-4 rounded-2xl border transition-all flex flex-col justify-between ${
                     selectedTemplate === t.id
-                      ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_20px_rgba(52,211,153,0.2)]"
-                      : "border-white/10 glass hover:border-white/20"
+                      ? isDark
+                        ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_20px_rgba(52,211,153,0.2)]"
+                        : "border-emerald-500 bg-emerald-50 text-emerald-950 font-extrabold shadow-xs"
+                      : isDark
+                        ? "border-white/10 glass hover:border-white/20 text-white"
+                        : "border-slate-300 bg-white text-slate-950 hover:bg-slate-50 shadow-2xs"
                   }`}
                 >
                   <div>
-                    <div className="font-display font-semibold text-sm flex items-center justify-between">
+                    <div className={`font-display font-extrabold text-sm flex items-center justify-between ${isDark ? "text-white" : "text-slate-950"}`}>
                       {t.title}
-                      {selectedTemplate === t.id && <CheckCircle2 className="size-4 text-emerald-400" />}
+                      {selectedTemplate === t.id && <CheckCircle2 className="size-4 text-emerald-500" />}
                     </div>
-                    <div className="text-xs text-white/50 mt-1">{t.desc}</div>
+                    <div className={`text-xs mt-1 font-medium ${isDark ? "text-white/50" : "text-slate-600"}`}>{t.desc}</div>
                   </div>
                 </button>
               ))}
@@ -497,14 +534,16 @@ function CertificatesPage() {
           {/* Resume Form & Live Preview Grid */}
           <div className="grid lg:grid-cols-2 gap-8">
             {/* Form Editor */}
-            <GlassCard className="space-y-6">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <div className="font-display text-lg font-semibold flex items-center gap-2">
-                  <Edit3 className="size-4 text-emerald-400" /> Auto-Filled Student Data & Custom Editor
+            <GlassCard className={`space-y-6 ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+              <div className={`flex items-center justify-between border-b pb-4 ${isDark ? "border-white/10" : "border-slate-200"}`}>
+                <div className={`font-display text-lg font-extrabold flex items-center gap-2 ${isDark ? "text-white" : "text-slate-950"}`}>
+                  <Edit3 className="size-4 text-indigo-600" /> Auto-Filled Student Data & Custom Editor
                 </div>
                 <button
                   onClick={() => setIsPreviewOpen(true)}
-                  className="glass px-4 py-2 rounded-full text-xs uppercase tracking-wider flex items-center gap-2 text-white/80 hover:text-white"
+                  className={`px-4 py-2 rounded-full text-xs uppercase tracking-wider font-bold flex items-center gap-2 transition ${
+                    isDark ? "glass text-white/80 hover:text-white" : "border border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200 shadow-2xs"
+                  }`}
                 >
                   <Eye className="size-3.5" /> Full Screen Preview
                 </button>
@@ -512,54 +551,66 @@ function CertificatesPage() {
 
               {/* Personal Details */}
               <div className="space-y-4">
-                <div className="text-xs uppercase tracking-wider text-white/40 font-medium">Auto-Filled Personal Info</div>
+                <div className={`text-xs uppercase tracking-wider font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Auto-Filled Personal Info</div>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] uppercase text-white/50">Full Name</label>
+                    <label className={`text-[10px] uppercase font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>Full Name</label>
                     <input
                       value={resumeData.name}
                       onChange={(e) => setResumeData({ ...resumeData, name: e.target.value })}
-                      className="w-full glass rounded-xl px-3 py-2 text-xs bg-transparent text-white outline-none"
+                      className={`w-full rounded-xl px-3 py-2 text-xs font-semibold outline-none ${
+                        isDark ? "glass bg-transparent text-white" : "bg-slate-50 border border-slate-300 text-slate-950 focus:border-indigo-600"
+                      }`}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] uppercase text-white/50">Email</label>
+                    <label className={`text-[10px] uppercase font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>Email</label>
                     <input
                       value={resumeData.email}
                       onChange={(e) => setResumeData({ ...resumeData, email: e.target.value })}
-                      className="w-full glass rounded-xl px-3 py-2 text-xs bg-transparent text-white outline-none"
+                      className={`w-full rounded-xl px-3 py-2 text-xs font-semibold outline-none ${
+                        isDark ? "glass bg-transparent text-white" : "bg-slate-50 border border-slate-300 text-slate-950 focus:border-indigo-600"
+                      }`}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] uppercase text-white/50">Phone Number</label>
+                    <label className={`text-[10px] uppercase font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>Phone Number</label>
                     <input
                       value={resumeData.phone}
                       onChange={(e) => setResumeData({ ...resumeData, phone: e.target.value })}
-                      className="w-full glass rounded-xl px-3 py-2 text-xs bg-transparent text-white outline-none"
+                      className={`w-full rounded-xl px-3 py-2 text-xs font-semibold outline-none ${
+                        isDark ? "glass bg-transparent text-white" : "bg-slate-50 border border-slate-300 text-slate-950 focus:border-indigo-600"
+                      }`}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] uppercase text-white/50">Location</label>
+                    <label className={`text-[10px] uppercase font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>Location</label>
                     <input
                       value={resumeData.location}
                       onChange={(e) => setResumeData({ ...resumeData, location: e.target.value })}
-                      className="w-full glass rounded-xl px-3 py-2 text-xs bg-transparent text-white outline-none"
+                      className={`w-full rounded-xl px-3 py-2 text-xs font-semibold outline-none ${
+                        isDark ? "glass bg-transparent text-white" : "bg-slate-50 border border-slate-300 text-slate-950 focus:border-indigo-600"
+                      }`}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] uppercase text-white/50">CGPA</label>
+                    <label className={`text-[10px] uppercase font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>CGPA</label>
                     <input
                       value={resumeData.cgpa}
                       onChange={(e) => setResumeData({ ...resumeData, cgpa: e.target.value })}
-                      className="w-full glass rounded-xl px-3 py-2 text-xs bg-transparent text-white outline-none"
+                      className={`w-full rounded-xl px-3 py-2 text-xs font-semibold outline-none ${
+                        isDark ? "glass bg-transparent text-white" : "bg-slate-50 border border-slate-300 text-slate-950 focus:border-indigo-600"
+                      }`}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] uppercase text-white/50">Department</label>
+                    <label className={`text-[10px] uppercase font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>Department</label>
                     <input
                       value={resumeData.department}
                       onChange={(e) => setResumeData({ ...resumeData, department: e.target.value })}
-                      className="w-full glass rounded-xl px-3 py-2 text-xs bg-transparent text-white outline-none"
+                      className={`w-full rounded-xl px-3 py-2 text-xs font-semibold outline-none ${
+                        isDark ? "glass bg-transparent text-white" : "bg-slate-50 border border-slate-300 text-slate-950 focus:border-indigo-600"
+                      }`}
                     />
                   </div>
                 </div>
@@ -567,29 +618,33 @@ function CertificatesPage() {
 
               {/* Summary */}
               <div>
-                <label className="text-[10px] uppercase text-white/50 font-medium">About Me / Summary</label>
+                <label className={`text-[10px] uppercase font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>About Me / Summary</label>
                 <textarea
                   rows={3}
                   value={resumeData.summary}
                   onChange={(e) => setResumeData({ ...resumeData, summary: e.target.value })}
-                  className="w-full glass rounded-xl p-3 text-xs bg-transparent text-white outline-none mt-1"
+                  className={`w-full rounded-xl p-3 text-xs font-semibold outline-none mt-1 ${
+                    isDark ? "glass bg-transparent text-white" : "bg-slate-50 border border-slate-300 text-slate-950 focus:border-indigo-600"
+                  }`}
                 />
               </div>
 
               {/* Skills */}
               <div>
-                <label className="text-[10px] uppercase text-white/50 font-medium">Skills (Comma Separated)</label>
+                <label className={`text-[10px] uppercase font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>Skills (Comma Separated)</label>
                 <input
                   value={resumeData.skills}
                   onChange={(e) => setResumeData({ ...resumeData, skills: e.target.value })}
-                  className="w-full glass rounded-xl px-3 py-2 text-xs bg-transparent text-white outline-none mt-1"
+                  className={`w-full rounded-xl px-3 py-2 text-xs font-semibold outline-none mt-1 ${
+                    isDark ? "glass bg-transparent text-white" : "bg-slate-50 border border-slate-300 text-slate-950 focus:border-indigo-600"
+                  }`}
                 />
               </div>
 
               {/* Projects List */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-wider text-white/40 font-medium">Projects ({projects.length})</span>
+                  <span className={`text-xs uppercase tracking-wider font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>Projects ({projects.length})</span>
                   <button
                     onClick={() =>
                       setProjects((current) => [
@@ -598,18 +653,20 @@ function CertificatesPage() {
                       ])
                     }
                     type="button"
-                    className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
+                    className="text-xs text-indigo-600 font-extrabold hover:underline flex items-center gap-1"
                   >
                     <Plus className="size-3" /> Add Project
                   </button>
                 </div>
                 {projects.map((p, idx) => (
-                  <div key={p.id} className="p-3 rounded-xl border border-white/10 glass space-y-2 relative">
+                  <div key={p.id} className={`p-3 rounded-xl border space-y-2 relative ${
+                    isDark ? "border-white/10 glass" : "border-slate-200 bg-slate-50 shadow-2xs"
+                  }`}>
                     <button
                       type="button"
                       aria-label={`Delete ${p.title || "project"}`}
                       onClick={() => setProjects((current) => current.filter((x) => x.id !== p.id))}
-                      className="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-400"
+                      className="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-lg text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-600"
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -621,7 +678,9 @@ function CertificatesPage() {
                         setProjects(next);
                       }}
                       placeholder="Project Title"
-                      className="w-full glass px-2 py-1 pr-9 text-xs bg-transparent text-white font-medium outline-none"
+                      className={`w-full rounded-lg px-2 py-1 pr-9 text-xs font-bold outline-none ${
+                        isDark ? "glass bg-transparent text-white" : "bg-white border border-slate-300 text-slate-950"
+                      }`}
                     />
                     <input
                       value={p.tech}
@@ -631,7 +690,9 @@ function CertificatesPage() {
                         setProjects(next);
                       }}
                       placeholder="Tech Stack"
-                      className="w-full glass px-2 py-1 text-xs bg-transparent text-white/70 outline-none"
+                      className={`w-full rounded-lg px-2 py-1 text-xs font-medium outline-none ${
+                        isDark ? "glass bg-transparent text-white/70" : "bg-white border border-slate-300 text-slate-800"
+                      }`}
                     />
                     <textarea
                       rows={2}
@@ -642,7 +703,9 @@ function CertificatesPage() {
                         setProjects(next);
                       }}
                       placeholder="Description"
-                      className="w-full glass p-2 text-xs bg-transparent text-white/70 outline-none"
+                      className={`w-full rounded-lg p-2 text-xs font-medium outline-none ${
+                        isDark ? "glass bg-transparent text-white/70" : "bg-white border border-slate-300 text-slate-800"
+                      }`}
                     />
                   </div>
                 ))}
@@ -650,12 +713,14 @@ function CertificatesPage() {
 
               {/* Achievements */}
               <div>
-                <label className="text-[10px] uppercase text-white/50 font-medium">Certifications & Achievements</label>
+                <label className={`text-[10px] uppercase font-bold ${isDark ? "text-white/50" : "text-slate-600"}`}>Certifications & Achievements</label>
                 <textarea
                   rows={3}
                   value={achievements}
                   onChange={(e) => setAchievements(e.target.value)}
-                  className="w-full glass rounded-xl p-3 text-xs bg-transparent text-white outline-none mt-1"
+                  className={`w-full rounded-xl p-3 text-xs font-semibold outline-none mt-1 ${
+                    isDark ? "glass bg-transparent text-white" : "bg-slate-50 border border-slate-300 text-slate-950 focus:border-indigo-600"
+                  }`}
                 />
               </div>
             </GlassCard>
@@ -663,10 +728,10 @@ function CertificatesPage() {
             {/* Live Template Preview Container */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs uppercase tracking-wider text-white/50">Live Resume Render</span>
+                <span className={`text-xs uppercase tracking-wider font-extrabold ${isDark ? "text-white/50" : "text-slate-700"}`}>Live Resume Render</span>
                 <button
                   onClick={handlePrintPDF}
-                  className="px-6 py-2.5 rounded-full bg-[var(--grad-aurora)] text-white text-xs uppercase tracking-widest font-semibold flex items-center gap-2 shadow-lg"
+                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white text-xs uppercase tracking-widest font-extrabold flex items-center gap-2 shadow-md hover:opacity-90 transition"
                 >
                   <Download className="size-3.5" /> Download Resume PDF
                 </button>

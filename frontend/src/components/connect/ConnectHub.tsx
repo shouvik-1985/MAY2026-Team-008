@@ -43,6 +43,7 @@ import {
   type ConnectRole,
   type ConnectStatus,
 } from "@/lib/api";
+import { useTheme } from "@/lib/theme";
 
 type PanelMode = "profile" | "chat";
 
@@ -63,6 +64,8 @@ export function ConnectHub({
   viewerRole: ConnectRole;
   viewerName: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [hub, setHub] = useState<ConnectHubData | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [panelMode, setPanelMode] = useState<PanelMode>("profile");
@@ -290,12 +293,14 @@ export function ConnectHub({
   return (
     <div className="flex h-[calc(100vh-8rem)] min-h-[540px] max-h-[780px] flex-col gap-4 overflow-hidden">
       <div className="shrink-0">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] uppercase tracking-[0.32em] text-white/45">
+        <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.32em] font-bold ${
+          isDark ? "border-white/10 text-white/45" : "border-slate-300 bg-white text-slate-600 shadow-2xs"
+        }`}>
           <MessageCircle className="size-3.5" />
           Campus Connect
         </div>
-        <h1 className="mt-3 font-display text-4xl font-bold tracking-tight">Connect</h1>
-        <p className="mt-2 max-w-2xl text-white/55">
+        <h1 className={`mt-3 font-display text-4xl font-bold tracking-tight ${isDark ? "text-white" : "text-slate-950"}`}>Connect</h1>
+        <p className={`mt-2 max-w-2xl font-medium ${isDark ? "text-white/55" : "text-slate-700"}`}>
           Search registered students and professors, manage requests, view profiles, and chat with persistent files.
         </p>
       </div>
@@ -307,9 +312,9 @@ export function ConnectHub({
       )}
 
       {loading && !hub ? (
-        <div className="glass-strong grid min-h-0 flex-1 place-items-center rounded-3xl">
-          <div className="text-center text-white/60">
-            <Loader2 className="mx-auto mb-3 size-7 animate-spin" />
+        <div className={`grid min-h-0 flex-1 place-items-center rounded-3xl ${isDark ? "glass-strong" : "bg-white/95 border border-slate-200 shadow-sm"}`}>
+          <div className={`text-center font-medium ${isDark ? "text-white/60" : "text-slate-700"}`}>
+            <Loader2 className="mx-auto mb-3 size-7 animate-spin text-indigo-600" />
             Syncing registered Campus Connect users...
           </div>
         </div>
@@ -365,7 +370,7 @@ export function ConnectHub({
               />
             )
           ) : (
-            <div className="glass-strong grid min-h-0 place-items-center rounded-3xl text-center text-white/45">
+            <div className={`grid min-h-0 place-items-center rounded-3xl text-center font-medium ${isDark ? "glass-strong text-white/45" : "bg-white/95 border border-slate-200 text-slate-600 shadow-sm"}`}>
               No registered students or professors are available yet.
             </div>
           )}
@@ -400,33 +405,42 @@ function PeoplePanel({
   onRefresh: () => void;
   onSelect: (id: number) => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
-    <div className="glass-strong flex min-h-0 flex-col overflow-hidden rounded-3xl p-4">
+    <div className={`flex min-h-0 flex-col overflow-hidden rounded-3xl p-4 ${isDark ? "glass-strong" : "bg-white/95 border border-slate-200 shadow-sm"}`}>
       <div className="shrink-0">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.24em] text-white/35">Signed in as</div>
-            <div className="truncate font-medium">
+            <div className={`text-[10px] uppercase tracking-[0.24em] font-bold ${isDark ? "text-white/35" : "text-slate-500"}`}>Signed in as</div>
+            <div className={`truncate font-bold ${isDark ? "text-white" : "text-slate-950"}`}>
               {displayName} / {viewerRole}
             </div>
           </div>
           <button
             type="button"
             onClick={onRefresh}
-            className="grid size-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/55 transition hover:text-white"
+            className={`grid size-10 place-items-center rounded-xl border transition ${
+              isDark ? "border-white/10 bg-white/[0.04] text-white/55 hover:text-white" : "border-slate-300 bg-white text-slate-700 hover:text-slate-950 shadow-2xs"
+            }`}
             title="Refresh Connect"
           >
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
-        <label className="glass mt-4 flex items-center gap-3 rounded-2xl px-4 py-3">
-          <Search className="size-4 text-white/40" />
+        <label className={`mt-4 flex items-center gap-3 rounded-2xl px-4 py-3 border transition ${
+          isDark ? "glass border-white/10" : "bg-white border-slate-300 shadow-2xs focus-within:border-indigo-600"
+        }`}>
+          <Search className={`size-4 ${isDark ? "text-white/40" : "text-slate-400"}`} />
           <input
             value={query}
             onChange={(event) => onQuery(event.target.value)}
             placeholder="Search name, roll, email, department..."
-            className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/35"
+            className={`min-w-0 flex-1 bg-transparent text-sm outline-none ${
+              isDark ? "text-white placeholder:text-white/35" : "text-slate-950 font-semibold placeholder:text-slate-400"
+            }`}
           />
         </label>
 
@@ -446,41 +460,24 @@ function PeoplePanel({
             onClick={() => onSelect(person.id)}
             className={`group relative w-full overflow-hidden rounded-2xl border p-3 text-left transition ${
               person.id === selectedId
-                ? "border-fuchsia-300/40 bg-fuchsia-400/10"
-                : "border-white/8 bg-white/[0.03] hover:border-white/18"
+                ? isDark
+                  ? "border-fuchsia-300/40 bg-fuchsia-400/10"
+                  : "border-indigo-500 bg-indigo-50/90 shadow-2xs"
+                : isDark
+                  ? "border-white/8 bg-white/[0.03] hover:border-white/18"
+                  : "border-slate-200 bg-slate-50/80 hover:bg-slate-100/90"
             }`}
           >
-            {person.id === selectedId && (
-              <span
-                className="absolute inset-y-2 left-0 w-1 rounded-r-full"
-                style={{ background: "var(--grad-aurora)" }}
-              />
-            )}
             <div className="flex items-center gap-3">
               <PresenceAvatar person={person} />
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <div className="truncate font-medium">{person.name}</div>
-                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/35">
-                    {person.role}
-                  </span>
-                </div>
-                <div className="truncate text-xs text-white/45">{person.headline}</div>
+                <div className={`truncate font-bold text-sm ${isDark ? "text-white" : "text-slate-950"}`}>{person.name}</div>
+                <div className={`mt-0.5 truncate text-xs ${isDark ? "text-white/45" : "text-slate-600 font-medium"}`}>{person.headline || person.department}</div>
               </div>
               <RelationPill status={person.status} />
             </div>
           </button>
         ))}
-
-        {visiblePeople.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-white/12 p-5 text-center text-sm text-white/45">
-            No registered user matched your search.
-          </div>
-        )}
-      </div>
-
-      <div className="mt-4 shrink-0 border-t border-white/10 pt-3 text-xs text-white/35">
-        Live sync {syncedLabel ? `at ${syncedLabel}` : "enabled"}
       </div>
     </div>
   );
@@ -509,14 +506,16 @@ function ProfilePanel({
   onBlock: () => void;
   onUnblock: () => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const busy = Boolean(busyAction);
   const detailEntries = Object.entries(person.details ?? {});
   const quickStats = detailEntries.slice(0, 3);
   const presence = presenceForPerson(person);
 
   return (
-    <div className="glass-strong flex min-h-0 flex-col overflow-hidden rounded-3xl">
-      <div className="relative shrink-0 overflow-hidden border-b border-white/10 p-6">
+    <div className={`flex min-h-0 flex-col overflow-hidden rounded-3xl ${isDark ? "glass-strong" : "bg-white/95 border border-slate-200 shadow-sm"}`}>
+      <div className={`relative shrink-0 overflow-hidden border-b p-6 ${isDark ? "border-white/10" : "border-slate-200 bg-slate-50/50"}`}>
         <span className="absolute -right-12 -top-20 size-56 rounded-full bg-fuchsia-400/20 blur-3xl" />
         <span className="absolute -bottom-24 left-10 size-60 rounded-full bg-cyan-400/10 blur-3xl" />
 
@@ -524,12 +523,12 @@ function ProfilePanel({
           <div className="flex min-w-0 items-center gap-5">
             <PresenceAvatar person={person} large />
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-white/40">{person.role} profile</div>
-              <div className="mt-1 font-display text-4xl leading-tight">{person.name}</div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/55">
+              <div className={`text-[10px] uppercase tracking-[0.28em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>{person.role} profile</div>
+              <div className={`mt-1 font-display text-4xl leading-tight font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>{person.name}</div>
+              <div className={`mt-2 flex flex-wrap items-center gap-2 text-sm font-medium ${isDark ? "text-white/55" : "text-slate-700"}`}>
                 <span>{person.headline}</span>
-                <span className="size-1 rounded-full bg-white/25" />
-                <span className={presence === "Online" ? "text-emerald-200" : "text-white/45"}>{presence}</span>
+                <span className={`size-1 rounded-full ${isDark ? "bg-white/25" : "bg-slate-400"}`} />
+                <span className={presence === "Online" ? (isDark ? "text-emerald-200 font-bold" : "text-emerald-700 font-extrabold") : (isDark ? "text-white/45" : "text-slate-500")}>{presence}</span>
               </div>
             </div>
           </div>
@@ -562,8 +561,8 @@ function ProfilePanel({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-white/10 bg-[#080808]/70 p-4 backdrop-blur-xl">
-        <div className="mb-3 text-[10px] uppercase tracking-[0.24em] text-white/35">Connection actions</div>
+      <div className={`shrink-0 border-t p-4 backdrop-blur-xl ${isDark ? "border-white/10 bg-[#080808]/70" : "border-slate-200 bg-slate-100/90"}`}>
+        <div className={`mb-3 text-[10px] uppercase tracking-[0.24em] font-extrabold ${isDark ? "text-white/35" : "text-slate-600"}`}>Connection actions</div>
         <div className="flex flex-wrap gap-2">
           {person.status === "friend" && (
             <ActionButton icon={MessageCircle} label="Message" disabled={busy} onClick={onMessage} />
@@ -919,19 +918,23 @@ function RelationPill({ status }: { status: ConnectStatus }) {
 }
 
 function MiniCount({ label, value }: { label: string; value: number }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-2 py-3">
-      <div className="truncate text-[9px] uppercase tracking-[0.14em] text-white/35">{label}</div>
-      <div className="mt-1 font-display text-2xl">{value}</div>
+    <div className={`rounded-2xl border px-2 py-3 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50/80 shadow-2xs"}`}>
+      <div className={`truncate text-[9px] uppercase tracking-[0.14em] font-bold ${isDark ? "text-white/35" : "text-slate-500"}`}>{label}</div>
+      <div className={`mt-1 font-display text-2xl font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>{value}</div>
     </div>
   );
 }
 
 function ProfileMetric({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-3 backdrop-blur">
-      <div className="truncate text-[9px] uppercase tracking-[0.16em] text-white/35">{label}</div>
-      <div className="mt-1 truncate font-display text-sm text-white/85">{value}</div>
+    <div className={`rounded-2xl border px-3 py-3 backdrop-blur ${isDark ? "border-white/10 bg-white/[0.06]" : "border-indigo-100 bg-indigo-50/80 shadow-2xs"}`}>
+      <div className={`truncate text-[9px] uppercase tracking-[0.16em] font-bold ${isDark ? "text-white/35" : "text-indigo-900/70"}`}>{label}</div>
+      <div className={`mt-1 truncate font-display text-sm font-extrabold ${isDark ? "text-white/85" : "text-indigo-950"}`}>{value}</div>
     </div>
   );
 }
@@ -945,14 +948,18 @@ function ProfileLine({
   label: string;
   value: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3 transition hover:border-white/18 hover:bg-white/[0.055]">
-      <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/[0.06] text-white/55">
+    <div className={`flex gap-3 rounded-2xl border p-3 transition ${
+      isDark ? "border-white/10 bg-white/[0.035] hover:border-white/18 hover:bg-white/[0.055]" : "border-slate-200 bg-slate-50/80 hover:bg-slate-100 shadow-2xs"
+    }`}>
+      <div className={`grid size-10 shrink-0 place-items-center rounded-2xl ${isDark ? "bg-white/[0.06] text-white/55" : "bg-indigo-50 border border-indigo-200 text-indigo-600"}`}>
         <Icon className="size-4" />
       </div>
       <div className="min-w-0">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-white/35">{label}</div>
-        <div className="mt-1 break-words text-sm text-white/75">{value}</div>
+        <div className={`text-[10px] uppercase tracking-[0.22em] font-bold ${isDark ? "text-white/35" : "text-slate-500"}`}>{label}</div>
+        <div className={`mt-1 break-words text-sm font-semibold ${isDark ? "text-white/75" : "text-slate-900"}`}>{value}</div>
       </div>
     </div>
   );
@@ -973,20 +980,31 @@ function ActionButton({
   disabled?: boolean;
   loading?: boolean;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const toneClass =
     tone === "danger"
-      ? "border-rose-300/25 bg-rose-500/10 text-rose-100 hover:bg-rose-500/20"
+      ? isDark
+        ? "border-rose-300/25 bg-rose-500/10 text-rose-100 hover:bg-rose-500/20"
+        : "border-rose-300 bg-rose-50 text-rose-800 font-bold hover:bg-rose-100 shadow-2xs"
       : tone === "success"
-        ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
+        ? isDark
+          ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
+          : "border-emerald-300 bg-emerald-50 text-emerald-800 font-bold shadow-2xs"
         : tone === "muted"
-          ? "border-white/10 bg-white/[0.05] text-white/60 hover:text-white"
-          : "border-fuchsia-300/25 bg-fuchsia-400/10 text-white hover:bg-fuchsia-400/20";
+          ? isDark
+            ? "border-white/10 bg-white/[0.05] text-white/60 hover:text-white"
+            : "border-slate-300 bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 shadow-2xs"
+          : isDark
+            ? "border-fuchsia-300/25 bg-fuchsia-400/10 text-white hover:bg-fuchsia-400/20"
+            : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-extrabold shadow-md hover:opacity-90";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-55 ${toneClass}`}
+      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-55 ${toneClass}`}
     >
       {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Icon className="size-3.5" />}
       {label}

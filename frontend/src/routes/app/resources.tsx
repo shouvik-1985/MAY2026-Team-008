@@ -29,6 +29,7 @@ import {
 } from "@/lib/api";
 import { useStudentDashboard } from "@/lib/student-session";
 import { STUDY_SUBJECTS } from "@/lib/subjects";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/resources")({ component: ResourcesPage });
 
@@ -329,6 +330,8 @@ function previewKind(file: PreviewFileState, item: ResourceItem) {
 }
 
 function ResourcesPage() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const { dashboard } = useStudentDashboard();
 
   const defaultResources: ResourceItem[] = [
@@ -616,7 +619,11 @@ function ResourcesPage() {
         />
 
         <div className="flex items-center gap-2 self-start md:self-auto">
-          <div className="glass px-4 py-2 rounded-full text-xs font-semibold text-emerald-400 border border-emerald-500/30 flex items-center gap-2">
+          <div className={`px-4 py-2 rounded-full text-xs font-bold border flex items-center gap-2 ${
+            isDark
+              ? "glass text-emerald-400 border-emerald-500/30"
+              : "bg-white text-emerald-800 border-emerald-300 shadow-sm"
+          }`}>
             <BookOpen className="size-3.5" /> {rawResources.length} Library Items Available
           </div>
         </div>
@@ -626,52 +633,64 @@ function ResourcesPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 p-4 glass rounded-2xl border border-emerald-400/30 text-emerald-300 text-xs font-medium flex items-center gap-2"
+          className={`mb-6 p-4 rounded-2xl border text-xs font-semibold flex items-center gap-2 ${
+            isDark
+              ? "glass border-emerald-400/30 text-emerald-300"
+              : "bg-emerald-50 border-emerald-300 text-emerald-900 font-bold"
+          }`}
         >
-          <ShieldCheck className="size-4 shrink-0 text-emerald-400" />
+          <ShieldCheck className="size-4 shrink-0 text-emerald-600" />
           <span>{statusMsg}</span>
         </motion.div>
       )}
 
       {/* Top Library Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <GlassCard className="p-4 flex items-center gap-3">
-          <div className="size-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+        <GlassCard className={`p-4 flex items-center gap-3 ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+          <div className={`size-10 rounded-2xl flex items-center justify-center shrink-0 border ${
+            isDark ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400" : "bg-indigo-50 border-indigo-200 text-indigo-700"
+          }`}>
             <FileText className="size-5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">Total Notes</div>
-            <div className="font-display text-xl font-bold">{rawResources.length} Resources</div>
+            <div className={`text-[10px] uppercase tracking-wider font-bold ${isDark ? "text-white/50" : "text-slate-500"}`}>Total Notes</div>
+            <div className={`font-display text-xl font-bold ${isDark ? "text-white" : "text-slate-950"}`}>{rawResources.length} Resources</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-4 flex items-center gap-3">
-          <div className="size-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+        <GlassCard className={`p-4 flex items-center gap-3 ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+          <div className={`size-10 rounded-2xl flex items-center justify-center shrink-0 border ${
+            isDark ? "bg-amber-500/10 border-amber-500/20 text-amber-400" : "bg-amber-50 border-amber-200 text-amber-700"
+          }`}>
             <TrendingUp className="size-5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">Trending Material</div>
-            <div className="font-display text-xl font-bold text-amber-300">{trending.length} Featured Notes</div>
+            <div className={`text-[10px] uppercase tracking-wider font-bold ${isDark ? "text-white/50" : "text-slate-500"}`}>Trending Material</div>
+            <div className={`font-display text-xl font-extrabold ${isDark ? "text-amber-300" : "text-amber-800"}`}>{trending.length} Featured Notes</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-4 flex items-center gap-3">
-          <div className="size-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+        <GlassCard className={`p-4 flex items-center gap-3 ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+          <div className={`size-10 rounded-2xl flex items-center justify-center shrink-0 border ${
+            isDark ? "bg-purple-500/10 border-purple-500/20 text-purple-400" : "bg-purple-50 border-purple-200 text-purple-700"
+          }`}>
             <Sparkles className="size-5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">AI Quiz Generator</div>
-            <div className="font-display text-xl font-bold text-purple-300">Ready</div>
+            <div className={`text-[10px] uppercase tracking-wider font-bold ${isDark ? "text-white/50" : "text-slate-500"}`}>AI Quiz Generator</div>
+            <div className={`font-display text-xl font-extrabold ${isDark ? "text-purple-300" : "text-purple-800"}`}>Ready</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-4 flex items-center gap-3">
-          <div className="size-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+        <GlassCard className={`p-4 flex items-center gap-3 ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+          <div className={`size-10 rounded-2xl flex items-center justify-center shrink-0 border ${
+            isDark ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-700"
+          }`}>
             <Star className="size-5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">Saved Bookmarks</div>
-            <div className="font-display text-xl font-bold text-emerald-400">{bookmarks.length} Saved</div>
+            <div className={`text-[10px] uppercase tracking-wider font-bold ${isDark ? "text-white/50" : "text-slate-500"}`}>Saved Bookmarks</div>
+            <div className={`font-display text-xl font-extrabold ${isDark ? "text-emerald-400" : "text-emerald-800"}`}>{bookmarks.length} Saved</div>
           </div>
         </GlassCard>
       </div>
@@ -679,12 +698,16 @@ function ResourcesPage() {
       {/* Filter Tabs & Search Bar */}
       <div className="grid gap-3 mb-6 xl:grid-cols-[1fr_260px_260px]">
         <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-white/40" />
+          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 size-4 ${isDark ? "text-white/40" : "text-slate-500"}`} />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search notes, topics, or faculty..."
-            className="w-full glass rounded-full pl-11 pr-4 py-3 text-sm placeholder-white/30 focus:outline-none focus:border-white/30"
+            className={`w-full rounded-full pl-11 pr-4 py-3 text-sm focus:outline-none transition ${
+              isDark
+                ? "glass text-white placeholder-white/30 focus:border-white/30"
+                : "bg-white text-slate-950 border border-slate-300 placeholder:text-slate-500 font-semibold focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+            }`}
           />
         </div>
         <SearchableFilterInput
@@ -694,6 +717,7 @@ function ResourcesPage() {
           onChange={setSubjectFilter}
           options={["All subjects", ...STUDY_SUBJECTS]}
           placeholder="Filter by subject"
+          isDark={isDark}
         />
         <SearchableFilterInput
           id="student-resource-professor"
@@ -702,6 +726,7 @@ function ResourcesPage() {
           onChange={setProfessorFilter}
           options={professorOptions}
           placeholder="Filter by professor"
+          isDark={isDark}
         />
       </div>
 
@@ -711,10 +736,12 @@ function ResourcesPage() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-full text-xs uppercase tracking-[0.15em] transition whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-xs uppercase tracking-[0.15em] font-semibold transition whitespace-nowrap ${
               activeTab === tab
-                ? "bg-[var(--grad-aurora)] text-white font-semibold shadow-lg"
-                : "text-white/50 hover:text-white glass"
+                ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white font-extrabold shadow-md"
+                : isDark
+                  ? "text-white/50 hover:text-white glass"
+                  : "text-slate-700 hover:text-slate-950 bg-white border border-slate-300 font-bold shadow-sm"
             }`}
           >
             {tab === "⭐ Bookmarked" ? `⭐ Bookmarked (${bookmarks.length})` : tab}
@@ -724,9 +751,11 @@ function ResourcesPage() {
 
       {/* Trending Horizontal Carousel */}
       {activeTab === "All" && trending.length > 0 && (
-        <GlassCard className="mb-8">
+        <GlassCard className={`mb-8 ${!isDark ? "bg-white/90 border-slate-200 shadow-sm" : ""}`}>
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-amber-300 font-bold">
+            <div className={`flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] font-bold ${
+              isDark ? "text-amber-300" : "text-amber-800"
+            }`}>
               <TrendingUp className="size-3.5" /> Trending Study Material This Week
             </div>
           </div>
@@ -735,22 +764,36 @@ function ResourcesPage() {
               <div
                 key={r.id}
                 onClick={() => setActivePreview(r)}
-                className="glass rounded-2xl p-4 cursor-pointer hover:border-amber-400/50 hover:-translate-y-1 transition duration-300 group"
+                className={`rounded-2xl p-4 cursor-pointer transition duration-300 group ${
+                  isDark
+                    ? "glass hover:border-amber-400/50 hover:-translate-y-1"
+                    : "bg-white border border-slate-300 shadow-sm hover:border-amber-500 hover:-translate-y-1"
+                }`}
               >
-                <div className="h-24 rounded-xl mb-3 bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-amber-500/20 p-3 flex flex-col justify-between border border-white/10 group-hover:border-amber-400/40">
-                  <span className="text-[10px] uppercase tracking-wider text-amber-300 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full self-start border border-amber-500/30">
+                <div className={`h-24 rounded-xl mb-3 p-3 flex flex-col justify-between border ${
+                  isDark
+                    ? "bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-amber-500/20 border-white/10 group-hover:border-amber-400/40"
+                    : "bg-gradient-to-br from-indigo-100 via-purple-50 to-amber-100 border-indigo-200"
+                }`}>
+                  <span className={`text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full self-start border ${
+                    isDark ? "text-amber-300 bg-amber-500/10 border-amber-500/30" : "text-amber-900 bg-amber-100 border-amber-300"
+                  }`}>
                     {r.tag === "new" ? "NEW" : "TRENDING"}
                   </span>
-                  <div className="text-xs font-bold text-white line-clamp-1">{r.subject}</div>
+                  <div className={`text-xs font-extrabold line-clamp-1 ${isDark ? "text-white" : "text-slate-900"}`}>{r.subject}</div>
                 </div>
-                <div className="text-sm font-semibold text-white group-hover:text-amber-200 line-clamp-1">
+                <div className={`text-sm font-extrabold line-clamp-1 transition-colors ${
+                  isDark ? "text-white group-hover:text-amber-200" : "text-slate-950 group-hover:text-indigo-700"
+                }`}>
                   {r.title}
                 </div>
-                <div className="text-[11px] text-white/50 mt-1 flex items-center justify-between">
+                <div className={`text-[11px] mt-1 flex items-center justify-between font-semibold ${
+                  isDark ? "text-white/50" : "text-slate-600"
+                }`}>
                   <span>{r.professorName}</span>
                   <button
                     onClick={(e) => toggleBookmark(r.id, e)}
-                    className="text-white/40 hover:text-amber-300 transition"
+                    className={isDark ? "text-white/40 hover:text-amber-300 transition" : "text-slate-500 hover:text-amber-600 transition"}
                   >
                     <Bookmark className={`size-4 ${bookmarks.includes(r.id) ? "fill-amber-400 text-amber-400" : ""}`} />
                   </button>
@@ -770,50 +813,74 @@ function ResourcesPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.04 }}
           >
-            <GlassCard hover className="h-full flex flex-col justify-between relative overflow-hidden group">
+            <GlassCard hover className={`h-full flex flex-col justify-between relative overflow-hidden group ${
+              !isDark ? "bg-white/95 border-slate-200 shadow-sm hover:border-indigo-400" : ""
+            }`}>
               <div>
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <span className="text-[10px] uppercase tracking-widest font-bold px-2.5 py-0.5 rounded-full border bg-indigo-500/10 text-indigo-300 border-indigo-500/30">
+                  <span className={`text-[10px] uppercase tracking-widest font-extrabold px-2.5 py-0.5 rounded-full border ${
+                    isDark
+                      ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/30"
+                      : "bg-indigo-100 text-indigo-900 border-indigo-300"
+                  }`}>
                     {item.type || "Lecture Notes"}
                   </span>
                   <button
                     onClick={(e) => toggleBookmark(item.id, e)}
-                    className="text-white/40 hover:text-amber-300 transition"
+                    className={isDark ? "text-white/40 hover:text-amber-300 transition" : "text-slate-500 hover:text-amber-600 transition"}
                   >
                     <Bookmark className={`size-4.5 ${bookmarks.includes(item.id) ? "fill-amber-400 text-amber-400" : ""}`} />
                   </button>
                 </div>
 
-                <div className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">{item.subject}</div>
-                <h3 className="font-display text-lg font-bold text-white mt-1 group-hover:text-amber-200 transition-colors leading-snug">
+                <div className={`text-[11px] font-extrabold uppercase tracking-wider ${
+                  isDark ? "text-emerald-400" : "text-emerald-800"
+                }`}>{item.subject}</div>
+                <h3 className={`font-display text-lg font-extrabold mt-1 transition-colors leading-snug ${
+                  isDark ? "text-white group-hover:text-amber-200" : "text-slate-950 group-hover:text-indigo-800"
+                }`}>
                   {item.title}
                 </h3>
               </div>
 
-              <div className="mt-5 pt-3 border-t border-white/10">
-                <div className="flex items-center justify-between text-xs text-white/50 mb-3">
-                  <span className="flex items-center gap-1"><User className="size-3.5 text-white/40" /> {item.professorName}</span>
+              <div className={`mt-5 pt-3 border-t ${isDark ? "border-white/10" : "border-slate-200"}`}>
+                <div className={`flex items-center justify-between text-xs mb-3 font-semibold ${
+                  isDark ? "text-white/50" : "text-slate-600"
+                }`}>
+                  <span className="flex items-center gap-1"><User className={`size-3.5 ${isDark ? "text-white/40" : "text-slate-500"}`} /> {item.professorName}</span>
                   <span>{item.time}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setActivePreview(item)}
-                    className="flex-1 glass py-2 rounded-xl text-xs font-semibold text-white/90 hover:text-white border border-white/10 hover:border-white/20 transition flex items-center justify-center gap-1.5"
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      isDark
+                        ? "glass text-white/90 hover:text-white border border-white/10 hover:border-white/20"
+                        : "bg-slate-100 text-slate-900 hover:bg-slate-200 border border-slate-300 shadow-xs"
+                    }`}
                   >
-                    <Eye className="size-3.5 text-emerald-400" /> Preview Notes
+                    <Eye className={`size-3.5 ${isDark ? "text-emerald-400" : "text-emerald-700"}`} /> Preview Notes
                   </button>
                   <button
                     onClick={() => setAiSummaryModal(item)}
                     title="Generate AI Summary & Revision Quiz"
-                    className="glass p-2 rounded-xl text-purple-300 hover:text-white border border-purple-500/30 hover:bg-purple-500/10 transition"
+                    className={`p-2 rounded-xl border transition ${
+                      isDark
+                        ? "glass text-purple-300 hover:text-white border-purple-500/30 hover:bg-purple-500/10"
+                        : "bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-100"
+                    }`}
                   >
                     <Sparkles className="size-4" />
                   </button>
                   <button
                     onClick={() => void handleDownloadResource(item)}
                     title="Download Material"
-                    className="glass p-2 rounded-xl text-sky-300 hover:text-white border border-sky-500/30 hover:bg-sky-500/10 transition"
+                    className={`p-2 rounded-xl border transition ${
+                      isDark
+                        ? "glass text-sky-300 hover:text-white border-sky-500/30 hover:bg-sky-500/10"
+                        : "bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-100"
+                    }`}
                   >
                     <Download className="size-4" />
                   </button>
@@ -825,10 +892,14 @@ function ResourcesPage() {
 
         {filteredItems.length === 0 && (
           <div className="col-span-full">
-            <GlassCard className="text-center py-12">
-              <FileText className="size-10 mx-auto text-white/30 mb-3" />
-              <div className="text-base font-semibold text-white/80">No study resources match your search filter.</div>
-              <p className="text-xs text-white/40 mt-1">Try searching another subject or clearing your professor filter.</p>
+            <GlassCard className={`text-center py-12 ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+              <FileText className={`size-10 mx-auto mb-3 ${isDark ? "text-white/30" : "text-indigo-500"}`} />
+              <div className={`text-base font-extrabold ${isDark ? "text-white/80" : "text-slate-950"}`}>
+                No study resources match your search filter.
+              </div>
+              <p className={`text-xs font-semibold mt-1 ${isDark ? "text-white/40" : "text-slate-600"}`}>
+                Try searching another subject or clearing your professor filter.
+              </p>
             </GlassCard>
           </div>
         )}
@@ -1196,6 +1267,7 @@ function SearchableFilterInput({
   onChange,
   options,
   placeholder,
+  isDark = true,
 }: {
   id: string;
   icon: any;
@@ -1203,6 +1275,7 @@ function SearchableFilterInput({
   onChange: (val: string) => void;
   options: string[];
   placeholder: string;
+  isDark?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -1217,13 +1290,17 @@ function SearchableFilterInput({
       <button
         id={id}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full glass rounded-full px-4 py-3 text-sm text-left flex items-center justify-between text-white/80 hover:text-white transition"
+        className={`w-full rounded-full px-4 py-3 text-sm text-left flex items-center justify-between transition ${
+          isDark
+            ? "glass text-white/80 hover:text-white"
+            : "bg-white text-slate-950 border border-slate-300 font-bold hover:border-indigo-500 shadow-sm"
+        }`}
       >
         <div className="flex items-center gap-2 truncate">
-          <Icon className="size-4 text-white/40 shrink-0" />
+          <Icon className={`size-4 shrink-0 ${isDark ? "text-white/40" : "text-slate-500"}`} />
           <span className="truncate">{value}</span>
         </div>
-        <ChevronDown className="size-4 text-white/40 shrink-0" />
+        <ChevronDown className={`size-4 shrink-0 ${isDark ? "text-white/40" : "text-slate-500"}`} />
       </button>
 
       <AnimatePresence>
@@ -1232,13 +1309,17 @@ function SearchableFilterInput({
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 5 }}
-            className="absolute top-full left-0 right-0 mt-2 z-30 bg-[#11131a] border border-white/15 rounded-2xl p-2 shadow-2xl max-h-60 overflow-y-auto"
+            className={`absolute top-full left-0 right-0 mt-2 z-30 rounded-2xl p-2 shadow-2xl max-h-60 overflow-y-auto ${
+              isDark ? "bg-[#11131a] border border-white/15 text-white" : "bg-white border border-slate-300 text-slate-900"
+            }`}
           >
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={placeholder}
-              className="w-full glass rounded-xl px-3 py-2 text-xs bg-transparent text-white outline-none mb-2"
+              className={`w-full rounded-xl px-3 py-2 text-xs outline-none mb-2 ${
+                isDark ? "glass text-white placeholder-white/40" : "bg-slate-100 text-slate-900 placeholder:text-slate-500 font-semibold"
+              }`}
             />
             <div className="space-y-1">
               {filteredOptions.map((opt) => (
@@ -1249,8 +1330,14 @@ function SearchableFilterInput({
                     setIsOpen(false);
                     setSearch("");
                   }}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-xs transition ${
-                    value === opt ? "bg-emerald-500/20 text-emerald-300 font-semibold" : "text-white/70 hover:bg-white/5 hover:text-white"
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                    value === opt
+                      ? isDark
+                        ? "bg-emerald-500/20 text-emerald-300 font-bold"
+                        : "bg-indigo-50 text-indigo-900 font-extrabold"
+                      : isDark
+                        ? "text-white/70 hover:bg-white/5 hover:text-white"
+                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-950 font-medium"
                   }`}
                 >
                   {opt}

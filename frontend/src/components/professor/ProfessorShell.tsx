@@ -29,6 +29,7 @@ import {
 import { clearStoredDashboard } from "@/lib/student-session";
 import { NotificationCenter, type BackendNotification } from "@/components/app/NotificationCenter";
 import { clearStoredRole } from "@/lib/use-role";
+import { useTheme } from "@/lib/theme";
 
 const NAV = [
   { href: "#dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -44,7 +45,6 @@ const NAV = [
 export function ProfessorShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [dark, setDark] = useState(true);
   const [time, setTime] = useState(() => new Date());
   const [activeHash, setActiveHash] = useState(() =>
     typeof window === "undefined"
@@ -55,7 +55,9 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<EditableProfessorProfile | null>(() =>
     getStoredProfessorProfile(),
   );
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const isDark = theme === "dark";
   const displayName = profile?.name.trim() || user?.full_name || "Professor";
   const avatar = professorInitialsFromName(displayName);
   const currentAvatarUrl =
@@ -167,24 +169,43 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
         transition={{ type: "spring", stiffness: 220, damping: 28 }}
         className="fixed inset-y-0 left-0 z-40 hidden md:flex flex-col p-3"
       >
-        <div className="relative h-full glass-strong rounded-3xl flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-5">
+        <div
+          className={`relative h-full rounded-3xl flex flex-col overflow-hidden transition-all duration-300 ${
+            isDark
+              ? "bg-[#0b0e17]/95 border border-white/10 shadow-2xl text-white"
+              : "text-slate-900 shadow-lg shadow-slate-900/5"
+          }`}
+          style={
+            !isDark
+              ? {
+                  backgroundColor: "#F8FAFC",
+                  borderColor: "#E5E7EB",
+                  borderWidth: "1px",
+                  borderStyle: "solid",
+                }
+              : undefined
+          }
+        >
+          <div
+            className="flex items-center justify-between px-4 py-5"
+            style={{ borderBottom: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #E5E7EB" }}
+          >
             <Link to="/professor" className="flex items-center gap-2.5 min-w-0">
               <span
-                className="size-7 rounded-xl flex items-center justify-center shrink-0"
+                className="size-7.5 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/20"
                 style={{ background: "var(--grad-aurora)" }}
               >
-                <Sparkles className="size-3.5 text-white" />
+                <Sparkles className="size-4 text-white" />
               </span>
               {!collapsed && (
-                <span className="font-display text-sm tracking-[0.25em] uppercase truncate">
+                <span className={`font-display text-sm tracking-[0.25em] uppercase truncate font-black ${isDark ? "text-white" : "text-slate-950"}`}>
                   CampusVerse
                 </span>
               )}
             </Link>
             <button
               onClick={() => setCollapsed((value) => !value)}
-              className="text-white/40 hover:text-white"
+              className={isDark ? "text-slate-400 hover:text-white p-1 rounded-lg transition" : "text-slate-400 hover:text-slate-900 hover:bg-[#EEF2FF] p-1 rounded-lg transition"}
               aria-label="Collapse sidebar"
             >
               <motion.span animate={{ rotate: collapsed ? 180 : 0 }}>
@@ -193,7 +214,7 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
             </button>
           </div>
 
-          <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-0.5">
+          <nav className="flex-1 min-h-0 overflow-y-auto px-2.5 py-3 space-y-1">
             {NAV.map((item, index) => {
               const Icon = item.icon;
               const isActive = item.href === `#${activeHash}` || (activeHash === "" && index === 0);
@@ -208,33 +229,60 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
                     window.history.replaceState(null, "", item.href);
                     window.dispatchEvent(new HashChangeEvent("hashchange"));
                   }}
-                  className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm transition ${
-                    isActive ? "text-white" : "text-white/55 hover:text-white"
+                  className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
+                    isActive
+                      ? isDark
+                        ? "text-white font-bold bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
+                        : "text-[#3730A3] font-extrabold shadow-2xs"
+                      : isDark
+                        ? "text-slate-300/80 font-medium hover:text-white hover:bg-white/10"
+                        : "text-slate-700 font-semibold hover:text-[#3730A3]"
                   }`}
+                  style={
+                    !isDark
+                      ? {
+                          backgroundColor: isActive ? "#EEF2FF" : undefined,
+                          borderLeft: isActive ? "4px solid #6D5DF6" : "4px solid transparent",
+                        }
+                      : undefined
+                  }
+                  onMouseEnter={(e) => {
+                    if (!isDark && !isActive) {
+                      e.currentTarget.style.backgroundColor = "#EEF2FF";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isDark && !isActive) {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }
+                  }}
                 >
-                  {isActive && (
-                    <span
-                      className="absolute inset-0 rounded-2xl"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, oklch(0.65 0.28 305 / 0.25), oklch(0.82 0.18 200 / 0.1))",
-                        border: "1px solid oklch(0.7 0.25 310 / 0.4)",
-                      }}
-                    />
-                  )}
-                  <Icon className="relative z-10 size-4 shrink-0" />
+                  <Icon className={`size-4 shrink-0 transition-colors ${
+                    isActive
+                      ? isDark ? "text-white" : "text-[#6D5DF6]"
+                      : isDark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-[#6D5DF6]"
+                  }`} />
                   {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
                 </a>
               );
             })}
 
-            <div className="mt-2 pt-2 border-t border-white/10">
+            <div
+              className="mt-3 pt-3"
+              style={{ borderTop: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #E5E7EB" }}
+            >
               <button
                 onClick={logout}
                 disabled={loggingOut}
-                className="group relative flex w-full items-center gap-3 px-3 py-2.5 rounded-2xl text-sm text-rose-100 bg-rose-500/10 border border-rose-300/20 hover:bg-rose-500/20 hover:border-rose-200/40 transition disabled:opacity-60 disabled:cursor-wait"
+                className={`group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-bold transition disabled:cursor-wait disabled:opacity-60 ${
+                  isDark
+                    ? "border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-400/50"
+                    : "border-rose-200/80 bg-rose-50/80 text-rose-600 hover:bg-rose-100/90 hover:text-rose-700 hover:border-rose-300 shadow-2xs"
+                }`}
               >
-                <LogOut className="relative z-10 size-4 shrink-0" />
+                <div className={`size-7 rounded-xl flex items-center justify-center shrink-0 ${isDark ? "bg-rose-500/20 text-rose-300" : "bg-rose-100 text-rose-600"}`}>
+                  <LogOut className="size-4" />
+                </div>
                 {!collapsed && (
                   <span className="relative z-10 truncate">
                     {loggingOut ? "Logging out" : "Logout"}
@@ -249,33 +297,45 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
       <div
         className={`min-h-screen transition-[padding] duration-300 ${collapsed ? "md:pl-[100px]" : "md:pl-[292px]"}`}
       >
-        <header className="sticky top-0 z-30 px-5 md:px-10 pt-4 pb-3 backdrop-blur-xl bg-[#050505]/60">
+        <header className="sticky top-0 z-30 bg-[color:var(--glass-nav-bg)] px-5 pb-3 pt-4 backdrop-blur-xl md:px-10">
           <div className="flex items-center gap-3">
             <div className="hidden md:block min-w-0">
-              <div className="text-xs uppercase tracking-[0.3em] text-white/40">Professor desk</div>
+              <div className={`text-xs uppercase tracking-[0.3em] ${isDark ? "text-white/40" : "text-slate-500"}`}>Professor desk</div>
               <div className="font-display text-lg truncate">{displayName}</div>
             </div>
-            <button className="flex-1 max-w-xl flex items-center gap-3 glass rounded-full px-4 py-2.5 text-sm text-white/50 hover:text-white hover:border-white/20 transition">
+            <button className={`flex max-w-xl flex-1 items-center gap-3 rounded-full glass px-4 py-2.5 text-sm transition ${
+              isDark
+                ? "text-white/50 hover:text-white hover:border-white/20"
+                : "text-slate-500 hover:text-slate-900 hover:border-slate-300/60"
+            }`}>
               <Search className="size-4" />
               <span className="flex-1 text-left">Search students, submissions, resources...</span>
               <kbd className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-white/10">
                 Ctrl K
               </kbd>
             </button>
-            <div className="hidden lg:flex items-center gap-2 text-xs text-white/45 px-3">
+            <div className={`hidden lg:flex items-center gap-2 px-3 text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>
               <span className="size-1.5 rounded-full bg-emerald-400 pulse-glow" />
               {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
             <button
-              onClick={() => setDark((value) => !value)}
-              className="relative size-10 rounded-full glass flex items-center justify-center text-white/70 hover:text-white hover:border-white/20 transition"
+              onClick={toggleTheme}
+              className={`relative flex size-10 items-center justify-center rounded-full glass transition ${
+                isDark
+                  ? "text-white/70 hover:text-white hover:border-white/20"
+                  : "text-slate-500 hover:text-slate-900 hover:border-slate-300/60"
+              }`}
               aria-label="Theme"
             >
-              {dark ? <Moon className="size-4" /> : <Sun className="size-4" />}
+              {isDark ? <Moon className="size-4" /> : <Sun className="size-4" />}
             </button>
             <button
               onClick={() => setOpenNotif(true)}
-              className="relative size-10 rounded-full glass flex items-center justify-center text-white/70 hover:text-white hover:border-white/20 transition"
+              className={`relative flex size-10 items-center justify-center rounded-full glass transition ${
+                isDark
+                  ? "text-white/70 hover:text-white hover:border-white/20"
+                  : "text-slate-500 hover:text-slate-900 hover:border-slate-300/60"
+              }`}
               aria-label="Campus Notifications"
             >
               <Bell className="size-4" />
