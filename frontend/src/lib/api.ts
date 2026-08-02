@@ -1017,7 +1017,7 @@ function labelFromValidationLocation(location: unknown) {
 }
 
 function formatErrorDetail(detail: unknown, fallback: string) {
-  if (typeof detail === "string") return detail;
+  if (typeof detail === "string") return detail.trim() || fallback;
   if (Array.isArray(detail)) {
     const messages = detail
       .map((item) => {
