@@ -22,7 +22,9 @@ import {
   Save,
   Search,
   ShieldCheck,
+  Sun,
   Megaphone,
+  Moon,
   ShoppingBag,
   Send,
   Sparkles,
@@ -32,6 +34,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useTheme } from "@/lib/theme";
 import { ComplaintStageStrip } from "@/components/app/ComplaintStageStrip";
 import { MarketplaceExperience } from "@/components/marketplace/MarketplaceExperience";
 import {
@@ -94,6 +97,8 @@ function normalizeAdminSection(hash: string): AdminSection {
 }
 
 function AdminDeskPage() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [settings, setSettings] = useState<CampusAttendanceSettings | null>(null);
   const [activeSection, setActiveSection] = useState(() =>
@@ -652,7 +657,9 @@ function AdminDeskPage() {
   }
 
   if (loading && !dashboard) {
-    return <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-8 text-white/60">Loading admin desk...</div>;
+    return <div className={`rounded-[28px] border p-8 ${
+      isDark ? "border-white/10 bg-white/[0.04] text-white/60" : "border-slate-200 bg-white/90 text-slate-500 shadow-sm"
+    }`}>Loading admin desk...</div>;
   }
 
   const visible = (section: AdminSection) => activeSection === section;
@@ -701,70 +708,75 @@ function AdminDeskPage() {
   const rejectedCertificateRequests = filteredCertificateRequests.filter((request) => request.status === "rejected").length;
 
   return (
-    <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
+    <div className="cv-admin-content mx-auto max-w-[1480px] space-y-6 pb-10">
       <section className="grid gap-4 xl:grid-cols-[1fr_auto]">
-        <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-2xl">
+        <div className={`rounded-[28px] border p-4 backdrop-blur-2xl ${
+          isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white/95 shadow-sm"
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-white/10">
-              <Search className="size-4 text-cyan-200" />
+            <div className={`flex size-11 items-center justify-center rounded-2xl ${
+              isDark ? "bg-white/10" : "bg-indigo-50 border border-indigo-100"
+            }`}>
+              <Search className={`size-4 ${isDark ? "text-cyan-200" : "text-indigo-500"}`} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] uppercase tracking-[0.32em] text-white/40">Full-campus administration</div>
+              <div className={`text-[10px] uppercase tracking-[0.32em] font-bold ${
+                isDark ? "text-white/40" : "text-slate-400"
+              }`}>Full-campus administration</div>
               <input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search student, professor, account details..."
-                className="mt-2 w-full bg-transparent text-sm text-white outline-none placeholder:text-white/28"
+                className={`mt-2 w-full bg-transparent text-sm outline-none ${
+                  isDark ? "text-white placeholder:text-white/28" : "text-slate-900 placeholder:text-slate-400"
+                }`}
               />
             </div>
           </div>
         </div>
-        {activeSection === "management" ? (
-          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] p-1 text-xs uppercase tracking-[0.18em]">
-            <button
-              type="button"
-              onClick={() => setManagementView("tracker")}
-              className={`rounded-full px-4 py-2 transition ${
-                managementView === "tracker" ? "bg-white/12 text-white" : "text-white/45 hover:text-white"
-              }`}
-            >
-              Tracker
-            </button>
-            <button
-              type="button"
-              onClick={() => setManagementView("slots")}
-              className={`rounded-full px-4 py-2 transition ${
-                managementView === "slots" ? "bg-white/12 text-white" : "text-white/45 hover:text-white"
-              }`}
-            >
-              Slots
-            </button>
+        <div className="flex flex-col gap-3">
+          <div className={`flex items-center justify-between gap-3 rounded-full border px-4 py-2 text-xs uppercase tracking-[0.18em] ${
+            isDark ? "border-white/10 bg-white/[0.04] text-white/50" : "border-slate-200 bg-white/95 text-slate-700 shadow-sm"
+          }`}>
+            <div className="flex flex-wrap items-center gap-2">
+              {activeSection === "management" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setManagementView("tracker")}
+                    className={`rounded-full px-4 py-2 transition ${
+                      managementView === "tracker" ? "bg-white/12 text-white" : "text-white/45 hover:text-white"
+                    }`}
+                  >
+                    Tracker
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setManagementView("slots")}
+                    className={`rounded-full px-4 py-2 transition ${
+                      managementView === "slots" ? "bg-white/12 text-white" : "text-white/45 hover:text-white"
+                    }`}
+                  >
+                    Slots
+                  </button>
+                </>
+              ) : activeSection === "announcements" ? (
+                <span>{announcements.length} announcements broadcasted</span>
+              ) : activeSection === "fees" ? (
+                <span>{filteredFeeStudents.length} students / {filteredFeePending} pending</span>
+              ) : activeSection === "certificate" ? (
+                <span>{filteredCertificateRequests.length} certificates / {pendingCertificateRequests} pending</span>
+              ) : activeSection === "complaints" ? (
+                <span>{filteredComplaints.length} complaints / {resolvedComplaints} resolved</span>
+              ) : activeSection === "marketplace" ? (
+                <span>Shared marketplace inventory</span>
+              ) : (
+                <span>{dashboard?.students.length ?? 0} students / {dashboard?.professors.length ?? 0} professors</span>
+              )}
+            </div>
+
           </div>
-        ) : activeSection === "announcements" ? (
-          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
-            {announcements.length} announcements broadcasted
-          </div>
-        ) : activeSection === "fees" ? (
-          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
-            {filteredFeeStudents.length} students / {filteredFeePending} pending
-          </div>
-        ) : activeSection === "certificate" ? (
-          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
-            {filteredCertificateRequests.length} certificates / {pendingCertificateRequests} pending
-          </div>
-        ) : activeSection === "complaints" ? (
-          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
-            {filteredComplaints.length} complaints / {resolvedComplaints} resolved
-          </div>
-        ) : activeSection === "marketplace" ? (
-          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
-            Shared marketplace inventory
-          </div>
-        ) : (
-          <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/50">
-            {dashboard?.students.length ?? 0} students / {dashboard?.professors.length ?? 0} professors
-          </div>
-        )}
+        </div>
       </section>
 
       <section id="marketplace" className={visible("marketplace") ? "space-y-6" : "hidden"}>
@@ -776,14 +788,20 @@ function AdminDeskPage() {
       <section id="dashboard" className={visible("dashboard") ? "space-y-6" : "hidden"}>
         <div className="grid gap-6 xl:grid-cols-[1fr_320px] xl:items-end">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] uppercase tracking-[0.35em] text-white/45">
+            <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.35em] font-bold ${
+              isDark ? "border-white/10 text-white/45" : "border-slate-300 bg-white/80 text-slate-600 shadow-2xs"
+            }`}>
               <ShieldCheck className="size-3.5" />
               Administrator command center
             </div>
-            <h1 className="mt-5 max-w-5xl font-display text-5xl font-bold tracking-tight md:text-7xl">
+            <h1 className={`mt-5 max-w-5xl font-display text-5xl font-bold tracking-tight md:text-7xl ${
+              isDark ? "text-white" : "text-slate-900"
+            }`}>
               Full-campus control with the same CampusVerse feel
             </h1>
-            <p className="mt-5 max-w-3xl text-white/55">
+            <p className={`mt-5 max-w-3xl font-medium ${
+              isDark ? "text-white/55" : "text-slate-600"
+            }`}>
               Monitor student versus professor ratio, track attendance health, and manage student and professor accounts from one unified admin desk.
             </p>
           </div>
@@ -2142,15 +2160,21 @@ function Panel({
   title: string;
   children: ReactNode;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-2xl">
+    <div className={`rounded-[30px] border p-5 shadow-2xl backdrop-blur-2xl transition ${
+      isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white/95 shadow-slate-200/50 text-slate-900"
+    }`}>
       <div className="flex items-start gap-4">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">
-          <Icon className="size-5 text-cyan-200" />
+        <div className={`flex size-12 shrink-0 items-center justify-center rounded-2xl ${
+          isDark ? "bg-white/10" : "bg-indigo-50 text-indigo-600 border border-indigo-100"
+        }`}>
+          <Icon className={`size-5 ${isDark ? "text-cyan-200" : "text-indigo-600"}`} />
         </div>
         <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.35em] text-white/40">{eyebrow}</div>
-          {title ? <h2 className="font-display text-[2rem] leading-none text-white">{title}</h2> : null}
+          <div className={`text-[10px] uppercase tracking-[0.35em] font-bold ${isDark ? "text-white/40" : "text-slate-400"}`}>{eyebrow}</div>
+          {title ? <h2 className={`font-display text-[2rem] leading-none font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{title}</h2> : null}
         </div>
       </div>
       <div className={title ? "mt-6" : "mt-4"}>{children}</div>
@@ -2175,18 +2199,24 @@ function DetailPanel({
   status?: ReactNode;
   children: ReactNode;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-2xl">
+    <div className={`rounded-[30px] border p-5 shadow-2xl backdrop-blur-2xl transition ${
+      isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white/95 shadow-slate-200/50 text-slate-900"
+    }`}>
       <div className="flex items-start gap-4">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">
-          <Icon className="size-5 text-cyan-200" />
+        <div className={`flex size-12 shrink-0 items-center justify-center rounded-2xl ${
+          isDark ? "bg-white/10" : "bg-indigo-50 text-indigo-600 border border-indigo-100"
+        }`}>
+          <Icon className={`size-5 ${isDark ? "text-cyan-200" : "text-indigo-600"}`} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] uppercase tracking-[0.35em] text-white/40">{eyebrow}</div>
+          <div className={`text-[10px] uppercase tracking-[0.35em] font-bold ${isDark ? "text-white/40" : "text-slate-400"}`}>{eyebrow}</div>
           <div className="mt-2 flex items-start gap-3">
             {avatar ? <AvatarBadge value={avatar} imageUrl={avatarUrl} large /> : null}
             <div className="min-w-0 flex-1">
-              <h2 className="truncate font-display text-[2rem] leading-none text-white">{title}</h2>
+              <h2 className={`truncate font-display text-[2rem] leading-none font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{title}</h2>
             </div>
             {status}
           </div>
@@ -2198,11 +2228,15 @@ function DetailPanel({
 }
 
 function MetricCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
-      <div className="text-[10px] uppercase tracking-[0.28em] text-white/40">{label}</div>
-      <div className="mt-4 font-display text-3xl font-bold text-white break-words">{value}</div>
-      <div className="mt-2 text-sm text-white/45">{hint}</div>
+    <div className={`rounded-[24px] border p-5 backdrop-blur-xl transition ${
+      isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white/95 shadow-sm"
+    }`}>
+      <div className={`text-[10px] uppercase tracking-[0.28em] font-bold ${isDark ? "text-white/40" : "text-slate-400"}`}>{label}</div>
+      <div className={`mt-4 font-display text-3xl font-bold break-words ${isDark ? "text-white" : "text-slate-900"}`}>{value}</div>
+      <div className={`mt-2 text-sm font-medium ${isDark ? "text-white/45" : "text-slate-500"}`}>{hint}</div>
     </div>
   );
 }
@@ -2218,17 +2252,19 @@ function RatioRow({
   percent: number;
   tone: "cyan" | "pink";
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const gradient =
     tone === "cyan"
       ? "linear-gradient(90deg, #16d5ff 0%, #00b9ff 100%)"
       : "linear-gradient(90deg, #ff5ec7 0%, #f139a7 100%)";
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 text-sm text-white">
+      <div className={`flex items-center justify-between gap-3 text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
         <span>{label}</span>
-        <span className="text-white/60">{value}</span>
+        <span className={isDark ? "text-white/60" : "text-slate-500"}>{value}</span>
       </div>
-      <div className="mt-3 h-3 rounded-full bg-white/10">
+      <div className={`mt-3 h-3 rounded-full ${isDark ? "bg-white/10" : "bg-slate-100"}`}>
         <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(percent, 6)}%`, background: gradient }} />
       </div>
     </div>
@@ -2268,15 +2304,21 @@ function InlineSearch({
   onChange: (value: string) => void;
   placeholder: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/[0.06] px-4 py-3">
+    <div className={`rounded-[24px] border px-4 py-3 ${
+      isDark ? "border-white/10 bg-white/[0.06]" : "border-slate-200 bg-white shadow-2xs"
+    }`}>
       <div className="flex items-center gap-3">
-        <Search className="size-4 text-white/35" />
+        <Search className={`size-4 ${isDark ? "text-white/35" : "text-slate-400"}`} />
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/28"
+          className={`w-full bg-transparent text-sm outline-none ${
+            isDark ? "text-white placeholder:text-white/28" : "text-slate-900 placeholder:text-slate-400"
+          }`}
         />
       </div>
     </div>
@@ -2284,7 +2326,11 @@ function InlineSearch({
 }
 
 function ReadonlyField({ value }: { value: string }) {
-  return <div className="rounded-[22px] border border-white/10 bg-white/[0.06] px-4 py-3 text-white/75">{value}</div>;
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  return <div className={`rounded-[22px] border px-4 py-3 font-mono text-sm ${
+    isDark ? "border-white/10 bg-white/[0.06] text-white/75" : "border-slate-200 bg-slate-100 text-slate-800"
+  }`}>{value}</div>;
 }
 
 function avatarFromName(name: string) {
@@ -2322,17 +2368,25 @@ function ListActionButton({
   tone?: "neutral" | "rose" | "emerald";
   disabled?: boolean;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const className =
     tone === "rose"
-      ? "border-rose-300/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/20"
+      ? isDark
+        ? "border-rose-300/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/20 disabled:border-rose-300/20 disabled:bg-rose-500/10 disabled:text-rose-100"
+        : "border-rose-300/60 bg-rose-100 text-rose-700 hover:bg-rose-200 disabled:border-rose-300/60 disabled:bg-rose-100/90 disabled:text-rose-700"
       : tone === "emerald"
-        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20"
-        : "border-white/10 bg-white/[0.06] text-white/70 hover:text-white";
+        ? isDark
+          ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20 disabled:border-emerald-300/20 disabled:bg-emerald-400/10 disabled:text-emerald-100"
+          : "border-emerald-300/60 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 disabled:border-emerald-300/60 disabled:bg-emerald-100/90 disabled:text-emerald-700"
+        : isDark
+          ? "border-white/10 bg-white/[0.06] text-white/70 hover:text-white disabled:border-white/10 disabled:bg-white/[0.06] disabled:text-white/70"
+          : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200 hover:text-slate-950 disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-800";
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[10px] uppercase tracking-[0.18em] transition disabled:cursor-wait disabled:opacity-60 ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[10px] uppercase tracking-[0.18em] transition disabled:cursor-wait disabled:opacity-95 ${className}`}
     >
       <Icon className="size-3.5" />
       {children}
@@ -2345,17 +2399,25 @@ function DetailGrid({ children }: { children: ReactNode }) {
 }
 
 function DetailCard({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className={`rounded-[24px] border border-white/10 bg-white/[0.03] ${compact ? "p-3" : "p-4"}`}>
-      <div className="text-[10px] uppercase tracking-[0.28em] text-white/35">{label}</div>
-      <div className={`${compact ? "mt-2 text-base" : "mt-3 text-lg"} text-white/85 break-words`}>{value}</div>
+    <div className={`rounded-[24px] border ${compact ? "p-3" : "p-4"} ${
+      isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"
+    }`}>
+      <div className={`text-[10px] uppercase tracking-[0.28em] font-bold ${isDark ? "text-white/35" : "text-slate-400"}`}>{label}</div>
+      <div className={`${compact ? "mt-2 text-base" : "mt-3 text-lg"} font-medium break-words ${isDark ? "text-white/85" : "text-slate-900"}`}>{value}</div>
     </div>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-[24px] border border-dashed border-white/15 bg-white/[0.02] px-5 py-10 text-center text-sm text-white/45">
+    <div className={`rounded-[24px] border border-dashed px-5 py-10 text-center text-sm ${
+      isDark ? "border-white/15 bg-white/[0.02] text-white/45" : "border-slate-300 bg-slate-50 text-slate-500"
+    }`}>
       {text}
     </div>
   );

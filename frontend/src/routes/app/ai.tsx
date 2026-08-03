@@ -41,7 +41,7 @@ const SCROLL_HIDE = `
   .msg-group:hover .msg-actions { opacity: 1; }
 `;
 
-export function AIPage() {
+function AIPage() {
   const { dashboard } = useStudentDashboard();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const backendPrompts = dashboard?.ai_context.suggested_prompts ?? [];
@@ -374,11 +374,11 @@ export function AIPage() {
               <div style={{ height: 1, background: "rgba(255,255,255,.07)", marginBottom: 12 }} />
 
               {/* Your Context */}
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.28em", fontFamily: "monospace", color: "rgba(255,255,255,.3)", marginBottom: 10 }}>Your Context</div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.28em", fontFamily: "monospace", color: "rgba(255,255,255,.65)", marginBottom: 10 }}>Your Context</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                 {stats.map(s => (
                   <div key={s.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "rgba(255,255,255,.42)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "rgba(255,255,255,.78)" }}>
                       <s.icon size={11} color={s.color} />{s.label}
                     </div>
                     <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: s.color }}>{s.value}</span>
@@ -403,17 +403,17 @@ export function AIPage() {
 
             {/* ② Quick Actions */}
             <div style={{ borderRadius: 14, background: "rgba(7,7,16,.97)", border: "1px solid rgba(255,255,255,.07)", padding: "13px 14px", flex: 1, minHeight: 0 }}>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.28em", fontFamily: "monospace", color: "rgba(255,255,255,.3)", marginBottom: 9 }}>Quick Actions</div>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.28em", fontFamily: "monospace", color: "rgba(255,255,255,.65)", marginBottom: 9 }}>Quick Actions</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 {CAPS.map(c => (
                   <button key={c.label} onClick={() => void send(c.prompt, null)}
                     style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 9, border: "none", background: "transparent", cursor: "pointer", textAlign: "left", width: "100%", transition: "background .15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,.04)")}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,.08)")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                     <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${c.from},${c.to})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <c.icon size={11} color="#fff" />
                     </div>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,.5)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.label}</span>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,.82)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.label}</span>
                   </button>
                 ))}
               </div>
@@ -423,7 +423,7 @@ export function AIPage() {
             {msgs.length > 1 && (
               <div style={{ borderRadius: 14, background: "rgba(124,58,237,.08)", border: "1px solid rgba(124,58,237,.25)", padding: "10px", textAlign: "center", flexShrink: 0 }}>
                 <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Space Grotesk',sans-serif", color: "#c4b5fd" }}>{msgs.length - 1}</div>
-                <div style={{ fontSize: 9, fontFamily: "monospace", color: "rgba(255,255,255,.28)", marginTop: 1 }}>messages this session</div>
+                <div style={{ fontSize: 9, fontFamily: "monospace", color: "rgba(255,255,255,.6)", marginTop: 1 }}>messages this session</div>
               </div>
             )}
           </div>

@@ -237,11 +237,11 @@ function Nav() {
   const op = useTransform(scrollY, [0, 200], [0, 1]);
   return (
     <motion.nav style={{ opacity: op }} className="fixed top-0 inset-x-0 z-[100] px-6 lg:px-10 pt-5">
-      <div className="glass-nav mx-auto max-w-7xl rounded-full px-5 py-3 flex items-center justify-between">
+      <div className="mx-auto max-w-7xl rounded-full px-5 py-3 flex items-center justify-between border border-white/10 bg-black/70 backdrop-blur-2xl shadow-2xl">
         <a
           href="#top"
           data-cursor="hover"
-          className="flex items-center gap-2 text-sm font-display tracking-[0.25em] uppercase"
+          className="flex items-center gap-2 text-sm font-display tracking-[0.25em] uppercase text-white font-bold"
         >
           <span
             className="inline-block size-2 rounded-full"
@@ -249,13 +249,13 @@ function Nav() {
           />
           CampusVerse
         </a>
-        <div className="hidden md:flex items-center gap-7 text-xs uppercase tracking-[0.25em] text-white/90 font-medium">
+        <div className="hidden md:flex items-center gap-7 text-xs uppercase tracking-[0.25em] text-white/90 font-semibold">
           {["Ecosystem", "AI", "Features", "Twin", "Journey"].map((l) => (
             <a
               key={l}
               href={`#${l.toLowerCase()}`}
               data-cursor="hover"
-              className="hover:text-white transition"
+              className="text-white/80 hover:text-white transition"
             >
               {l}
             </a>

@@ -34,9 +34,11 @@ import {
   MoonStar,
   Sparkles,
   ShieldCheck,
+  Sun,
   UserPlus,
   Users,
 } from "lucide-react";
+import { useTheme } from "@/lib/theme";
 import { CinematicBackdrop } from "@/components/app/cinematic";
 import { getStudentDashboard, googleLogin, loginAccount, registerAccount } from "@/lib/api";
 import { setAuthSession, type AuthResponse } from "@/lib/auth";
@@ -83,6 +85,8 @@ type ScenePointer = { x: number; y: number };
 const reactionPause = () => new Promise((resolve) => window.setTimeout(resolve, 420));
 
 function LoginPage() {
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === "dark";
   const navigate = useNavigate();
   const rawGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
   const googleClientId =
@@ -163,6 +167,8 @@ function LoginPage() {
       setBusy(false);
     }
   });
+
+
 
   useEffect(() => {
     const clientId = googleClientId;
@@ -262,13 +268,18 @@ function LoginPage() {
   }
 
   return (
-    <>
-      <CinematicBackdrop intensity={0.55} />
-      <div className="relative min-h-screen flex flex-col overflow-x-hidden px-4 py-6 text-white sm:px-6 sm:py-8">
+    <div className={`relative min-h-screen w-full transition-colors ${
+      isDark ? "bg-[#07070d] text-white" : "bg-slate-100 text-slate-900"
+    }`}>
+      {isDark ? <div className="fixed inset-0 z-[0] bg-[#07070d]" /> : null}
+      <CinematicBackdrop intensity={isDark ? 0.55 : 0.2} />
+      <div className="relative z-[1] flex min-h-screen flex-col overflow-x-hidden px-4 py-6 sm:px-6 sm:py-8">
         <motion.div
           className="pointer-events-none absolute left-[8%] top-[10%] h-44 w-44 rounded-full blur-3xl"
           style={{
-            background: "radial-gradient(circle, oklch(0.82 0.18 200 / 0.28), transparent 70%)",
+            background: isDark
+              ? "radial-gradient(circle, oklch(0.82 0.18 200 / 0.28), transparent 70%)"
+              : "radial-gradient(circle, oklch(0.85 0.15 200 / 0.4), transparent 70%)",
           }}
           animate={{ opacity: [0.24, 0.44, 0.24], scale: [1, 1.08, 1] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
@@ -276,24 +287,57 @@ function LoginPage() {
         <motion.div
           className="pointer-events-none absolute bottom-[8%] right-[6%] h-56 w-56 rounded-full blur-3xl"
           style={{
-            background: "radial-gradient(circle, oklch(0.65 0.25 260 / 0.22), transparent 70%)",
+            background: isDark
+              ? "radial-gradient(circle, oklch(0.65 0.25 260 / 0.22), transparent 70%)"
+              : "radial-gradient(circle, oklch(0.7 0.2 260 / 0.3), transparent 70%)",
           }}
           animate={{ opacity: [0.2, 0.36, 0.2], scale: [1, 1.12, 1] }}
           transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
         />
-        <Link
-          to="/"
-          className="absolute left-6 top-6 z-10 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-white/55 transition hover:text-white"
-        >
-          <span
-            className="size-2 rounded-full"
-            style={{
-              background: "linear-gradient(135deg, oklch(0.82 0.18 200), oklch(0.72 0.16 230))",
-              boxShadow: "0 0 12px oklch(0.82 0.18 200 / 0.55)",
-            }}
-          />
-          CampusVerse
-        </Link>
+
+        {/* Top Header Bar */}
+        <div className="relative z-30 flex w-full max-w-5xl mx-auto items-center justify-between pb-6 pt-2">
+          <Link
+            to="/"
+            className={`flex items-center gap-3 text-sm font-black uppercase tracking-[0.26em] transition hover:opacity-85 ${
+              isDark ? "text-white drop-shadow-md" : "text-slate-900 font-extrabold drop-shadow-xs"
+            }`}
+          >
+            <span
+              className="size-3.5 rounded-full shadow-md shrink-0"
+              style={{
+                background: "linear-gradient(135deg, oklch(0.82 0.18 200), oklch(0.72 0.16 230))",
+                boxShadow: "0 0 12px oklch(0.82 0.18 200 / 0.8)",
+              }}
+            />
+            <span className="font-extrabold tracking-[0.25em]">CampusVerse</span>
+          </Link>
+
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-extrabold shadow-lg backdrop-blur-xl transition hover:scale-105 active:scale-95 cursor-pointer ${
+              isDark
+                ? "border-amber-400/40 bg-[#121124]/90 text-amber-300 hover:bg-[#1c1a38] shadow-amber-500/10"
+                : "border-indigo-300 bg-white/95 text-indigo-900 hover:bg-white shadow-md shadow-indigo-100/80"
+            }`}
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDark ? (
+              <>
+                <Sun className="size-4 text-amber-400 fill-amber-400/20" />
+                <span>Light Mode</span>
+              </>
+            ) : (
+              <>
+                <MoonStar className="size-4 text-indigo-600 fill-indigo-600/20" />
+                <span>Dark Mode</span>
+              </>
+            )}
+          </button>
+        </div>
 
         <motion.div
           initial={{ opacity: 0, y: 28, filter: "blur(16px)" }}
@@ -666,7 +710,7 @@ function LoginPage() {
           </motion.div>
         </motion.div>
       </div>
-    </>
+    </div>
   );
 }
 

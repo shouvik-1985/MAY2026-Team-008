@@ -22,7 +22,15 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+import { useEffect } from "react";
+import { useTheme } from "@/lib/theme";
+
 function Index() {
+  const { setTheme } = useTheme();
+  useEffect(() => {
+    setTheme("dark");
+  }, [setTheme]);
+
   return (
     <>
       <SmoothScroll />

@@ -35,6 +35,7 @@ import {
   type NotesPreviewPayload,
 } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 
 type Props = {
@@ -74,12 +75,21 @@ const emptyForm: ListingFormState = {
   notesPdf: null,
 };
 
-const inputClass =
-  "w-full rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/28";
-
 const studentCreateOptions = ["Handwritten Notes", "Short Notes"];
 
+function getInputClass(isDark: boolean) {
+  return [
+    "w-full rounded-[22px] border px-4 py-3 text-sm outline-none transition",
+    isDark
+      ? "border-white/10 bg-white/[0.04] text-white placeholder:text-white/28 focus:border-cyan-200/40"
+      : "border-slate-300 bg-slate-100 text-slate-900 placeholder:text-slate-500 focus:border-indigo-500",
+  ].join(" ");
+}
+
 export function MarketplaceExperience({ mode, embedded = false }: Props) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const inputClass = getInputClass(isDark);
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [query, setQuery] = useState("");
@@ -314,7 +324,9 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
           <button
             type="button"
             onClick={() => setIsComposerOpen(true)}
-            className="inline-flex items-center gap-2 self-start rounded-full border border-fuchsia-300/20 bg-[var(--grad-aurora)] px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-2xl"
+            className={`inline-flex items-center gap-2 self-start rounded-full px-5 py-3 text-xs font-extrabold uppercase tracking-[0.2em] text-white shadow-md transition hover:opacity-90 ${
+              isDark ? "border border-fuchsia-300/20 bg-[var(--grad-aurora)] shadow-2xl" : "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600"
+            }`}
           >
             <Plus className="size-4" />
             {isAdmin ? "Add New Listing" : "Post Item For Sale"}
@@ -330,12 +342,16 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
 
         <div className="mb-5 flex flex-col gap-3 xl:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+            <Search className={`absolute left-4 top-1/2 size-4 -translate-y-1/2 ${isDark ? "text-white/35" : "text-slate-400"}`} />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={isAdmin ? "Search listings, sellers, categories..." : "Search products, notes, sellers..."}
-              className="w-full rounded-full border border-white/10 bg-white/[0.04] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/30"
+              className={`w-full rounded-full border py-3 pl-11 pr-4 text-sm outline-none transition ${
+                isDark
+                  ? "border-white/10 bg-white/[0.04] text-white placeholder:text-white/30"
+                  : "border-slate-300 bg-white text-slate-950 font-semibold placeholder:text-slate-400 shadow-2xs focus:border-indigo-600"
+              }`}
             />
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -344,26 +360,31 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
                 key={category}
                 type="button"
                 onClick={() => setActiveCategory(category)}
-                className={`rounded-full px-4 py-2 text-xs uppercase tracking-[0.22em] transition ${
+                className={`rounded-full px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] transition ${
                   activeCategory === category
-                    ? "bg-white text-black"
-                    : "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"
+                    ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white shadow-md"
+                    : isDark
+                      ? "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"
+                      : "border border-slate-300 bg-white text-slate-700 hover:text-slate-950 shadow-2xs"
                 }`}
               >
                 {category}
               </button>
             ))}
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs uppercase tracking-[0.18em] text-white/50">
+          <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-bold uppercase tracking-[0.18em] ${
+            isDark ? "border-white/10 bg-white/[0.04] text-white/50" : "border-slate-300 bg-white text-slate-700 shadow-2xs"
+          }`}>
             <ArrowUpDown className="size-3.5" />
             <select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-              className="bg-transparent text-white outline-none"
+              className="bg-transparent text-slate-900 dark:text-white outline-none font-bold"
+              style={{ color: isDark ? "#ffffff" : "#0f172a" }}
             >
-              <option value="latest">Latest</option>
-              <option value="priceAsc">Price Low to High</option>
-              <option value="priceDesc">Price High to Low</option>
+              <option value="latest" style={{ backgroundColor: isDark ? "#101010" : "#ffffff", color: isDark ? "#ffffff" : "#0f172a" }}>Latest</option>
+              <option value="priceAsc" style={{ backgroundColor: isDark ? "#101010" : "#ffffff", color: isDark ? "#ffffff" : "#0f172a" }}>Price Low to High</option>
+              <option value="priceDesc" style={{ backgroundColor: isDark ? "#101010" : "#ffffff", color: isDark ? "#ffffff" : "#0f172a" }}>Price High to Low</option>
             </select>
           </div>
         </div>
@@ -472,6 +493,32 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
   );
 }
 
+function CardImage({ item }: { item: MarketplaceItem }) {
+  const [failed, setFailed] = useState(false);
+  const src = resolveCardImage(item);
+
+  if (failed || !src) {
+    return (
+      <div
+        className="h-full w-full flex flex-col items-center justify-center p-4 text-center"
+        style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed, #06b6d4)" }}
+      >
+        <ImageIcon className="size-10 text-white/80 mb-2" />
+        <span className="font-display font-bold text-white text-base line-clamp-1">{item.name}</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={item.name}
+      onError={() => setFailed(true)}
+      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+    />
+  );
+}
+
 function MarketplaceCard({
   item,
   busy,
@@ -485,16 +532,17 @@ function MarketplaceCard({
   onPreview: () => void;
   onGallery: () => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const hasGallery = getGalleryImages(item).length > 0;
+
   return (
-    <GlassCard hover className="group flex h-full flex-col overflow-hidden border border-white/10 p-4">
-      <div className="relative h-56 overflow-hidden rounded-[28px] bg-white/[0.04]">
-        <img
-          src={resolveCardImage(item)}
-          alt={item.name}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+    <GlassCard hover className={`group flex h-full flex-col overflow-hidden border p-4 ${
+      isDark ? "border-white/10" : "bg-white/95 border-slate-200 shadow-sm"
+    }`}>
+      <div className="relative h-56 overflow-hidden rounded-[28px] bg-slate-900">
+        <CardImage item={item} />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
           <Badge text={item.category} tone="emerald" />
           <Badge text={item.status ?? "Available"} tone="neutral" />
@@ -502,37 +550,39 @@ function MarketplaceCard({
         </div>
         <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
           <div>
-            <div className="inline-flex rounded-full bg-black/60 px-3 py-1 text-lg font-bold text-white backdrop-blur-md">
+            <div className="inline-flex rounded-full bg-black/75 px-3 py-1 text-lg font-bold text-white backdrop-blur-md">
               {item.price}
             </div>
-            <div className="mt-2 text-xs text-white/70">{item.seller}</div>
+            <div className="mt-2 text-xs font-medium text-white/80">{item.seller}</div>
           </div>
           <button
             type="button"
             onClick={onPreview}
             disabled={busy || !item.isNotes}
-            className="rounded-full border border-white/15 bg-black/40 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-white/80 disabled:opacity-40"
+            className="rounded-full border border-white/20 bg-black/60 px-3 py-2 text-[10px] uppercase tracking-[0.18em] font-bold text-white backdrop-blur-md disabled:opacity-40"
           >
             {busy ? "Opening..." : item.isNotes ? "Preview" : "Gallery"}
           </button>
         </div>
       </div>
-      <div className="mt-4 text-[10px] uppercase tracking-[0.24em] text-white/35">{item.subcategory || item.category}</div>
-      <div className="mt-2 font-display text-xl text-white">{item.name}</div>
-      <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/55">{item.description}</p>
+      <div className={`mt-4 text-[10px] uppercase tracking-[0.24em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>{item.subcategory || item.category}</div>
+      <div className={`mt-2 font-display text-xl font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>{item.name}</div>
+      <p className={`mt-2 line-clamp-3 text-sm leading-6 font-medium ${isDark ? "text-white/55" : "text-slate-700"}`}>{item.description}</p>
       <div className="mt-5 flex gap-2">
         <button
           type="button"
           onClick={item.isNotes ? onPreview : onGallery}
           disabled={!item.isNotes && !hasGallery}
-          className="flex-1 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/70 disabled:opacity-40"
+          className={`flex-1 rounded-full border px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] transition ${
+            isDark ? "border-white/10 bg-white/[0.05] text-white/70" : "border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200 shadow-2xs"
+          } disabled:opacity-40`}
         >
           {item.isNotes ? "Preview" : "Gallery"}
         </button>
         <button
           type="button"
           onClick={onView}
-          className="flex-1 rounded-full bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-black"
+          className="flex-1 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 px-4 py-3 text-xs font-extrabold uppercase tracking-[0.18em] text-white shadow-md hover:opacity-90 transition"
         >
           View Details
         </button>
@@ -766,7 +816,11 @@ function ComposerModal({
   onFiles: (event: ChangeEvent<HTMLInputElement>, field: "images" | "previewImages") => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const inputClass = getInputClass(isDark);
   const isAdmin = mode === "admin";
+
   return (
     <ModalFrame onClose={onClose} title={editing ? "Edit Marketplace Listing" : isAdmin ? "Add New Marketplace Listing" : "Post Item For Sale"}>
       <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
@@ -786,7 +840,11 @@ function ComposerModal({
               className={inputClass}
             >
               {(isAdmin ? ["Notes", "Books", "Electronics", "Cycles", "Bags", "Hostel Essentials", "Professor Modules", "Accessories", "Other"] : studentCreateOptions).map((option) => (
-                <option key={option} value={option}>
+                <option
+                  key={option}
+                  value={option}
+                  className={isDark ? "bg-[#0a0b10] text-white" : "bg-white text-slate-900"}
+                >
                   {option}
                 </option>
               ))}
@@ -814,10 +872,26 @@ function ComposerModal({
           <UploadField label="Complete Notes PDF (Optional)" accept=".pdf" onChange={(e) => onChange("notesPdf", e.target.files?.[0] ?? null)} />
         </div>
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/65">
+          <button
+            type="button"
+            onClick={onClose}
+            className={`rounded-full border px-4 py-3 text-xs uppercase tracking-[0.18em] transition ${
+              isDark
+                ? "border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08]"
+                : "border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
             Cancel
           </button>
-          <button type="submit" disabled={saving} className="rounded-full bg-white px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-black disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={saving}
+            className={`rounded-full px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] transition shadow-sm ${
+              isDark
+                ? "bg-white text-black"
+                : "bg-slate-500 text-white hover:bg-slate-400"
+            } disabled:opacity-50`}
+          >
             {saving ? (editing ? "Saving..." : "Publishing...") : editing ? "Save Changes" : "Publish Listing"}
           </button>
         </div>
@@ -995,6 +1069,9 @@ function ModalFrame({
   title: string;
   wide?: boolean;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1009,12 +1086,20 @@ function ModalFrame({
           animate={{ y: 0, scale: 1 }}
           exit={{ y: 24, scale: 0.96 }}
           onClick={(event) => event.stopPropagation()}
-          className={`relative w-full ${wide ? "max-w-6xl" : "max-w-3xl"} rounded-[34px] border border-white/10 bg-[#0a0b10] p-6 shadow-2xl`}
+          className={`relative w-full ${wide ? "max-w-6xl" : "max-w-3xl"} rounded-[34px] border p-6 shadow-2xl ${
+            isDark ? "border-white/10 bg-[#0a0b10]" : "border-slate-200 bg-white"
+          }`}
         >
-          <button type="button" onClick={onClose} className="absolute right-5 top-5 rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/70">
+          <button
+            type="button"
+            onClick={onClose}
+            className={`absolute right-5 top-5 rounded-full border p-2 ${
+              isDark ? "border-white/10 bg-white/[0.04] text-white/70" : "border-slate-300 bg-slate-100 text-slate-800"
+            }`}
+          >
             <X className="size-4" />
           </button>
-          <div className="mb-5 text-[10px] uppercase tracking-[0.28em] text-white/35">{title}</div>
+          <div className={`mb-5 text-[10px] uppercase tracking-[0.28em] ${isDark ? "text-white/35" : "text-slate-500"}`}>{title}</div>
           {children}
         </motion.div>
       </div>
@@ -1023,23 +1108,38 @@ function ModalFrame({
 }
 
 function Badge({ text, tone }: { text: string; tone: "emerald" | "neutral" | "sky" | "rose" | "amber" }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const toneClass =
     tone === "emerald"
-      ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+      ? isDark
+        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+        : "border-emerald-300/20 bg-emerald-100/60 text-emerald-700"
       : tone === "sky"
-        ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+        ? isDark
+          ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+          : "border-cyan-300/20 bg-cyan-100/60 text-cyan-700"
         : tone === "rose"
-          ? "border-rose-300/20 bg-rose-500/10 text-rose-100"
+          ? isDark
+            ? "border-rose-300/20 bg-rose-500/10 text-rose-100"
+            : "border-rose-300/20 bg-rose-100/60 text-rose-700"
           : tone === "amber"
-            ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
-            : "border-white/10 bg-black/35 text-white/80";
+            ? isDark
+              ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
+              : "border-amber-300/20 bg-amber-100/60 text-amber-700"
+            : isDark
+              ? "border-white/10 bg-black/35 text-white/80"
+              : "border-slate-300 bg-slate-100 text-slate-700";
   return <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${toneClass}`}>{text}</span>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
     <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-white/40">{label}</div>
+      <div className={`mb-2 text-[10px] uppercase tracking-[0.24em] ${isDark ? "text-white/40" : "text-slate-500"}`}>{label}</div>
       {children}
     </label>
   );
@@ -1056,13 +1156,26 @@ function UploadField({
   multiple?: boolean;
   accept?: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
-    <label className="block rounded-[24px] border border-dashed border-white/12 bg-white/[0.03] p-4">
-      <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40">
+    <label className={`block rounded-[24px] border border-dashed p-4 ${
+      isDark ? "border-white/12 bg-white/[0.03]" : "border-slate-300 bg-slate-100"
+    }`}>
+      <div className={`mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] ${
+        isDark ? "text-white/40" : "text-slate-500"
+      }`}>
         <ImageIcon className="size-3.5" />
         {label}
       </div>
-      <input type="file" multiple={multiple} accept={accept} onChange={onChange} className="w-full text-sm text-white/60 file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-semibold file:text-black" />
+      <input
+        type="file"
+        multiple={multiple}
+        accept={accept}
+        onChange={onChange}
+        className={`w-full text-sm ${isDark ? "text-white/60" : "text-slate-900"} file:mr-3 file:rounded-full file:border-0 file:bg-slate-200 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-900`}
+      />
     </label>
   );
 }
@@ -1106,7 +1219,17 @@ function LoadingCards({ grid = false }: { grid?: boolean }) {
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="rounded-[30px] border border-dashed border-white/12 bg-white/[0.02] px-5 py-10 text-center text-sm text-white/45">{text}</div>;
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  return (
+    <div className={`rounded-[30px] border border-dashed px-5 py-10 text-center text-sm font-bold ${
+      isDark
+        ? "border-white/12 bg-white/[0.02] text-white/45"
+        : "border-slate-300 bg-white/95 text-slate-800 shadow-2xs"
+    }`}>
+      {text}
+    </div>
+  );
 }
 
 function parsePrice(value?: string) {

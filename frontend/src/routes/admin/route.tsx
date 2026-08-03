@@ -11,9 +11,11 @@ import {
   LogOut,
   MapPin,
   Megaphone,
+  Moon,
   ShoppingBag,
   Shield,
   Sparkles,
+  Sun,
 } from "lucide-react";
 import { type ComponentType, type ReactNode, useEffect, useState } from "react";
 import { CinematicBackdrop } from "@/components/app/cinematic";
@@ -22,6 +24,7 @@ import { clearAuthSession, getStoredUser, hasAuthSession } from "@/lib/auth";
 import { resolveRoleHome } from "@/lib/role-home";
 import { clearStoredDashboard } from "@/lib/student-session";
 import { clearStoredRole } from "@/lib/use-role";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: () => {
@@ -78,6 +81,8 @@ function normalizeAdminHash(hash: string) {
 }
 
 function AdminShell({ children }: { children: ReactNode }) {
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === "dark";
   const [loggingOut, setLoggingOut] = useState(false);
   const [activeHash, setActiveHash] = useState(() =>
     typeof window === "undefined" ? "dashboard" : normalizeAdminHash(window.location.hash),
@@ -111,12 +116,12 @@ function AdminShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="relative min-h-screen text-white">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[276px] flex-col p-3 md:flex">
-        <div className="glass-strong relative flex h-full flex-col overflow-hidden rounded-3xl">
-          <div className="flex items-center gap-2.5 px-4 py-5">
+    <div className={`relative min-h-screen w-full overflow-x-auto overflow-y-visible box-border cv-admin-content ${isDark ? "text-white" : "text-slate-900"} bg-[var(--page-bg)]`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 hidden w-[276px] flex-col p-3 md:flex ${isDark ? "" : "shadow-sm"}`}>
+        <div className={`relative flex h-full flex-col overflow-hidden rounded-3xl ${isDark ? "glass-strong" : "glass bg-white/85 border border-slate-200/80"}`}>
+          <div className={`flex items-center gap-2.5 px-4 py-5 ${isDark ? "" : "text-slate-900"}`}>
             <span className="flex size-7 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--grad-aurora)" }}>
-              <Sparkles className="size-3.5 text-white" />
+              <Sparkles className={`size-3.5 ${isDark ? "text-white" : "text-slate-900"}`} />
             </span>
             <span className="font-display text-sm uppercase tracking-[0.25em]">CampusVerse</span>
           </div>
@@ -137,7 +142,13 @@ function AdminShell({ children }: { children: ReactNode }) {
                     window.dispatchEvent(new HashChangeEvent("hashchange"));
                   }}
                   className={`group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition ${
-                    isActive ? "text-white" : "text-white/55 hover:text-white"
+                    isActive
+                      ? isDark
+                        ? "text-white"
+                        : "text-slate-900 bg-slate-200/80"
+                      : isDark
+                        ? "text-white/65 hover:text-white"
+                        : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
                   }`}
                 >
                   {isActive && (
@@ -157,11 +168,15 @@ function AdminShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
-          <div className="mt-auto border-t border-white/10 px-2 py-2">
+          <div className={`mt-auto px-2 py-2 ${isDark ? "border-t border-white/10" : "border-t border-slate-200/70"}`}>
             <button
               onClick={logout}
               disabled={loggingOut}
-              className="flex w-full items-center gap-3 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-wait disabled:opacity-60"
+              className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm transition ${
+                isDark
+                  ? "border-rose-300/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/20"
+                  : "border-rose-200/60 bg-rose-100/75 text-rose-700 hover:bg-rose-200/80"
+              } disabled:cursor-wait disabled:opacity-60`}
             >
               <LogOut className="size-4" />
               {loggingOut ? "Logging out" : "Logout"}
@@ -170,24 +185,37 @@ function AdminShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-h-screen px-5 py-6 md:pl-[316px] md:pr-10">
-        <header className="sticky top-0 z-30 -mx-5 mb-8 bg-[#050505]/65 px-5 py-3 backdrop-blur-xl md:-mx-10 md:px-10">
+      <main className="min-h-screen w-full max-w-full overflow-x-auto overflow-y-visible box-border min-w-0 px-5 py-6 md:pl-[316px] md:pr-10">
+        <header className={`sticky top-0 z-30 mb-8 px-5 py-3 backdrop-blur-xl md:px-10 ${
+          isDark ? "bg-[#050505]/65" : "bg-white/95 border border-slate-200/80 shadow-sm"
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-              <Shield className="size-5 text-cyan-200" />
+            <div className={`flex size-11 items-center justify-center rounded-2xl ${isDark ? "border border-white/10 bg-white/[0.04]" : "border border-slate-200 bg-slate-100"}`}>
+              <Shield className={`size-5 ${isDark ? "text-cyan-200" : "text-slate-700"}`} />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.3em] text-white/40">Admin desk</div>
-              <div className="font-display text-lg">{user?.full_name ?? "Admin"}</div>
+              <div className={`${isDark ? "text-white/40" : "text-slate-500"} text-xs uppercase tracking-[0.3em]`}>Admin desk</div>
+              <div className={`${isDark ? "text-white" : "text-slate-900"} font-display text-lg`}>{user?.full_name ?? "Admin"}</div>
             </div>
             <motion.div
-              className="ml-auto hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-white/50 md:flex"
+              className={`ml-auto hidden items-center gap-2 rounded-full px-4 py-2 text-xs md:flex ${isDark ? "border border-white/10 bg-white/[0.04] text-white/50" : "border border-slate-200 bg-slate-100 text-slate-500"}`}
               animate={{ opacity: [0.7, 1, 0.7] }}
               transition={{ duration: 3, repeat: Infinity }}
             >
               <MapPin className="size-3.5 text-cyan-200" />
               Attendance radius control
             </motion.div>
+            <button
+              onClick={toggleTheme}
+              className={`ml-3 hidden items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] transition-all md:inline-flex ${
+                isDark
+                  ? "border border-white/10 bg-white/[0.08] text-white hover:bg-white/15"
+                  : "border border-slate-200 bg-slate-100 text-slate-900 hover:bg-slate-200"
+              }`}
+            >
+              {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              {isDark ? "Light Mode" : "Dark Mode"}
+            </button>
           </div>
         </header>
         {children}

@@ -24,13 +24,16 @@ import {
   type StudentDashboard,
 } from "@/lib/api";
 import { setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
+import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/assignments")({ component: AssignmentsPage });
 
 type Assignment = StudentDashboard["assignment_items"][number];
 
 function AssignmentsPage() {
+  const { theme } = useTheme();
   const { dashboard } = useStudentDashboard();
+  const isDark = theme === "dark";
   const rawAssignments = dashboard?.assignment_items ?? [];
   const [assignmentList, setAssignmentList] = useState<Assignment[]>(rawAssignments);
   
@@ -238,7 +241,11 @@ function AssignmentsPage() {
         />
 
         <div className="flex items-center gap-2 self-start md:self-auto">
-          <div className="glass px-4 py-2 rounded-full text-xs font-semibold text-emerald-400 border border-emerald-500/30 flex items-center gap-2">
+          <div className={`glass flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold ${
+            isDark
+              ? "border-emerald-500/30 text-emerald-400"
+              : "border-emerald-200 text-emerald-700"
+          }`}>
             <Award className="size-3.5" /> {overallSummary}
           </div>
         </div>
@@ -248,7 +255,11 @@ function AssignmentsPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 p-4 glass rounded-2xl border border-emerald-500/30 text-emerald-300 text-xs font-medium flex items-center gap-2"
+          className={`mb-6 flex items-center gap-2 rounded-2xl border p-4 text-xs font-medium ${
+            isDark
+              ? "glass border-emerald-500/30 text-emerald-300"
+              : "glass border-emerald-200 text-emerald-700"
+          }`}
         >
           <ShieldCheck className="size-4 shrink-0 text-emerald-400" />
           <span>{status}</span>
@@ -262,7 +273,7 @@ function AssignmentsPage() {
             <BookOpen className="size-5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">Active Tasks</div>
+            <div className={`text-[10px] uppercase tracking-wider ${isDark ? "text-white/40" : "text-slate-500"}`}>Active Tasks</div>
             <div className="font-display text-xl font-bold">{activeCount} Pending</div>
           </div>
         </GlassCard>
@@ -272,7 +283,7 @@ function AssignmentsPage() {
             <CheckCircle2 className="size-5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">Submitted &amp; Reviewed</div>
+            <div className={`text-[10px] uppercase tracking-wider ${isDark ? "text-white/40" : "text-slate-500"}`}>Submitted &amp; Reviewed</div>
             <div className="font-display text-xl font-bold">
               {facultyGradedCount
                 ? `${facultyGradedCount} Faculty Graded`
@@ -286,8 +297,8 @@ function AssignmentsPage() {
             <Clock className="size-5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">Next Deadline</div>
-            <div className="font-display text-xl font-bold text-amber-300">{nextDeadline}</div>
+            <div className={`text-[10px] uppercase tracking-wider ${isDark ? "text-white/40" : "text-slate-500"}`}>Next Deadline</div>
+            <div className="font-display text-xl font-bold text-amber-400">{nextDeadline}</div>
           </div>
         </GlassCard>
 
@@ -296,8 +307,8 @@ function AssignmentsPage() {
             <Sparkles className="size-5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">AI Review Suite</div>
-            <div className="font-display text-xl font-bold text-purple-300">Active &amp; Ready</div>
+            <div className={`text-[10px] uppercase tracking-wider ${isDark ? "text-white/40" : "text-slate-500"}`}>AI Review Suite</div>
+            <div className="font-display text-xl font-bold text-purple-400">Active &amp; Ready</div>
           </div>
         </GlassCard>
       </div>
@@ -305,12 +316,16 @@ function AssignmentsPage() {
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col md:flex-row gap-3 mb-8">
         <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-white/40" />
+          <Search className={`absolute left-4 top-1/2 size-4 -translate-y-1/2 ${isDark ? "text-white/40" : "text-slate-400"}`} />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search assignments by title or subject..."
-            className="w-full glass rounded-full pl-11 pr-4 py-2.5 text-sm placeholder-white/30 focus:outline-none focus:border-white/30"
+            className={`w-full rounded-full py-2.5 pl-11 pr-4 text-sm focus:outline-none ${
+              isDark
+                ? "glass placeholder-white/30 focus:border-white/30"
+                : "glass text-slate-900 placeholder:text-slate-400 focus:border-slate-300"
+            }`}
           />
         </div>
 
@@ -321,8 +336,10 @@ function AssignmentsPage() {
               onClick={() => setFilterCat(cat)}
               className={`px-4 py-2 rounded-full text-xs uppercase tracking-[0.15em] transition whitespace-nowrap ${
                 filterCat === cat
-                  ? "bg-[var(--grad-aurora)] text-white font-semibold shadow-lg"
-                  : "text-white/50 hover:text-white glass"
+                  ? "bg-indigo-600 text-white font-bold shadow-md"
+                  : isDark
+                    ? "glass text-white/60 hover:text-white"
+                    : "border border-slate-300 bg-white/90 text-slate-800 hover:text-slate-950 font-bold shadow-sm"
               }`}
             >
               {cat}
@@ -344,10 +361,10 @@ function AssignmentsPage() {
               <div>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-emerald-400">
+                    <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-emerald-400" : "text-emerald-700"}`}>
                       {a.subject}
                     </div>
-                    <div className="font-display text-xl font-bold mt-1 text-white">{a.title}</div>
+                    <div className={`mt-1 font-display text-xl font-bold ${isDark ? "text-white" : "text-slate-950"}`}>{a.title}</div>
                   </div>
                   <StatusPill
                     status={a.status}
@@ -365,41 +382,49 @@ function AssignmentsPage() {
                   />
                 </div>
 
-                <div className="mt-4 flex items-center justify-between gap-2 text-xs text-white/55">
-                  <span className="flex items-center gap-1.5"><Clock className="size-3.5 text-amber-400" /> Due: {a.due}</span>
+                <div className={`mt-4 flex items-center justify-between gap-2 text-xs ${isDark ? "text-white/55" : "text-slate-700 font-medium"}`}>
+                  <span className="flex items-center gap-1.5"><Clock className={`size-3.5 ${isDark ? "text-amber-400" : "text-amber-600"}`} /> Due: {a.due}</span>
                   <button
                     onClick={() => setAiReviewItem(a)}
-                    className="text-[11px] font-semibold text-purple-300 bg-purple-500/10 border border-purple-500/30 px-3 py-1 rounded-full hover:bg-purple-500/20 transition flex items-center gap-1"
+                    className={`text-[11px] font-semibold px-3 py-1 rounded-full transition flex items-center gap-1 ${
+                      isDark
+                        ? "text-purple-300 bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20"
+                        : "text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 font-bold"
+                    }`}
                   >
                     <Sparkles className="size-3" /> AI Review Draft
                   </button>
                 </div>
 
-                <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
+                <div className={`mt-4 h-2 overflow-hidden rounded-full ${isDark ? "bg-white/10" : "bg-slate-200"}`}>
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${a.progress}%` }}
                     transition={{ duration: 1 }}
                     className="h-full"
-                    style={{ background: "var(--grad-aurora)" }}
+                    style={{ background: isDark ? "var(--grad-aurora)" : "#4f46e5" }}
                   />
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
-                <div className="text-xs text-white/45 font-medium">{a.progress}% complete</div>
+              <div className={`mt-4 flex items-center justify-between border-t pt-3 ${isDark ? "border-white/10" : "border-slate-200"}`}>
+                <div className={`text-xs font-semibold ${isDark ? "text-white/45" : "text-slate-700"}`}>{a.progress}% complete</div>
                 
                 {a.status === "graded" ? (
                   <button
                     onClick={() => void openFeedback(a)}
-                    className="text-xs uppercase tracking-wider text-emerald-300 hover:text-white inline-flex items-center gap-1.5 glass rounded-full px-4 py-2 border border-emerald-500/30 bg-emerald-500/10 transition"
+                    className={`text-xs uppercase tracking-wider inline-flex items-center gap-1.5 rounded-full px-4 py-2 border transition font-bold ${
+                      isDark
+                        ? "text-emerald-300 glass border-emerald-500/30 bg-emerald-500/10 hover:text-white"
+                        : "text-emerald-800 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 shadow-sm"
+                    }`}
                   >
                     <CheckCircle2 className="size-3.5" /> {reviewActionLabel(a)}
                   </button>
                 ) : (
                   <button
                     onClick={() => openAssignment(a)}
-                    className="text-xs uppercase tracking-wider font-bold text-white bg-[var(--grad-aurora)] hover:opacity-90 inline-flex items-center gap-2 rounded-full px-5 py-2 shadow-lg transition"
+                    className="text-xs uppercase tracking-wider font-bold text-white bg-indigo-600 hover:bg-indigo-700 inline-flex items-center gap-2 rounded-full px-5 py-2.5 shadow-md transition"
                   >
                     <Upload className="size-3.5" /> {assignmentType(a) === "file" ? "Upload Assignment" : "Start Assignment"}
                   </button>
@@ -410,11 +435,11 @@ function AssignmentsPage() {
         ))}
         {filteredAssignments.length === 0 && (
           <GlassCard className="lg:col-span-2 py-12 text-center">
-            <div className="mx-auto mb-4 size-12 rounded-2xl border border-white/10 bg-white/5 text-white/45 flex items-center justify-center">
+            <div className={`mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl border ${isDark ? "border-white/10 bg-white/5 text-white/45" : "border-slate-200 bg-white/85 text-slate-400"}`}>
               <BookOpen className="size-5" />
             </div>
-            <div className="font-display text-xl font-bold text-white">No assignments yet</div>
-            <div className="mt-2 text-sm text-white/45">
+            <div className={`font-display text-xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>No assignments yet</div>
+            <div className={`mt-2 text-sm ${isDark ? "text-white/45" : "text-slate-500"}`}>
               New AI-created assignments from your professor will appear here.
             </div>
           </GlassCard>
@@ -423,14 +448,16 @@ function AssignmentsPage() {
 
       {/* Timeline Activity Log */}
       <GlassCard>
-        <div className="text-[10px] uppercase tracking-[0.3em] text-white/40 font-bold">
+        <div className={`text-[10px] font-bold uppercase tracking-[0.3em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
           Submission Timeline &amp; Ledger
         </div>
-        <div className="font-display text-xl font-bold mt-1 mb-5">Recent activity &amp; submissions</div>
+        <div className={`mb-5 mt-1 font-display text-xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>Recent activity &amp; submissions</div>
         <div className="relative pl-6">
-          <div className="absolute left-2 top-0 bottom-0 w-px bg-gradient-to-b from-white/30 via-white/10 to-transparent" />
+          <div className={`absolute bottom-0 left-2 top-0 w-px ${isDark ? "bg-gradient-to-b from-white/30 via-white/10 to-transparent" : "bg-gradient-to-b from-slate-300 via-slate-200 to-transparent"}`} />
           {timelineItems.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-5 py-8 text-center text-sm text-white/45">
+            <div className={`rounded-3xl border border-dashed px-5 py-8 text-center text-sm ${
+              isDark ? "border-white/15 bg-white/[0.03] text-white/45" : "border-slate-200 bg-white/70 text-slate-500"
+            }`}>
               No assignment activity yet.
             </div>
           ) : (
@@ -446,8 +473,8 @@ function AssignmentsPage() {
                   className="absolute -left-[18px] top-1.5 size-2.5 rounded-full"
                   style={{ background: "var(--grad-aurora)" }}
                 />
-                <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">{e.t}</div>
-                <div className="text-sm text-white/80 font-medium">{e.l}</div>
+                <div className={`text-[10px] uppercase tracking-[0.3em] ${isDark ? "text-white/40" : "text-slate-500"}`}>{e.t}</div>
+                <div className={`text-sm font-medium ${isDark ? "text-white/80" : "text-slate-800"}`}>{e.l}</div>
               </motion.div>
             ))
           )}
@@ -1038,11 +1065,16 @@ function StatusPill({
   marks?: string;
   finalized?: boolean;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   if (status === "graded")
     return (
       <span
-        className="text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] border border-emerald-500/30"
-        style={{ background: "oklch(0.6 0.2 150 / 0.2)", color: "oklch(0.85 0.18 150)" }}
+        className={`text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] border ${
+          isDark ? "border-emerald-500/30" : "border-emerald-300 shadow-sm"
+        }`}
+        style={{ background: isDark ? "oklch(0.6 0.2 150 / 0.2)" : "#dcfce7", color: isDark ? "oklch(0.85 0.18 150)" : "#15803d" }}
       >
         <CheckCircle2 className="inline size-3 mr-1" />
         {finalized ? "Faculty" : "AI"} {grade || "Submitted"}
@@ -1051,14 +1083,18 @@ function StatusPill({
     );
   if (status === "pending")
     return (
-      <span className="text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] bg-white/5 text-white/55 border border-white/10">
+      <span className={`text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] border ${
+        isDark ? "bg-white/5 text-white/70 border-white/15" : "bg-slate-100 text-slate-800 border-slate-300 shadow-sm"
+      }`}>
         Not Started
       </span>
     );
   return (
     <span
-      className="text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] border border-purple-500/30"
-      style={{ background: "oklch(0.72 0.27 350 / 0.2)", color: "oklch(0.85 0.18 350)" }}
+      className={`text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] border ${
+        isDark ? "border-purple-500/30" : "border-purple-300 shadow-sm"
+      }`}
+      style={{ background: isDark ? "oklch(0.72 0.27 350 / 0.2)" : "#f3e8ff", color: isDark ? "oklch(0.85 0.18 350)" : "#7e22ce" }}
     >
       In Progress
     </span>

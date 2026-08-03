@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useLowPerformanceMode } from "@/lib/performance";
+import { useTheme } from "@/lib/theme";
 
 /** Shared cinematic background - aurora gradient + particles + grid + blur orbs. */
 export function CinematicBackdrop({ intensity = 1 }: { intensity?: number }) {
@@ -94,22 +95,27 @@ export function GlassCard({
   className = "",
   glow = false,
   hover = false,
+  style,
   onClick,
 }: {
   children: ReactNode;
   className?: string;
   glow?: boolean;
   hover?: boolean;
+  style?: CSSProperties;
   onClick?: () => void;
 }) {
   const lowPerformance = useLowPerformanceMode();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   return (
     <motion.div
       whileHover={!lowPerformance && hover ? { y: -3, scale: 1.005 } : undefined}
       transition={{ type: "spring", stiffness: 280, damping: 24 }}
       onClick={onClick}
-      className={`glass-strong rounded-3xl p-6 ${glow ? "glow-purple" : ""} ${className}`}
+      style={style}
+      className={`rounded-3xl p-6 ${isDark ? "glass-strong" : "border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.9),rgba(246,249,255,0.76))] shadow-[0_18px_50px_rgba(148,163,184,0.12)] backdrop-blur-[24px]"} ${glow ? "glow-purple" : ""} ${className}`}
     >
       {children}
     </motion.div>
@@ -125,13 +131,19 @@ export function SectionHeading({
   title: string;
   sub?: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <div className="mb-8">
       {eyebrow && (
-        <div className="mb-3 text-[10px] uppercase tracking-[0.4em] text-white/40">{eyebrow}</div>
+        <div className={`mb-3 text-[10px] uppercase tracking-[0.4em] ${isDark ? "text-white/40" : "text-slate-500"}`}>{eyebrow}</div>
       )}
-      <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl bg-gradient-to-br from-white via-white to-white/40 bg-clip-text text-transparent drop-shadow-sm pb-1">{title}</h1>
-      {sub && <p className="mt-3 max-w-2xl text-white/55">{sub}</p>}
+      <h1 className={`bg-clip-text pb-1 font-display text-4xl font-bold tracking-tight text-transparent drop-shadow-sm md:text-5xl ${
+        isDark
+          ? "bg-gradient-to-br from-white via-white to-white/40"
+          : "bg-gradient-to-br from-slate-900 via-indigo-700 to-fuchsia-500"
+      }`}>{title}</h1>
+      {sub && <p className={`mt-3 max-w-2xl ${isDark ? "text-white/55" : "text-slate-600"}`}>{sub}</p>}
     </div>
   );
 }
@@ -177,5 +189,4 @@ export function Counter({
     </span>
   );
 }
-
 
