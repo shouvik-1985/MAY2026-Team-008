@@ -126,6 +126,399 @@
   --grad-text: linear-gradient(180deg, #0f172a 0%, #334155 50%, #4338ca 100%);
 }
 
+/* ── Light-mode: override hardcoded dark-only Tailwind opacity-white classes ── */
+/* These rules re-map white-opacity text/bg to dark-on-light equivalents        */
+/* so legacy text-white/* inside admin/professor/app panels become readable.    */
+
+:root.light .cv-admin-content,
+:root.light .cv-professor-content,
+:root.light .cv-app-content,
+:root.light main {
+  color: #0f172a;
+}
+
+/* All headings, bold titles, and display fonts */
+:root.light .cv-admin-content h1,
+:root.light .cv-professor-content h1,
+:root.light .cv-app-content h1,
+:root.light main h1,
+:root.light .cv-admin-content h2,
+:root.light .cv-professor-content h2,
+:root.light .cv-app-content h2,
+:root.light main h2,
+:root.light .cv-admin-content h3,
+:root.light .cv-professor-content h3,
+:root.light .cv-app-content h3,
+:root.light main h3 {
+  color: #0f172a !important;
+}
+
+/* Force dark text for all text-white variants inside main/content areas */
+/* Force dark text for all text-white variants inside main/content areas */
+:root.light .cv-admin-content .text-white,
+:root.light .cv-professor-content .text-white,
+:root.light .cv-app-content .text-white,
+:root.light main .text-white {
+  color: #0f172a !important;
+}
+
+:root.light .cv-admin-content [class*="text-white/"],
+:root.light .cv-professor-content [class*="text-white/"],
+:root.light .cv-app-content [class*="text-white/"],
+:root.light main [class*="text-white/"] {
+  color: #334155 !important;
+}
+
+/* Uppercase tracking labels & small titles */
+:root.light .cv-admin-content .text-white\/30,
+:root.light .cv-admin-content .text-white\/35,
+:root.light .cv-admin-content .text-white\/40,
+:root.light .cv-professor-content .text-white\/30,
+:root.light .cv-professor-content .text-white\/35,
+:root.light .cv-professor-content .text-white\/40,
+:root.light .cv-app-content .text-white\/30,
+:root.light .cv-app-content .text-white\/35,
+:root.light .cv-app-content .text-white\/40,
+:root.light main .text-white\/30,
+:root.light main .text-white\/35,
+:root.light main .text-white\/40 {
+  color: #475569 !important;
+}
+
+:root.light .cv-admin-content .text-white\/45,
+:root.light .cv-admin-content .text-white\/50,
+:root.light .cv-admin-content .text-white\/55,
+:root.light .cv-professor-content .text-white\/45,
+:root.light .cv-professor-content .text-white\/50,
+:root.light .cv-professor-content .text-white\/55,
+:root.light main .text-white\/45,
+:root.light main .text-white\/50,
+:root.light main .text-white\/55 {
+  color: #334155 !important;
+}
+
+:root.light .cv-admin-content .text-white\/60,
+:root.light .cv-admin-content .text-white\/65,
+:root.light .cv-admin-content .text-white\/70,
+:root.light .cv-admin-content .text-white\/75,
+:root.light .cv-admin-content .text-white\/80,
+:root.light .cv-admin-content .text-white\/90,
+:root.light .cv-professor-content .text-white\/60,
+:root.light .cv-professor-content .text-white\/65,
+:root.light .cv-professor-content .text-white\/70,
+:root.light .cv-professor-content .text-white\/75,
+:root.light .cv-professor-content .text-white\/80,
+:root.light .cv-professor-content .text-white\/90,
+:root.light main .text-white\/60,
+:root.light main .text-white\/65,
+:root.light main .text-white\/70,
+:root.light main .text-white\/75,
+:root.light main .text-white\/80,
+:root.light main .text-white\/90 {
+  color: #0f172a !important;
+}
+
+/* Glass cards and dark containers in light mode */
+:root.light main .glass,
+:root.light .cv-professor-content .glass,
+:root.light .cv-admin-content .glass,
+:root.light main [class*="bg-white/"],
+:root.light main [class*="bg-black/"] {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03) !important;
+}
+
+/* Inputs, Textareas, Selects, Combobox Triggers */
+:root.light main input,
+:root.light main textarea,
+:root.light main select,
+:root.light main button[role="combobox"],
+:root.light main [class*="form-input"],
+:root.light .cv-professor-content input,
+:root.light .cv-professor-content textarea,
+:root.light .cv-professor-content select {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+:root.light main button[role="combobox"] *,
+:root.light main [class*="form-input"] * {
+  color: #0f172a !important;
+}
+
+:root.light main input::placeholder,
+:root.light main textarea::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+:root.light main select option {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Table header text & borders */
+:root.light main table th,
+:root.light main [class*="uppercase"][class*="tracking-"],
+:root.light .cv-professor-content table th {
+  color: #475569 !important;
+}
+
+:root.light main table td,
+:root.light .cv-professor-content table td {
+  color: #0f172a !important;
+}
+
+:root.light main [class*="border-white/"],
+:root.light .cv-professor-content [class*="border-white/"] {
+  border-color: #cbd5e1 !important;
+}
+
+/* Vibrant high-contrast tone colors for light mode metrics, pills, and badges */
+:root.light .text-emerald-300,
+:root.light .text-emerald-200 {
+  color: #059669 !important;
+}
+:root.light .text-cyan-300,
+:root.light .text-cyan-200,
+:root.light .text-cyan-100 {
+  color: #0284c7 !important;
+}
+:root.light .text-fuchsia-300,
+:root.light .text-fuchsia-200 {
+  color: #c026d3 !important;
+}
+:root.light .text-amber-200,
+:root.light .text-amber-300 {
+  color: #d97706 !important;
+}
+:root.light .text-purple-300,
+:root.light .text-purple-200 {
+  color: #7c3aed !important;
+}
+:root.light .text-rose-300,
+:root.light .text-rose-200,
+:root.light .text-rose-100 {
+  color: #e11d48 !important;
+}
+
+/* Status badges and payment pills in admin light mode */
+:root.light .cv-admin-content .text-emerald-100,
+:root.light .cv-admin-content [class*="text-emerald-100"] {
+  color: #047857 !important;
+}
+:root.light .cv-admin-content .bg-emerald-400\/10,
+:root.light .cv-admin-content [class*="bg-emerald-400/10"] {
+  background: rgba(16, 185, 129, 0.12) !important;
+}
+:root.light .cv-admin-content .border-emerald-300\/20,
+:root.light .cv-admin-content [class*="border-emerald-300/20"] {
+  border-color: rgba(16, 185, 129, 0.25) !important;
+}
+:root.light .cv-admin-content .text-rose-100,
+:root.light .cv-admin-content [class*="text-rose-100"] {
+  color: #b91c1c !important;
+}
+:root.light .cv-admin-content .text-rose-200,
+:root.light .cv-admin-content [class*="text-rose-200"] {
+  color: #dc2626 !important;
+}
+:root.light .cv-admin-content .text-rose-300,
+:root.light .cv-admin-content [class*="text-rose-300"] {
+  color: #c2410c !important;
+}
+:root.light .cv-admin-content .bg-rose-500\/10,
+:root.light .cv-admin-content [class*="bg-rose-500/10"] {
+  background: rgba(251, 146, 60, 0.18) !important;
+}
+/* Preserve white text for gradient buttons and dark profile hero cards in light mode */
+:root.light main button[style*="gradient"],
+:root.light main button[style*="grad"],
+:root.light .cv-professor-content button[style*="gradient"],
+:root.light .cv-professor-content button[style*="grad"],
+:root.light .cv-admin-content button[style*="gradient"],
+:root.light .cv-admin-content button[style*="grad"] {
+  color: #ffffff !important;
+}
+
+:root.light main button[style*="gradient"] *,
+:root.light main button[style*="grad"] *,
+:root.light .cv-professor-content button[style*="gradient"] *,
+:root.light .cv-professor-content button[style*="grad"] * {
+  color: #ffffff !important;
+}
+
+:root.light .cv-profile-card,
+:root.light .cv-profile-card * {
+  color: #ffffff !important;
+}
+
+:root.light .cv-profile-card .text-indigo-200 {
+  color: #c7d2fe !important;
+}
+
+:root.light .cv-profile-card .text-indigo-100 {
+  color: #e0e7ff !important;
+}
+:root.light .cv-admin-content .text-amber-300,
+:root.light .cv-admin-content [class*="text-amber-300"] {
+  color: #92400e !important;
+}
+:root.light .cv-admin-content .border-rose-300\/20,
+:root.light .cv-admin-content [class*="border-rose-300/20"] {
+  border-color: rgba(251, 146, 60, 0.35) !important;
+}
+:root.light .cv-admin-content .text-amber-300,
+:root.light .cv-admin-content [class*="text-amber-300"] {
+  color: #92400e !important;
+}
+:root.light .cv-admin-content .text-amber-200,
+:root.light .cv-admin-content [class*="text-amber-200"] {
+  color: #b45309 !important;
+}
+:root.light .cv-admin-content .text-amber-100,
+:root.light .cv-admin-content [class*="text-amber-100"] {
+  color: #92400e !important;
+}
+:root.light .cv-admin-content .bg-amber-400\/10,
+:root.light .cv-admin-content [class*="bg-amber-400/10"] {
+  background: rgba(217, 115, 14, 0.20) !important;
+}
+:root.light .cv-admin-content .border-amber-300\/20,
+:root.light .cv-admin-content [class*="border-amber-300/20"] {
+  border-color: rgba(202, 138, 4, 0.35) !important;
+}
+:root.light .cv-admin-content .bg-amber-500\/10,
+:root.light .cv-admin-content [class*="bg-amber-500/10"] {
+  background: rgba(245, 158, 11, 0.18) !important;
+}
+:root.light .cv-admin-content .border-amber-500\/30,
+:root.light .cv-admin-content [class*="border-amber-500/30"] {
+  border-color: rgba(245, 158, 11, 0.45) !important;
+}
+:root.light .cv-admin-content .text-emerald-100,
+:root.light .cv-admin-content [class*="text-emerald-100"] {
+  color: #047857 !important;
+}
+:root.light .cv-admin-content .text-emerald-200,
+:root.light .cv-admin-content [class*="text-emerald-200"] {
+  color: #0f766e !important;
+}
+:root.light .cv-admin-content .text-emerald-300,
+:root.light .cv-admin-content [class*="text-emerald-300"] {
+  color: #047857 !important;
+}
+:root.light .cv-admin-content .bg-emerald-400\/10,
+:root.light .cv-admin-content [class*="bg-emerald-400/10"] {
+  background: rgba(16, 185, 129, 0.18) !important;
+}
+:root.light .cv-admin-content .border-emerald-300\/20,
+:root.light .cv-admin-content [class*="border-emerald-300/20"] {
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+:root.light .cv-admin-content .text-cyan-100,
+:root.light .cv-admin-content [class*="text-cyan-100"] {
+  color: #0c4a6e !important;
+}
+:root.light .cv-admin-content .text-cyan-200,
+:root.light .cv-admin-content [class*="text-cyan-200"] {
+  color: #0891b2 !important;
+}
+:root.light .cv-admin-content .text-cyan-300,
+:root.light .cv-admin-content [class*="text-cyan-300"] {
+  color: #0e7490 !important;
+}
+:root.light .cv-admin-content .bg-cyan-400\/10,
+:root.light .cv-admin-content [class*="bg-cyan-400/10"] {
+  background: rgba(56, 189, 248, 0.18) !important;
+}
+:root.light .cv-admin-content .border-cyan-300\/20,
+:root.light .cv-admin-content [class*="border-cyan-300/20"] {
+  border-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+.cv-admin-content {
+  min-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+:root.light .cv-admin-content [class*="bg-white/08"],
+:root.light .cv-admin-content [class*="bg-white/09"],
+:root.light .cv-admin-content [class*="bg-white/10"],
+:root.light .cv-admin-content [class*="bg-white/12"],
+:root.light .cv-admin-content [class*="bg-white/20"],
+:root.light .cv-admin-content [class*="bg-white/30"],
+:root.light .cv-admin-content [class*="bg-white/40"],
+:root.light .cv-admin-content [class*="bg-white/45"],
+:root.light .cv-admin-content [class*="bg-white/50"],
+:root.light .cv-admin-content [class*="bg-white/60"],
+:root.light .cv-admin-content [class*="bg-white/70"],
+:root.light .cv-admin-content [class*="bg-white/80"],
+:root.light .cv-admin-content [class*="bg-white/90"],
+:root.light .cv-admin-content [class*="bg-white/95"] {
+  background: rgba(249, 250, 251, 0.98) !important;
+}
+:root.light .cv-admin-content [class*="border-white/10"] {
+  border-color: #e2e8f0 !important;
+}
+:root.light .cv-admin-content [class*="text-slate-400"] {
+  color: #334155 !important;
+}
+:root.light .cv-admin-content [class*="text-slate-500"] {
+  color: #1e293b !important;
+}
+:root.light .cv-admin-content [class*="text-slate-600"] {
+  color: #0f172a !important;
+}
+:root.light .cv-admin-content .text-white\/40,
+:root.light .cv-admin-content .text-white\/45,
+:root.light .cv-admin-content .text-white\/50,
+:root.light .cv-admin-content .text-white\/52,
+:root.light .cv-admin-content .text-white\/55,
+:root.light .cv-admin-content .text-white\/58,
+:root.light .cv-admin-content .text-white\/60,
+:root.light .cv-admin-content .text-white\/65 {
+  color: #334155 !important;
+}
+:root.light .cv-admin-content .text-white\/70,
+:root.light .cv-admin-content .text-white\/75,
+:root.light .cv-admin-content .text-white\/80,
+:root.light .cv-admin-content .text-white\/85,
+:root.light .cv-admin-content .text-white\/90,
+:root.light .cv-admin-content .text-white {
+  color: #0f172a !important;
+}
+:root.light .cv-admin-content [class*="text-white/"] {
+  color: #334155 !important;
+}
+:root.light .cv-admin-content [class*="text-white"] {
+  color: #0f172a !important;
+}
+:root.light .cv-admin-content .text-white\/80,
+:root.light .cv-admin-content .text-white\/85,
+:root.light .cv-admin-content .text-white\/90,
+:root.light .cv-admin-content .text-white {
+  color: #0f172a !important;
+}
+:root.light .cv-admin-content .text-slate-400 {
+  color: #475569 !important;
+}
+:root.light .cv-admin-content .text-slate-500 {
+  color: #334155 !important;
+}
+:root.light .cv-admin-content .text-slate-600 {
+  color: #1e293b !important;
+}
+/* Status bar bottom of management form */
+:root.light .cv-admin-content .rounded-3xl[class*="bg-black"] {
+  background: rgba(241, 245, 249, 0.95) !important;
+  border-color: #cbd5e1 !important;
+}
+
+
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -382,3 +775,49 @@ html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
 .lenis.lenis-stopped { overflow: hidden; }
+
+/* Complete Protection for Faculty Profile Hero Card in Light & Dark Mode */
+.cv-profile-card,
+:root.light .cv-profile-card {
+  background: linear-gradient(135deg, #0c0a20 0%, #161238 50%, #0a1628 100%) !important;
+  border: 1px solid rgba(99, 102, 241, 0.4) !important;
+  box-shadow: 0 20px 40px -15px rgba(12, 10, 32, 0.6) !important;
+  color: #ffffff !important;
+}
+
+.cv-profile-card h2,
+:root.light .cv-profile-card h2,
+.cv-profile-card h3,
+:root.light .cv-profile-card h3,
+.cv-profile-card .text-white,
+:root.light .cv-profile-card .text-white {
+  color: #ffffff !important;
+}
+
+.cv-profile-card .text-indigo-300,
+:root.light .cv-profile-card .text-indigo-300,
+.cv-profile-card .text-indigo-200,
+:root.light .cv-profile-card .text-indigo-200,
+.cv-profile-card .text-indigo-100,
+:root.light .cv-profile-card .text-indigo-100 {
+  color: #c7d2fe !important;
+}
+
+.cv-profile-card [class*="bg-white/"],
+:root.light .cv-profile-card [class*="bg-white/"] {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+}
+
+.cv-profile-card button,
+:root.light .cv-profile-card button {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+}
+
+.cv-profile-card button span,
+:root.light .cv-profile-card button span {
+  color: #ffffff !important;
+}

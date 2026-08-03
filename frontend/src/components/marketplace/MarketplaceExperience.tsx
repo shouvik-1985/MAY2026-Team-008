@@ -75,14 +75,21 @@ const emptyForm: ListingFormState = {
   notesPdf: null,
 };
 
-const inputClass =
-  "w-full rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/28";
-
 const studentCreateOptions = ["Handwritten Notes", "Short Notes"];
+
+function getInputClass(isDark: boolean) {
+  return [
+    "w-full rounded-[22px] border px-4 py-3 text-sm outline-none transition",
+    isDark
+      ? "border-white/10 bg-white/[0.04] text-white placeholder:text-white/28 focus:border-cyan-200/40"
+      : "border-slate-300 bg-slate-100 text-slate-900 placeholder:text-slate-500 focus:border-indigo-500",
+  ].join(" ");
+}
 
 export function MarketplaceExperience({ mode, embedded = false }: Props) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const inputClass = getInputClass(isDark);
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [query, setQuery] = useState("");
@@ -809,7 +816,11 @@ function ComposerModal({
   onFiles: (event: ChangeEvent<HTMLInputElement>, field: "images" | "previewImages") => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const inputClass = getInputClass(isDark);
   const isAdmin = mode === "admin";
+
   return (
     <ModalFrame onClose={onClose} title={editing ? "Edit Marketplace Listing" : isAdmin ? "Add New Marketplace Listing" : "Post Item For Sale"}>
       <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
@@ -829,7 +840,11 @@ function ComposerModal({
               className={inputClass}
             >
               {(isAdmin ? ["Notes", "Books", "Electronics", "Cycles", "Bags", "Hostel Essentials", "Professor Modules", "Accessories", "Other"] : studentCreateOptions).map((option) => (
-                <option key={option} value={option}>
+                <option
+                  key={option}
+                  value={option}
+                  className={isDark ? "bg-[#0a0b10] text-white" : "bg-white text-slate-900"}
+                >
                   {option}
                 </option>
               ))}
@@ -857,10 +872,26 @@ function ComposerModal({
           <UploadField label="Complete Notes PDF (Optional)" accept=".pdf" onChange={(e) => onChange("notesPdf", e.target.files?.[0] ?? null)} />
         </div>
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/65">
+          <button
+            type="button"
+            onClick={onClose}
+            className={`rounded-full border px-4 py-3 text-xs uppercase tracking-[0.18em] transition ${
+              isDark
+                ? "border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08]"
+                : "border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
             Cancel
           </button>
-          <button type="submit" disabled={saving} className="rounded-full bg-white px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-black disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={saving}
+            className={`rounded-full px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] transition shadow-sm ${
+              isDark
+                ? "bg-white text-black"
+                : "bg-slate-500 text-white hover:bg-slate-400"
+            } disabled:opacity-50`}
+          >
             {saving ? (editing ? "Saving..." : "Publishing...") : editing ? "Save Changes" : "Publish Listing"}
           </button>
         </div>
@@ -1038,6 +1069,9 @@ function ModalFrame({
   title: string;
   wide?: boolean;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1052,12 +1086,20 @@ function ModalFrame({
           animate={{ y: 0, scale: 1 }}
           exit={{ y: 24, scale: 0.96 }}
           onClick={(event) => event.stopPropagation()}
-          className={`relative w-full ${wide ? "max-w-6xl" : "max-w-3xl"} rounded-[34px] border border-white/10 bg-[#0a0b10] p-6 shadow-2xl`}
+          className={`relative w-full ${wide ? "max-w-6xl" : "max-w-3xl"} rounded-[34px] border p-6 shadow-2xl ${
+            isDark ? "border-white/10 bg-[#0a0b10]" : "border-slate-200 bg-white"
+          }`}
         >
-          <button type="button" onClick={onClose} className="absolute right-5 top-5 rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/70">
+          <button
+            type="button"
+            onClick={onClose}
+            className={`absolute right-5 top-5 rounded-full border p-2 ${
+              isDark ? "border-white/10 bg-white/[0.04] text-white/70" : "border-slate-300 bg-slate-100 text-slate-800"
+            }`}
+          >
             <X className="size-4" />
           </button>
-          <div className="mb-5 text-[10px] uppercase tracking-[0.28em] text-white/35">{title}</div>
+          <div className={`mb-5 text-[10px] uppercase tracking-[0.28em] ${isDark ? "text-white/35" : "text-slate-500"}`}>{title}</div>
           {children}
         </motion.div>
       </div>
@@ -1066,23 +1108,38 @@ function ModalFrame({
 }
 
 function Badge({ text, tone }: { text: string; tone: "emerald" | "neutral" | "sky" | "rose" | "amber" }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const toneClass =
     tone === "emerald"
-      ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+      ? isDark
+        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+        : "border-emerald-300/20 bg-emerald-100/60 text-emerald-700"
       : tone === "sky"
-        ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+        ? isDark
+          ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+          : "border-cyan-300/20 bg-cyan-100/60 text-cyan-700"
         : tone === "rose"
-          ? "border-rose-300/20 bg-rose-500/10 text-rose-100"
+          ? isDark
+            ? "border-rose-300/20 bg-rose-500/10 text-rose-100"
+            : "border-rose-300/20 bg-rose-100/60 text-rose-700"
           : tone === "amber"
-            ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
-            : "border-white/10 bg-black/35 text-white/80";
+            ? isDark
+              ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
+              : "border-amber-300/20 bg-amber-100/60 text-amber-700"
+            : isDark
+              ? "border-white/10 bg-black/35 text-white/80"
+              : "border-slate-300 bg-slate-100 text-slate-700";
   return <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${toneClass}`}>{text}</span>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
     <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-white/40">{label}</div>
+      <div className={`mb-2 text-[10px] uppercase tracking-[0.24em] ${isDark ? "text-white/40" : "text-slate-500"}`}>{label}</div>
       {children}
     </label>
   );
@@ -1099,13 +1156,26 @@ function UploadField({
   multiple?: boolean;
   accept?: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
-    <label className="block rounded-[24px] border border-dashed border-white/12 bg-white/[0.03] p-4">
-      <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40">
+    <label className={`block rounded-[24px] border border-dashed p-4 ${
+      isDark ? "border-white/12 bg-white/[0.03]" : "border-slate-300 bg-slate-100"
+    }`}>
+      <div className={`mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] ${
+        isDark ? "text-white/40" : "text-slate-500"
+      }`}>
         <ImageIcon className="size-3.5" />
         {label}
       </div>
-      <input type="file" multiple={multiple} accept={accept} onChange={onChange} className="w-full text-sm text-white/60 file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-semibold file:text-black" />
+      <input
+        type="file"
+        multiple={multiple}
+        accept={accept}
+        onChange={onChange}
+        className={`w-full text-sm ${isDark ? "text-white/60" : "text-slate-900"} file:mr-3 file:rounded-full file:border-0 file:bg-slate-200 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-900`}
+      />
     </label>
   );
 }

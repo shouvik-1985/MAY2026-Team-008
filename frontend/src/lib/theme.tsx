@@ -13,16 +13,22 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function resolveInitialTheme(): ThemeMode {
-  if (typeof window === "undefined") return "dark";
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return storedTheme === "light" ? "light" : "dark";
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
+  }
+  return "dark";
 }
 
 function applyTheme(theme: ThemeMode) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  root.classList.toggle("light", theme === "light");
-  root.classList.toggle("dark", theme === "dark");
+  if (theme === "dark") {
+    root.classList.remove("light");
+    root.classList.add("dark");
+  } else {
+    root.classList.remove("dark");
+    root.classList.add("light");
+  }
   root.dataset.theme = theme;
   document.body.dataset.theme = theme;
 }

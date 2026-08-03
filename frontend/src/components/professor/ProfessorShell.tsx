@@ -163,7 +163,7 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
 
 
   return (
-    <div className="relative min-h-screen text-white">
+    <div className={`cv-professor-content cv-admin-content relative min-h-screen ${isDark ? "text-white" : "text-slate-900"}`}>
       <motion.aside
         animate={{ width: collapsed ? 84 : 276 }}
         transition={{ type: "spring", stiffness: 220, damping: 28 }}
@@ -297,44 +297,49 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
       <div
         className={`min-h-screen transition-[padding] duration-300 ${collapsed ? "md:pl-[100px]" : "md:pl-[292px]"}`}
       >
-        <header className="sticky top-0 z-30 bg-[color:var(--glass-nav-bg)] px-5 pb-3 pt-4 backdrop-blur-xl md:px-10">
+        <header className={`sticky top-0 z-30 px-5 pb-3 pt-4 backdrop-blur-xl md:px-10 transition-colors ${
+          isDark ? "bg-[#0c0e17]/85 border-b border-white/10" : "bg-white/85 border-b border-slate-200/80 shadow-2xs text-slate-900"
+        }`}>
           <div className="flex items-center gap-3">
             <div className="hidden md:block min-w-0">
-              <div className={`text-xs uppercase tracking-[0.3em] ${isDark ? "text-white/40" : "text-slate-500"}`}>Professor desk</div>
-              <div className="font-display text-lg truncate">{displayName}</div>
+              <div className={`text-xs uppercase tracking-[0.3em] font-semibold ${isDark ? "text-white/40" : "text-slate-500"}`}>Professor desk</div>
+              <div className={`font-display text-lg truncate font-bold ${isDark ? "text-white" : "text-slate-950"}`}>{displayName}</div>
             </div>
-            <button className={`flex max-w-xl flex-1 items-center gap-3 rounded-full glass px-4 py-2.5 text-sm transition ${
+            <button className={`flex max-w-xl flex-1 items-center gap-3 rounded-full px-4 py-2.5 text-sm transition border ${
               isDark
-                ? "text-white/50 hover:text-white hover:border-white/20"
-                : "text-slate-500 hover:text-slate-900 hover:border-slate-300/60"
+                ? "glass text-white/50 hover:text-white hover:border-white/20"
+                : "border-slate-200 bg-white/90 text-slate-700 hover:border-slate-300 hover:text-slate-950 shadow-2xs font-medium"
             }`}>
               <Search className="size-4" />
               <span className="flex-1 text-left">Search students, submissions, resources...</span>
-              <kbd className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded bg-white/10">
+              <kbd className={`hidden md:inline text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-white/10 text-white/70" : "bg-slate-100 text-slate-600 border border-slate-200"}`}>
                 Ctrl K
               </kbd>
             </button>
-            <div className={`hidden lg:flex items-center gap-2 px-3 text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>
+            <div className={`hidden lg:flex items-center gap-2 px-3 text-xs font-semibold ${isDark ? "text-white/45" : "text-slate-600"}`}>
               <span className="size-1.5 rounded-full bg-emerald-400 pulse-glow" />
               {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
             <button
               onClick={toggleTheme}
-              className={`relative flex size-10 items-center justify-center rounded-full glass transition ${
+              aria-label="Toggle theme"
+              className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.12em] border transition-all shadow-xs ${
                 isDark
-                  ? "text-white/70 hover:text-white hover:border-white/20"
-                  : "text-slate-500 hover:text-slate-900 hover:border-slate-300/60"
+                  ? "bg-white/10 border-white/20 text-white hover:bg-white/15"
+                  : "bg-indigo-50 border-indigo-200 text-indigo-950 hover:bg-indigo-100 hover:border-indigo-300"
               }`}
-              aria-label="Theme"
             >
-              {isDark ? <Moon className="size-4" /> : <Sun className="size-4" />}
+              {isDark
+                ? <><Sun className="size-3.5 text-amber-300 fill-amber-300/20" /><span className="text-white">Light Mode</span></>
+                : <><Moon className="size-3.5 text-indigo-600 fill-indigo-600/20" /><span className="text-indigo-950 font-bold">Dark Mode</span></>
+              }
             </button>
             <button
               onClick={() => setOpenNotif(true)}
-              className={`relative flex size-10 items-center justify-center rounded-full glass transition ${
+              className={`relative flex size-10 items-center justify-center rounded-full border transition ${
                 isDark
-                  ? "text-white/70 hover:text-white hover:border-white/20"
-                  : "text-slate-500 hover:text-slate-900 hover:border-slate-300/60"
+                  ? "glass text-white/70 hover:text-white hover:border-white/20"
+                  : "border-slate-200 bg-white/90 text-slate-700 hover:text-slate-950 hover:border-slate-300 shadow-2xs"
               }`}
               aria-label="Campus Notifications"
             >
@@ -344,7 +349,7 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
               )}
             </button>
             <span
-              className="size-10 rounded-full flex items-center justify-center text-xs font-semibold ml-1 overflow-hidden border border-white/20 shrink-0"
+              className="size-10 rounded-full flex items-center justify-center text-xs font-semibold ml-1 overflow-hidden border border-white/20 shrink-0 shadow-md"
               style={{ background: "var(--grad-aurora)" }}
             >
               {currentAvatarUrl ? (

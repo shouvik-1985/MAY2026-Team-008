@@ -47,7 +47,7 @@ const DEFAULT_ON = new Set([
 ]);
 
 function SettingsPage() {
-  const { theme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const isDark = theme === "dark";
   const { dashboard } = useStudentDashboard();
   const [state, setState] = useState<Record<string, boolean>>(() => {
@@ -198,7 +198,8 @@ function SettingsPage() {
               <div className="space-y-2.5">
                 {g.items.map((item) => {
                   const key = g.title + ":" + item;
-                  const on = state[key] ?? DEFAULT_ON.has(key);
+                  const isThemeDark = key === "Theme:Dark";
+                  const on = isThemeDark ? isDark : (state[key] ?? DEFAULT_ON.has(key));
                   return (
                     <div
                       key={item}
@@ -207,7 +208,17 @@ function SettingsPage() {
                       }`}
                     >
                       <span className="text-sm font-bold">{item}</span>
-                      <Toggle on={on} isDark={isDark} onClick={() => toggle(key)} />
+                      <Toggle
+                        on={on}
+                        isDark={isDark}
+                        onClick={() => {
+                          if (isThemeDark) {
+                            setTheme(isDark ? "light" : "dark");
+                          } else {
+                            toggle(key);
+                          }
+                        }}
+                      />
                     </div>
                   );
                 })}
