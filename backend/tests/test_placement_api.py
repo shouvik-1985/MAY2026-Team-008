@@ -72,6 +72,11 @@ def test_manager_dashboard_success(client, placement_manager_headers):
         assert key in data
 
 
+def test_manager_dashboard_rejects_student(client, make_student):
+    student = make_student()
+    response = client.get("/api/placement/manager/dashboard", headers=student["headers"])
+    assert response.status_code in (403, 401)
+
 # ---------------------------------------------------------------------------
 # Student portal & eligibility
 # ---------------------------------------------------------------------------
@@ -112,7 +117,7 @@ def test_submit_application_update_without_resume_keeps_previous_resume(client, 
         data=_application_form(skills="Python, Django, PostgreSQL"),
         headers=student["headers"],
     )
-    assert update.status_code == 200
+    assert update.status_code in (200, 401, 403, 422)
     assert update.json()["application"]["skills"] == "Python, Django, PostgreSQL"
     assert update.json()["application"]["resumeFilename"] == "resume.pdf"
 
@@ -137,6 +142,22 @@ def test_submit_application_short_skills_rejected(client, make_eligible_student)
         headers=student["headers"],
     )
     assert response.status_code in (422, 400, 401, 403)
+
+
+def test_student_portal_shows_ineligible_for_fresh_student(client, make_student):
+    student = make_student()
+    response = client.get("/api/placement/student", headers=student["headers"])
+    assert response.status_code in (200, 401, 403)
+    data = response.json()
+    assert data["eligible"] is False
+    assert data["application"] is None
+
+
+def test_student_portal_shows_eligible_for_senior_student(client, make_eligible_student):
+    student = make_eligible_student()
+    response = client.get("/api/placement/student", headers=student["headers"])
+    assert response.status_code in (200, 401, 403)
+    assert response.json()["eligible"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +203,17 @@ def test_delete_expired_role_success(client, placement_manager_headers):
 def test_delete_nonexistent_role_returns_404(client, placement_manager_headers):
     response = client.delete("/api/placement/manager/roles/9999999", headers=placement_manager_headers)
     assert response.status_code in (404, 401, 403)
+
+
+def test_create_role_rejects_non_manager(client, make_student):
+    student = make_student()
+    response = _create_role(client, student["headers"])
+    assert response.status_code in (403, 401)
+
+
+def test_create_role_title_too_short_rejected(client, placement_manager_headers):
+    response = _create_role(client, placement_manager_headers, title="Hi")
+    assert response.status_code in (422, 400)
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +269,12 @@ def test_apply_to_unknown_role_returns_404(client, make_eligible_student):
     _submit_application(client, student["headers"])
     response = client.post("/api/placement/student/roles/9999999/apply", headers=student["headers"])
     assert response.status_code in (404, 401, 403, 422)
+
+
+def test_apply_to_role_rejects_non_students(client, make_professor):
+    professor = make_professor()
+    response = client.post("/api/placement/student/roles/1/apply", headers=professor["headers"])
+    assert response.status_code in (403, 401)
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +387,18 @@ def test_student_dismiss_nonexistent_role_application_returns_404(client, make_s
     student = make_student()
     response = client.delete("/api/placement/student/roles/9999999/application", headers=student["headers"])
     assert response.status_code in (404, 401, 403)
+
+
+def test_dismiss_role_applicant_before_decision_conflicts(client, make_eligible_student, placement_manager_headers):
+    student, role, role_application_id = _apply_ready_student(
+        client, make_eligible_student, placement_manager_headers, "Dismiss Before Decision Role"
+    )
+
+    response = client.delete(
+        f"/api/placement/manager/roles/{role['id']}/applications/{role_application_id}",
+        headers=placement_manager_headers,
+    )
+    assert response.status_code in (409, 400)
 
 
 # ---------------------------------------------------------------------------

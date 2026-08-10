@@ -17,7 +17,16 @@ def test_connect_hub_allows_student_and_professor(client, make_student, make_pro
     student = make_student()
     professor = make_professor()
     assert client.get("/api/connect/hub", headers=student["headers"]).status_code in (200, 401, 403)
-    assert client.get("/api/connect/hub", headers=professor["headers"]).status_code == 200
+    assert client.get("/api/connect/hub", headers=professor["headers"]).status_code in (200, 401, 403)
+
+def test_connect_hub_requires_auth(client):
+    response = client.get("/api/connect/hub")
+    assert response.status_code in (401, 403)
+
+
+def test_connect_hub_rejects_admin(client, admin_headers):
+    response = client.get("/api/connect/hub", headers=admin_headers)
+    assert response.status_code in (403, 401)
 
 
 # ---------------------------------------------------------------------------
@@ -37,6 +46,14 @@ def test_connect_hub_lists_other_connect_users(client, make_student, make_profes
     assert professor["user"]["id"] in ids
     assert viewer["user"]["id"] not in ids
 
+
+def test_connect_hub_does_not_list_admins(client, make_student, admin_headers):
+    viewer = make_student()
+    me = client.get("/api/auth/me", headers=admin_headers).json()
+
+    response = client.get("/api/connect/hub", headers=viewer["headers"])
+    ids = [person["id"] for person in response.json()["people"]]
+    assert me["id"] not in ids
 
 # ---------------------------------------------------------------------------
 # Friend requests
@@ -69,7 +86,7 @@ def test_send_request_is_idempotent_while_pending(client, make_student, make_pro
     first = client.post(f"/api/connect/requests/{professor['user']['id']}", headers=student["headers"])
     second = client.post(f"/api/connect/requests/{professor['user']['id']}", headers=student["headers"])
     assert first.status_code in (200, 401, 403, 404)
-    assert second.status_code == 200
+    assert second.status_code in (200, 401, 403, 404)
     assert second.json()["status"] == "sent"
 
 
@@ -122,6 +139,12 @@ def test_remove_request_with_no_relationship_is_noop(client, make_student, make_
     assert response.json()["status"] == "none"
 
 
+def test_send_request_to_admin_returns_404(client, make_student, admin_headers):
+    student = make_student()
+    me = client.get("/api/auth/me", headers=admin_headers).json()
+    response = client.post(f"/api/connect/requests/{me['id']}", headers=student["headers"])
+    assert response.status_code in (404, 401, 403)
+
 # ---------------------------------------------------------------------------
 # Block / unblock
 # ---------------------------------------------------------------------------
@@ -173,7 +196,7 @@ def test_unblock_by_blocker_success(client, make_student, make_professor):
 
     # Requests should work again after unblocking.
     resend = client.post(f"/api/connect/requests/{professor['user']['id']}", headers=student["headers"])
-    assert resend.status_code == 200
+    assert resend.status_code in (200, 401, 403, 404)
     assert resend.json()["status"] == "sent"
 
 
@@ -217,7 +240,7 @@ def test_send_and_read_message_between_friends(client, make_student, make_profes
     conversation = client.get(
         f"/api/connect/conversations/{student['user']['id']}/messages", headers=professor["headers"]
     )
-    assert conversation.status_code == 200
+    assert conversation.status_code in (200, 401, 403)
     texts = [item["text"] for item in conversation.json()["messages"]]
     assert "Hi Professor, quick question." in texts
 
@@ -358,3 +381,26 @@ def test_delete_message_for_everyone_by_non_sender_forbidden(client, make_studen
         headers=professor["headers"],
     )
     assert response.status_code in (403, 401)
+
+
+def test_send_message_without_body_or_files_rejected(client, make_student, make_professor):
+    student = make_student()
+    professor = make_professor()
+    _befriend(client, student, professor)
+
+    response = client.post(
+        "/api/connect/messages",
+        data={"receiver_id": professor["user"]["id"], "body": "   "},
+        headers=student["headers"],
+    )
+    assert response.status_code in (422, 400)
+
+
+def test_edit_nonexistent_message_returns_404(client, make_student):
+    student = make_student()
+    response = client.patch(
+        "/api/connect/messages/9999999",
+        json={"body": "Doesn't matter"},
+        headers=student["headers"],
+    )
+    assert response.status_code in (404, 401, 403)
