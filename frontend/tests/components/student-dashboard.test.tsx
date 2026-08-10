@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import type { HTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudentDashboard, StudentTodo } from "../../src/lib/api";
+import { ThemeProvider } from "../../src/lib/theme";
 
 const api = vi.hoisted(() => ({
   getStudentDashboard: vi.fn(),
@@ -26,7 +27,11 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
 vi.mock("framer-motion", () => ({
-  motion: { div: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div> },
+  motion: {
+    div: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => (
+      <div {...props}>{children}</div>
+    ),
+  },
 }));
 vi.mock("recharts", () => {
   const Box = () => null;
@@ -77,15 +82,34 @@ function makeDashboard(overrides: Partial<StudentDashboard> = {}): StudentDashbo
     cgpa_trend: [{ term: "Sem 6", cgpa: 9.1 }],
     attendance_weekly: [{ day: "Mon", attendance: 92 }],
     attendance_timeline: [
-      { date: "2030-05-20", label: "May 20", month: "May", attendance: 92, status: "present", present: 5, absent: 0, marked: 5 },
+      {
+        date: "2030-05-20",
+        label: "May 20",
+        month: "May",
+        attendance: 92,
+        status: "present",
+        present: 5,
+        absent: 0,
+        marked: 5,
+      },
     ],
     attendance_by_subject: [],
     attendance_monthly: [{ month: "May", attendance: 92, present: 20, absent: 2 }],
-    fee_summary: { outstanding: 0, semester: "Sem 6", dueDate: "May 31", clearance: "Cleared", trend: [] },
+    fee_summary: {
+      outstanding: 0,
+      semester: "Sem 6",
+      dueDate: "May 31",
+      clearance: "Cleared",
+      trend: [],
+    },
     fee_history: [],
     module_health: [{ module: "Assignments", status: "1 pending", detail: "Submit by Friday" }],
-    upcoming_deadlines: [{ title: "Algorithms assignment", module: "Academics", due: "May 24", risk: "high" }],
-    request_timeline: [{ title: "Bonafide certificate", kind: "Certificate", stage: "Ready", updated: "Today" }],
+    upcoming_deadlines: [
+      { title: "Algorithms assignment", module: "Academics", due: "May 24", risk: "high" },
+    ],
+    request_timeline: [
+      { title: "Bonafide certificate", kind: "Certificate", stage: "Ready", updated: "Today" },
+    ],
     announcements: [],
     assignment_items: [],
     resource_items: [],
@@ -106,7 +130,19 @@ function makeDashboard(overrides: Partial<StudentDashboard> = {}): StudentDashbo
 
 function renderDashboard(data = makeDashboard()) {
   api.getStudentDashboard.mockResolvedValue(data);
-  return render(<Dashboard />);
+  return render(
+    <ThemeProvider>
+      <Dashboard />
+    </ThemeProvider>,
+  );
+}
+
+function renderStudentDashboard() {
+  return render(
+    <ThemeProvider>
+      <Dashboard />
+    </ThemeProvider>,
+  );
 }
 
 async function renderLoadedDashboard(data = makeDashboard()) {
@@ -138,7 +174,7 @@ describe("student dashboard", () => {
 
   it("shows that the dashboard is syncing before the request completes", () => {
     api.getStudentDashboard.mockReturnValue(new Promise(() => {}));
-    render(<Dashboard />);
+    renderStudentDashboard();
     expect(screen.getAllByText("Syncing").length).toBeGreaterThan(0);
   });
 
@@ -157,13 +193,13 @@ describe("student dashboard", () => {
     const cached = makeDashboard({ user: { ...makeDashboard().user, name: "Cached Student" } });
     session.getStoredDashboard.mockReturnValue(cached);
     api.getStudentDashboard.mockReturnValue(new Promise(() => {}));
-    render(<Dashboard />);
+    renderStudentDashboard();
     expect(screen.getByText("Cached's academic command center")).toBeInTheDocument();
   });
 
   it("shows demo data when loading fails without a cache", async () => {
     api.getStudentDashboard.mockRejectedValue(new Error("Offline"));
-    render(<Dashboard />);
+    renderStudentDashboard();
     expect(await screen.findByText("Demo data")).toBeInTheDocument();
     expect(screen.getByText("Student's academic command center")).toBeInTheDocument();
   });
@@ -172,7 +208,7 @@ describe("student dashboard", () => {
     const cached = makeDashboard({ user: { ...makeDashboard().user, name: "Cached Student" } });
     session.getStoredDashboard.mockReturnValue(cached);
     api.getStudentDashboard.mockRejectedValue(new Error("Offline"));
-    render(<Dashboard />);
+    renderStudentDashboard();
     expect(await screen.findByText("Demo data")).toBeInTheDocument();
     expect(screen.getByText("Cached's academic command center")).toBeInTheDocument();
   });
@@ -197,7 +233,9 @@ describe("student dashboard", () => {
   });
 
   it("shows that more classes are needed when attendance is below 75 percent", async () => {
-    await renderLoadedDashboard(makeDashboard({ user: { ...makeDashboard().user, attendance: 74 } }));
+    await renderLoadedDashboard(
+      makeDashboard({ user: { ...makeDashboard().user, attendance: 74 } }),
+    );
     expect(screen.getByText("Needs classes")).toBeInTheDocument();
   });
 
@@ -207,7 +245,9 @@ describe("student dashboard", () => {
   });
 
   it("shows the current fee-clearance status when fees are not cleared", async () => {
-    await renderLoadedDashboard(makeDashboard({ fee_summary: { ...makeDashboard().fee_summary, clearance: "Payment due" } }));
+    await renderLoadedDashboard(
+      makeDashboard({ fee_summary: { ...makeDashboard().fee_summary, clearance: "Payment due" } }),
+    );
     expect(screen.getByText("Payment due")).toBeInTheDocument();
   });
 
@@ -224,7 +264,11 @@ describe("student dashboard", () => {
   });
 
   it("keeps the attendance panel available when current records are empty", async () => {
-    const data = makeDashboard({ attendance_weekly: [], attendance_timeline: [], attendance_monthly: [] });
+    const data = makeDashboard({
+      attendance_weekly: [],
+      attendance_timeline: [],
+      attendance_monthly: [],
+    });
     renderDashboard(data);
     await screen.findByText("Backend live");
     expect(screen.getByText("Attendance by days")).toBeInTheDocument();
@@ -250,19 +294,35 @@ describe("student dashboard", () => {
     const user = userEvent.setup();
     api.createStudentTodo.mockResolvedValue({ todos: [todo] });
     await renderLoadedDashboard();
-    await user.type(screen.getByPlaceholderText("Write today's plan or future task..."), "  Finish assignment  ");
+    await user.type(
+      screen.getByPlaceholderText("Write today's plan or future task..."),
+      "  Finish assignment  ",
+    );
     await user.click(screen.getByRole("button", { name: "Add" }));
-    await waitFor(() => expect(api.createStudentTodo).toHaveBeenCalledWith({ title: "Finish assignment", due_at: null }));
+    await waitFor(() =>
+      expect(api.createStudentTodo).toHaveBeenCalledWith({
+        title: "Finish assignment",
+        due_at: null,
+      }),
+    );
   });
 
   it("creates a todo with the selected due date", async () => {
     const user = userEvent.setup();
     api.createStudentTodo.mockResolvedValue({ todos: [todo] });
     await renderLoadedDashboard();
-    await user.type(screen.getByPlaceholderText("Write today's plan or future task..."), "Finish assignment");
+    await user.type(
+      screen.getByPlaceholderText("Write today's plan or future task..."),
+      "Finish assignment",
+    );
     fireEvent.change(screen.getByDisplayValue(""), { target: { value: "2030-05-20T10:00" } });
     await user.click(screen.getByRole("button", { name: "Add" }));
-    await waitFor(() => expect(api.createStudentTodo).toHaveBeenCalledWith({ title: "Finish assignment", due_at: "2030-05-20T10:00:00.000Z" }));
+    await waitFor(() =>
+      expect(api.createStudentTodo).toHaveBeenCalledWith({
+        title: "Finish assignment",
+        due_at: "2030-05-20T10:00:00.000Z",
+      }),
+    );
   });
 
   it("clears the todo form after creating a todo", async () => {
@@ -279,7 +339,10 @@ describe("student dashboard", () => {
     const user = userEvent.setup();
     api.createStudentTodo.mockRejectedValue(new Error("Offline"));
     await renderLoadedDashboard();
-    await user.type(screen.getByPlaceholderText("Write today's plan or future task..."), "Finish assignment");
+    await user.type(
+      screen.getByPlaceholderText("Write today's plan or future task..."),
+      "Finish assignment",
+    );
     await user.click(screen.getByRole("button", { name: "Add" }));
     expect(await screen.findByText("Demo data")).toBeInTheDocument();
   });
@@ -298,7 +361,9 @@ describe("student dashboard", () => {
     api.updateStudentTodo.mockResolvedValue({ todos: [todo] });
     await renderLoadedDashboard(makeDashboard({ student_todos: [completed] }));
     await user.click(screen.getByRole("button", { name: "Mark todo incomplete" }));
-    await waitFor(() => expect(api.updateStudentTodo).toHaveBeenCalledWith(1, { completed: false }));
+    await waitFor(() =>
+      expect(api.updateStudentTodo).toHaveBeenCalledWith(1, { completed: false }),
+    );
   });
 
   it("deletes a todo", async () => {
@@ -315,6 +380,10 @@ describe("student dashboard", () => {
     api.updateStudentTodo.mockResolvedValue({ todos: [{ ...todo, completed: true }] });
     await renderLoadedDashboard(makeDashboard({ student_todos: [todo] }));
     await user.click(screen.getByRole("button", { name: "Mark todo complete" }));
-    await waitFor(() => expect(session.setStoredDashboard).toHaveBeenCalledWith(expect.objectContaining({ student_todos: [{ ...todo, completed: true }] })));
+    await waitFor(() =>
+      expect(session.setStoredDashboard).toHaveBeenCalledWith(
+        expect.objectContaining({ student_todos: [{ ...todo, completed: true }] }),
+      ),
+    );
   });
 });

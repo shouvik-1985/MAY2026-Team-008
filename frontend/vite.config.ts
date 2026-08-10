@@ -8,6 +8,9 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    test: {
+      exclude: ["**/node_modules/**", "**/tests/e2e/**", "**/tests/integration/**"],
+    },
     resolve: {
       dedupe: [
         "react",
