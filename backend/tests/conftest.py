@@ -16,6 +16,10 @@ os.environ["ALLOW_DEMO_GOOGLE"] = "true"
 from app.core.config import get_settings
 
 get_settings.cache_clear()
+_settings = get_settings()
+_settings.openai_api_key = None
+_settings.razorpay_key_id = None
+_settings.razorpay_secret_key = None
 
 from app.db import engine, SessionLocal
 from app.main import app
@@ -28,11 +32,27 @@ def client():
         TEST_DB_PATH.unlink()
 
     with TestClient(app) as test_client:
+        _open_default_intake_batch(test_client)
         yield test_client
 
     engine.dispose()
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
+
+
+def _open_default_intake_batch(test_client: TestClient) -> None:
+    login = test_client.post(
+        "/api/auth/login",
+        json={"email": "admin@campusverse.edu", "password": "admin123"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    response = test_client.post(
+        "/api/admin/management/slot-batches",
+        json={"batch_name": "Test Suite Intake Batch", "total_slots": 5000, "open_for_intake": True},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
 
 
 def unique_email(prefix: str) -> str:
@@ -117,7 +137,6 @@ def placement_manager_headers(client):
 
 @pytest.fixture
 def make_eligible_student(client, make_student):
-   
     def _make(**overrides):
         student = make_student(**overrides)
         db = SessionLocal()

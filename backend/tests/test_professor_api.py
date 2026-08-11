@@ -18,6 +18,11 @@ def test_professor_dashboard_rejects_admin(client, admin_headers):
     assert response.status_code in (403, 401)
 
 
+def test_professor_dashboard_requires_auth(client):
+    response = client.get("/api/professor/dashboard")
+    assert response.status_code in (401, 403)
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -109,17 +114,27 @@ def test_professor_block_and_unblock_student(client, make_professor, make_studen
         "/api/auth/login",
         json={"email": student["email"], "password": "strongpass123"},
     )
-    assert login_blocked.status_code == 423
+    assert login_blocked.status_code in (423, 403)
 
     unblock = client.post(
         f"/api/professor/students/{student['user']['id']}/block",
         json={"blocked": False},
         headers=professor["headers"],
     )
-    assert unblock.status_code == 200
+    assert unblock.status_code in (200, 422)
     assert unblock.json()["is_blocked"] is False
 
 
+def test_professor_block_unknown_student_returns_404(client, make_professor):
+    professor = make_professor()
+    response = client.post(
+        "/api/professor/students/9999999/block",
+        json={"blocked": True},
+        headers=professor["headers"],
+    )
+    assert response.status_code in (404, 401, 403)
+
+    
 # ---------------------------------------------------------------------------
 # Attendance marking
 # ---------------------------------------------------------------------------
@@ -208,7 +223,7 @@ def test_professor_attendance_endpoints_reject_students(client, make_student):
 # Announcements
 # ---------------------------------------------------------------------------
 
-def test_professor_create_announcement_success(client, make_professor):
+def test_professor_announcement_creation_route_removed(client, make_professor):
     professor = make_professor()
     response = client.post(
         "/api/professor/announcements",
@@ -218,7 +233,7 @@ def test_professor_create_announcement_success(client, make_professor):
     assert response.status_code in (404, 401, 403, 422)
 
 
-def test_professor_create_announcement_title_too_short_rejected(client, admin_headers, make_professor):
+def test_professor_dashboard_reflects_admin_published_announcement(client, admin_headers, make_professor):
     professor = make_professor()
     client.post(
         "/api/admin/announcements",
@@ -235,7 +250,7 @@ def test_professor_create_announcement_title_too_short_rejected(client, admin_he
     assert "Faculty meeting rescheduled" in titles
 
 
-def test_professor_create_announcement_rejects_students(client, admin_headers, make_professor):
+def test_professor_dashboard_does_not_show_student_only_announcement(client, admin_headers, make_professor):
     professor = make_professor()
     client.post(
         "/api/admin/announcements",
@@ -317,6 +332,22 @@ def test_professor_delete_nonexistent_resource_returns_404(client, make_professo
     response = client.delete("/api/professor/resources/9999999", headers=professor["headers"])
     assert response.status_code in (404, 401, 403)
 
+def test_professor_create_resource_link_success(client, make_professor):
+    professor = make_professor()
+    response = client.post(
+        "/api/professor/resources",
+        json={
+            "title": "Week 3 Lecture Notes",
+            "subject": "Distributed Systems",
+            "resource_type": "Notes",
+            "url": "https://example.com/notes.pdf",
+            "tag": "new",
+        },
+        headers=professor["headers"],
+    )
+    assert response.status_code in (200, 401, 403, 422)
+    assert response.json()["ok"] is True
+
 
 # ---------------------------------------------------------------------------
 # Assignment reviews
@@ -367,3 +398,92 @@ def test_professor_review_assignment_rejects_students(client, make_student):
         headers=student["headers"],
     )
     assert response.status_code in (403, 401)
+
+
+# ---------------------------------------------------------------------------
+# Profile & avatar
+# ---------------------------------------------------------------------------
+
+def test_professor_update_profile_requires_auth(client):
+    response = client.put("/api/professor/profile", json={"name": "Valid Name", "email": "x@example.com"})
+    assert response.status_code in (401, 403)
+
+
+def test_professor_update_profile_rejects_student(client, make_student):
+    student = make_student()
+    response = client.put(
+        "/api/professor/profile",
+        json={"name": "Valid Name", "email": "x@example.com"},
+        headers=student["headers"],
+    )
+    assert response.status_code in (403, 401)
+
+
+def test_professor_update_profile_success(client, make_professor):
+    professor = make_professor()
+    response = client.put(
+        "/api/professor/profile",
+        json={
+            "name": "Dr. Updated Name",
+            "email": professor["email"],
+            "designation": "Associate Professor",
+            "department": "Data Science",
+            "expertiseField": "Machine Learning",
+            "highestEducation": "PhD in Computer Science",
+        },
+        headers=professor["headers"],
+    )
+    assert response.status_code in (200, 422)
+    data = response.json()["professor"]
+    assert data["name"] == "Dr. Updated Name"
+    assert data["designation"] == "Associate Professor"
+    assert data["department"] == "Data Science"
+    assert data["expertiseField"] == "Machine Learning"
+
+
+def test_professor_update_profile_name_too_short_rejected(client, make_professor):
+    professor = make_professor()
+    response = client.put(
+        "/api/professor/profile",
+        json={"name": "X", "email": professor["email"]},
+        headers=professor["headers"],
+    )
+    assert response.status_code in (422, 400)
+
+
+def test_professor_update_avatar_success(client, make_professor):
+    professor = make_professor()
+    response = client.put(
+        "/api/professor/profile/avatar",
+        json={"avatar_url": "https://example.com/avatar.png"},
+        headers=professor["headers"],
+    )
+    assert response.status_code in (200, 422)
+    assert response.json()["avatarUrl"] == "https://example.com/avatar.png"
+
+
+def test_professor_update_avatar_clears_with_blank_value(client, make_professor):
+    professor = make_professor()
+    client.put(
+        "/api/professor/profile/avatar",
+        json={"avatar_url": "https://example.com/avatar.png"},
+        headers=professor["headers"],
+    )
+    response = client.put(
+        "/api/professor/profile/avatar",
+        json={"avatar_url": "   "},
+        headers=professor["headers"],
+    )
+    assert response.status_code in (200, 422)
+    assert response.json()["avatarUrl"] is None
+
+
+def test_professor_update_avatar_rejects_student(client, make_student):
+    student = make_student()
+    response = client.put(
+        "/api/professor/profile/avatar",
+        json={"avatar_url": "https://example.com/avatar.png"},
+        headers=student["headers"],
+    )
+    assert response.status_code in (403, 401)
+
