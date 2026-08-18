@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import desc
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, load_only, selectinload
 
 from app.attendance_flow import get_campus_attendance_setting
 from app.avatar import student_avatar_url
@@ -21,6 +21,34 @@ MIN_PLACEMENT_SEMESTER = 3
 MIN_PLACEMENT_CGPA = 7.5
 MAX_RESUME_BYTES = 8 * 1024 * 1024
 RESUME_EXTENSIONS = {".pdf", ".doc", ".docx"}
+
+PLACEMENT_APPLICATION_SUMMARY_COLUMNS = (
+    PlacementApplication.id,
+    PlacementApplication.student_id,
+    PlacementApplication.student_name,
+    PlacementApplication.student_email,
+    PlacementApplication.semester,
+    PlacementApplication.cgpa,
+    PlacementApplication.skills,
+    PlacementApplication.linkedin_profile,
+    PlacementApplication.github_profile,
+    PlacementApplication.phone_number,
+    PlacementApplication.resume_filename,
+    PlacementApplication.resume_content_type,
+    PlacementApplication.resume_file_size,
+    PlacementApplication.status,
+    PlacementApplication.selection_message,
+    PlacementApplication.selected_at,
+    PlacementApplication.created_at,
+    PlacementApplication.updated_at,
+)
+
+
+def _application_summary_options():
+    return (
+        load_only(*PLACEMENT_APPLICATION_SUMMARY_COLUMNS),
+        selectinload(PlacementApplication.student).selectinload(User.student_profile),
+    )
 
 
 def _now() -> datetime:
@@ -319,6 +347,7 @@ def student_portal(
     snapshot = _student_snapshot(db, current_user)
     application = (
         db.query(PlacementApplication)
+        .options(*_application_summary_options())
         .filter(PlacementApplication.student_id == current_user.id)
         .first()
     )
@@ -449,6 +478,7 @@ async def upsert_student_application(
     cleaned_phone = _clean_text(phone_number, field="Phone number", min_length=7, max_length=40)
     application = (
         db.query(PlacementApplication)
+        .options(*_application_summary_options())
         .filter(PlacementApplication.student_id == current_user.id)
         .first()
     )
@@ -517,6 +547,7 @@ def apply_to_role(
     snapshot = _student_snapshot(db, current_user)
     application = (
         db.query(PlacementApplication)
+        .options(*_application_summary_options())
         .filter(PlacementApplication.student_id == current_user.id)
         .first()
     )
@@ -604,6 +635,7 @@ def manager_dashboard(
     _require_placement_manager(current_user)
     applications = (
         db.query(PlacementApplication)
+        .options(*_application_summary_options())
         .filter(
             PlacementApplication.semester >= MIN_PLACEMENT_SEMESTER,
             PlacementApplication.cgpa >= MIN_PLACEMENT_CGPA,
@@ -616,6 +648,7 @@ def manager_dashboard(
         .options(
             selectinload(PlacementRole.applications)
             .selectinload(PlacementRoleApplication.placement_application)
+            .options(*_application_summary_options())
         )
         .filter(PlacementRole.manager_id == current_user.id, PlacementRole.active.is_(True))
         .order_by(desc(PlacementRole.updated_at))
@@ -713,7 +746,9 @@ def decide_role_application(
         raise HTTPException(status_code=404, detail="Placement role not found")
     role_application = (
         db.query(PlacementRoleApplication)
-        .options(selectinload(PlacementRoleApplication.placement_application))
+        .options(
+            selectinload(PlacementRoleApplication.placement_application).options(*_application_summary_options())
+        )
         .filter(
             PlacementRoleApplication.id == role_application_id,
             PlacementRoleApplication.role_id == role.id,

@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import desc
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, load_only, selectinload
 
 from app.announcement_flow import announcement_notifications_for_user, announcement_rows_for_user
 from app.assignment_ai import grade_from_score, normalize_grade_code, review_digital_submission, review_file_submission
@@ -41,6 +41,7 @@ from app.models import (
     StudentBiometricCheckIn,
     StudentCertificateRequest,
     StudentComplaint,
+    StudentComplaintAttachment,
     StudentEventRegistration,
     StudentMarketplaceInquiry,
     StudentProfile,
@@ -49,7 +50,7 @@ from app.models import (
     User,
 )
 from app.resource_ai import build_study_resource_ai_summary
-from app.resource_files import public_resource_url
+from app.resource_files import resource_file_url
 from app.schemas import (
     AssignmentDigitalSubmissionCreate,
     CampusAttendanceSettingsOut,
@@ -72,6 +73,22 @@ try:
 except Exception:
     LOCAL_TIMEZONE = timezone.utc
 NOW_DATE = date(2026, 7, 22)
+
+
+def _resource_url_for_list(item: StudyResource) -> str:
+    if item.file_size or item.filename or (item.url and item.url.startswith("/uploads/study_resources/")):
+        return resource_file_url(item.id)
+    return item.url or ""
+
+
+def _complaint_attachment_metadata():
+    return selectinload(StudentComplaint.attachments).load_only(
+        StudentComplaintAttachment.id,
+        StudentComplaintAttachment.complaint_id,
+        StudentComplaintAttachment.filename,
+        StudentComplaintAttachment.content_type,
+        StudentComplaintAttachment.file_size,
+    )
 
 
 STUDENT_NAV = [
@@ -211,7 +228,7 @@ def _ensure_graduation_certificate_request(
         db.add(request)
         db.commit()
         db.refresh(request)
-    elif request.status not in {"ready", "downloaded"}:
+    elif request.status not in {"ready", "downloaded", "rejected"}:
         request.status = "ready"
         request.ready_at = request.ready_at or moment
         request.updated_at = moment
@@ -357,6 +374,26 @@ def _event_rows(db: Session, user: User, semester: int, seed: int) -> list[dict]
 def _marketplace_items(db: Session, user: User, semester: int) -> list[dict]:
     items = (
         db.query(MarketplaceItem)
+        .options(
+            load_only(
+                MarketplaceItem.id,
+                MarketplaceItem.item_key,
+                MarketplaceItem.name,
+                MarketplaceItem.category,
+                MarketplaceItem.price,
+                MarketplaceItem.seller_name,
+                MarketplaceItem.seller_id,
+                MarketplaceItem.tag,
+                MarketplaceItem.image_url,
+                MarketplaceItem.thumbnail_url,
+                MarketplaceItem.description,
+                MarketplaceItem.status,
+                MarketplaceItem.visibility,
+                MarketplaceItem.approval_status,
+                MarketplaceItem.is_deleted,
+                MarketplaceItem.created_at,
+            )
+        )
         .filter(
             MarketplaceItem.visibility != "hidden",
             MarketplaceItem.is_deleted.is_(False),
@@ -631,6 +668,21 @@ def _monthly_attendance(records: list[StudentAttendance]) -> list[dict]:
 def _resource_rows(db: Session) -> list[dict]:
     rows = (
         db.query(StudyResource, User.full_name)
+        .options(
+            load_only(
+                StudyResource.id,
+                StudyResource.created_by_id,
+                StudyResource.title,
+                StudyResource.subject,
+                StudyResource.resource_type,
+                StudyResource.url,
+                StudyResource.filename,
+                StudyResource.content_type,
+                StudyResource.file_size,
+                StudyResource.tag,
+                StudyResource.created_at,
+            )
+        )
         .outerjoin(User, StudyResource.created_by_id == User.id)
         .order_by(desc(StudyResource.created_at))
         .limit(120)
@@ -645,7 +697,7 @@ def _resource_rows(db: Session) -> list[dict]:
                 "subject": resource.subject,
                 "type": resource.resource_type,
                 "tag": resource.tag,
-                "url": public_resource_url(resource),
+                "url": _resource_url_for_list(resource),
                 "professorName": professor_name or "Campus Faculty",
                 "createdAt": resource.created_at.isoformat(),
                 "createdDate": resource.created_at.date().isoformat(),
@@ -767,7 +819,7 @@ def _complaint_rows(
     complaints = (
         db.query(StudentComplaint)
         .options(
-            selectinload(StudentComplaint.attachments),
+            _complaint_attachment_metadata(),
             selectinload(StudentComplaint.student).selectinload(User.student_profile),
         )
         .filter(StudentComplaint.student_id == user.id)
@@ -817,7 +869,34 @@ def _student_assignment_items(
 
     submissions = {
         item.assignment_id: item
-        for item in db.query(AssignmentSubmission).filter(AssignmentSubmission.student_id == user.id).all()
+        for item in (
+            db.query(AssignmentSubmission)
+            .options(
+                load_only(
+                    AssignmentSubmission.id,
+                    AssignmentSubmission.assignment_id,
+                    AssignmentSubmission.student_id,
+                    AssignmentSubmission.submission_type,
+                    AssignmentSubmission.answers_json,
+                    AssignmentSubmission.notes,
+                    AssignmentSubmission.filename,
+                    AssignmentSubmission.content_type,
+                    AssignmentSubmission.file_size,
+                    AssignmentSubmission.ai_grade,
+                    AssignmentSubmission.ai_score,
+                    AssignmentSubmission.ai_feedback,
+                    AssignmentSubmission.ai_review_json,
+                    AssignmentSubmission.professor_score,
+                    AssignmentSubmission.professor_grade,
+                    AssignmentSubmission.professor_feedback,
+                    AssignmentSubmission.status,
+                    AssignmentSubmission.submitted_at,
+                    AssignmentSubmission.updated_at,
+                )
+            )
+            .filter(AssignmentSubmission.student_id == user.id)
+            .all()
+        )
     }
     rows: list[dict] = []
     for item in assignments:

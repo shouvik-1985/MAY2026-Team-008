@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 import requests
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.attendance_flow import get_campus_attendance_setting
 from app.avatar import student_avatar_url
@@ -106,9 +106,14 @@ def fee_settings_payload(db: Session) -> list[dict]:
     ]
 
 
-def resolve_current_fee_semester(db: Session, user: User, profile: StudentProfile | None = None) -> int:
+def resolve_current_fee_semester(
+    db: Session,
+    user: User,
+    profile: StudentProfile | None = None,
+    campus_setting=None,
+) -> int:
     profile = profile or _ensure_student_profile(db, user)
-    setting = get_campus_attendance_setting(db)
+    setting = campus_setting or get_campus_attendance_setting(db)
     semester = resolve_student_semester(
         profile,
         user,
@@ -259,7 +264,14 @@ def update_semester_fee_amount(db: Session, semester: int, amount: int, admin_id
 
 
 def admin_fee_management_payload(db: Session) -> dict:
-    students = db.query(User).filter(User.role == Role.student).order_by(User.created_at.desc()).all()
+    students = (
+        db.query(User)
+        .options(selectinload(User.student_profile))
+        .filter(User.role == Role.student)
+        .order_by(User.created_at.desc())
+        .all()
+    )
+    campus_setting = get_campus_attendance_setting(db)
     student_rows: list[dict] = []
     total_collected = 0
     total_pending = 0
@@ -268,7 +280,7 @@ def admin_fee_management_payload(db: Session) -> dict:
 
     for student in students:
         profile = _ensure_student_profile(db, student)
-        semester = resolve_current_fee_semester(db, student, profile)
+        semester = resolve_current_fee_semester(db, student, profile, campus_setting)
         invoices = ensure_student_fee_ledger(db, student, semester)
         outstanding = sum(invoice.amount for invoice in invoices if invoice.status != "paid")
         collected = sum(invoice.amount for invoice in invoices if invoice.status == "paid")

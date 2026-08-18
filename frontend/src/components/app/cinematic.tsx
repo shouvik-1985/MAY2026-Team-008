@@ -6,15 +6,15 @@ import { useTheme } from "@/lib/theme";
 /** Shared cinematic background - aurora gradient + particles + grid + blur orbs. */
 export function CinematicBackdrop({ intensity = 1 }: { intensity?: number }) {
   const lowPerformance = useLowPerformanceMode();
-  const orbCount = lowPerformance ? 3 : 6;
-  const particleCount = lowPerformance ? 10 : 40;
+  const orbCount = lowPerformance ? 2 : 4;
+  const particleCount = lowPerformance ? 6 : 24;
   const orbs = useMemo(
     () =>
       Array.from({ length: orbCount }).map((_, i) => ({
         id: i,
         top: `${10 + Math.random() * 70}%`,
         left: `${10 + Math.random() * 80}%`,
-        size: lowPerformance ? 240 + Math.random() * 220 : 280 + Math.random() * 360,
+        size: lowPerformance ? 220 + Math.random() * 180 : 260 + Math.random() * 300,
         hue: [
           "oklch(0.65 0.28 305 / 0.35)",
           "oklch(0.72 0.27 350 / 0.30)",
@@ -39,7 +39,7 @@ export function CinematicBackdrop({ intensity = 1 }: { intensity?: number }) {
             width: o.size,
             height: o.size,
             background: `radial-gradient(circle, ${o.hue}, transparent 65%)`,
-            filter: `blur(${lowPerformance ? 38 : 60}px)`,
+            filter: `blur(${lowPerformance ? 34 : 48}px)`,
             opacity: lowPerformance ? intensity * 0.7 : intensity,
           }}
           animate={lowPerformance ? undefined : { x: [0, 30, -20, 0], y: [0, -40, 20, 0] }}
@@ -189,4 +189,3 @@ export function Counter({
     </span>
   );
 }
-

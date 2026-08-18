@@ -24,7 +24,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentType } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentType } from "react";
 import {
   acceptConnectRequest,
   blockConnectUser,
@@ -56,6 +56,34 @@ type QueuedFile = {
 };
 
 const EMOJIS = ["\u{1F44D}", "\u{1F525}", "\u2728", "\u2705", "\u{1F642}", "\u{1F4CC}"];
+const HUB_SYNC_INTERVAL_MS = 15_000;
+const MESSAGE_SYNC_INTERVAL_MS = 5_000;
+
+let cachedHub: ConnectHubData | null = null;
+
+function countStatuses(people: ConnectPerson[]): ConnectHubData["counts"] {
+  return {
+    friends: people.filter((person) => person.status === "friend").length,
+    requests: people.filter((person) => person.status === "received").length,
+    sent: people.filter((person) => person.status === "sent").length,
+    blocked: people.filter((person) => person.status === "blocked" || person.status === "blocked_by_them").length,
+  };
+}
+
+function applyPersonStatus(
+  data: ConnectHubData | null,
+  personId: number,
+  status: ConnectStatus,
+): ConnectHubData | null {
+  if (!data) return data;
+  const people = data.people.map((person) => (person.id === personId ? { ...person, status } : person));
+  return {
+    ...data,
+    people,
+    counts: countStatuses(people),
+    syncedAt: new Date().toISOString(),
+  };
+}
 
 export function ConnectHub({
   viewerRole,
@@ -66,14 +94,17 @@ export function ConnectHub({
 }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const [hub, setHub] = useState<ConnectHubData | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [hub, setHub] = useState<ConnectHubData | null>(() => cachedHub);
+  const [selectedId, setSelectedId] = useState<number | null>(() =>
+    cachedHub ? chooseDefaultPerson(cachedHub.people) : null,
+  );
   const [panelMode, setPanelMode] = useState<PanelMode>("profile");
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [messages, setMessages] = useState<ConnectMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [files, setFiles] = useState<QueuedFile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedHub);
   const [chatLoading, setChatLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +120,7 @@ export function ConnectHub({
 
   const visiblePeople = useMemo(() => {
     const people = hub?.people ?? [];
-    const normalized = query.trim().toLowerCase();
+    const normalized = deferredQuery.trim().toLowerCase();
     if (!normalized) return people;
     return people.filter((person) =>
       [
@@ -105,7 +136,7 @@ export function ConnectHub({
         .toLowerCase()
         .includes(normalized),
     );
-  }, [hub?.people, query]);
+  }, [hub?.people, deferredQuery]);
 
   useEffect(() => {
     let mounted = true;
@@ -114,6 +145,7 @@ export function ConnectHub({
       try {
         const data = await getConnectHub();
         if (!mounted) return;
+        cachedHub = data;
         setHub(data);
         setSelectedId((current) => current ?? chooseDefaultPerson(data.people));
         setError(null);
@@ -126,8 +158,8 @@ export function ConnectHub({
 
     void loadInitial();
     const timer = window.setInterval(() => {
-      void refreshHub(true);
-    }, 5000);
+      if (document.visibilityState === "visible") void refreshHub(true);
+    }, HUB_SYNC_INTERVAL_MS);
 
     return () => {
       mounted = false;
@@ -161,8 +193,8 @@ export function ConnectHub({
 
     void loadMessages();
     const timer = window.setInterval(() => {
-      void loadMessages(true);
-    }, 2500);
+      if (document.visibilityState === "visible") void loadMessages(true);
+    }, MESSAGE_SYNC_INTERVAL_MS);
 
     return () => {
       mounted = false;
@@ -183,6 +215,7 @@ export function ConnectHub({
     if (!silent) setLoading(true);
     try {
       const data = await getConnectHub();
+      cachedHub = data;
       setHub(data);
       setSelectedId((current) => {
         if (current && data.people.some((person) => person.id === current)) return current;
@@ -196,12 +229,18 @@ export function ConnectHub({
     }
   }
 
-  async function runAction(actionKey: string, action: () => Promise<unknown>) {
+  async function runAction(actionKey: string, action: () => Promise<{ status: ConnectStatus }>) {
     if (!selected) return;
+    const personId = selected.id;
     setBusyAction(actionKey);
     try {
-      await action();
-      await refreshHub(true);
+      const result = await action();
+      setHub((current) => {
+        const next = applyPersonStatus(current, personId, result.status);
+        cachedHub = next;
+        return next;
+      });
+      void refreshHub(true);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");

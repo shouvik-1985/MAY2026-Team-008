@@ -30,12 +30,11 @@ import { useTheme } from "@/lib/theme";
 import {
   createStudentTodo,
   deleteStudentTodo,
-  getStudentDashboard,
   updateStudentTodo,
   type StudentDashboard,
   type StudentTodo,
 } from "@/lib/api";
-import { getStoredDashboard, setStoredDashboard } from "@/lib/student-session";
+import { getStoredDashboard, refreshStudentDashboard, setStoredDashboard } from "@/lib/student-session";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
 
@@ -192,11 +191,10 @@ export function Dashboard() {
 
   useEffect(() => {
     let mounted = true;
-    getStudentDashboard()
+    refreshStudentDashboard()
       .then((data) => {
         if (!mounted) return;
         setDashboard(data);
-        setStoredDashboard(data);
         setApiState("live");
       })
       .catch(() => {

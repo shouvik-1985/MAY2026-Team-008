@@ -41,6 +41,7 @@ const NAV = [
   { href: "#profile", label: "Profile", icon: User },
   { href: "#connect", label: "Connect", icon: MessageCircle },
 ];
+const PROFESSOR_NOTIFICATION_SYNC_MS = 30_000;
 
 export function ProfessorShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -122,6 +123,7 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     const fetchNotifs = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       getProfessorDashboard()
         .then((data) => {
           if (!active || !data) return;
@@ -151,10 +153,12 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
     };
 
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 3000);
+    const interval = setInterval(fetchNotifs, PROFESSOR_NOTIFICATION_SYNC_MS);
+    window.addEventListener("focus", fetchNotifs);
     return () => {
       active = false;
       clearInterval(interval);
+      window.removeEventListener("focus", fetchNotifs);
     };
   }, [openNotif, activeHash]);
 

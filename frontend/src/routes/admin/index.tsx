@@ -33,7 +33,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useTheme } from "@/lib/theme";
 import { ComplaintStageStrip } from "@/components/app/ComplaintStageStrip";
 import { MarketplaceExperience } from "@/components/marketplace/MarketplaceExperience";
@@ -77,6 +77,19 @@ type AdminSection = (typeof ADMIN_SECTIONS)[number];
 type AdminComplaint = ComplaintItem;
 type AdminCertificate = AdminCertificateRequest;
 type CertificateStatusFilter = "all" | "requested" | "ready" | "downloaded" | "rejected";
+type AdminAccountAction = "block" | "unblock" | "delete";
+type AdminCertificateAction = "approve" | "reject";
+type AdminActionToastState = {
+  id: number;
+  message: string;
+  tone: "danger" | "success" | "error";
+  busy?: boolean;
+  title?: string;
+};
+
+const ACCOUNT_TOAST_TIMEOUT_MS = 5_000;
+const CERTIFICATE_TOAST_TIMEOUT_MS = 5_000;
+const ADMIN_STATUS_TOAST_TIMEOUT_MS = 5_000;
 
 function normalizeAdminSection(hash: string): AdminSection {
   const raw = hash.replace("#", "");
@@ -144,7 +157,11 @@ function AdminDeskPage() {
   const [annPosting, setAnnPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [accountActions, setAccountActions] = useState<Record<number, AdminAccountAction>>({});
+  const [accountToast, setAccountToast] = useState<AdminActionToastState | null>(null);
+  const [certificateActions, setCertificateActions] = useState<Record<number, AdminCertificateAction>>({});
+  const [certificateToast, setCertificateToast] = useState<AdminActionToastState | null>(null);
+  const [statusToast, setStatusToast] = useState<AdminActionToastState | null>(null);
 
   useEffect(() => {
     function syncSection() {
@@ -156,7 +173,20 @@ function AdminDeskPage() {
     return () => window.removeEventListener("hashchange", syncSection);
   }, []);
 
-  async function refreshData(successMessage?: string) {
+  function showStatusToast(message: string, tone: AdminActionToastState["tone"] = "success", title = "Admin update") {
+    setStatusToast({
+      id: Date.now(),
+      message,
+      tone,
+      title,
+    });
+  }
+
+  function clearStatusToast() {
+    setStatusToast(null);
+  }
+
+  async function refreshData(successMessage?: string, successTone: AdminActionToastState["tone"] = "success") {
     const [dashboardData, managementData, complaintsData, feesData, certificateData, announcementsData] = await Promise.all([
       getAdminDashboard(),
       getAdminManagement(),
@@ -187,7 +217,174 @@ function AdminDeskPage() {
     setSelectedProfessorId((current) => current ?? dashboardData.professors[0]?.id ?? null);
     setSelectedComplaintId((current) => current ?? complaintsData.complaints[0]?.id ?? null);
     setSelectedCertificateRequestId((current) => current ?? certificateData.requests[0]?.id ?? null);
-    if (successMessage) setStatus(successMessage);
+    if (successMessage) showStatusToast(successMessage, successTone);
+  }
+
+  async function refreshDashboardQuietly() {
+    const dashboardData = await getAdminDashboard();
+    setDashboard(dashboardData);
+    setSelectedStudentId((current) => current ?? dashboardData.students[0]?.id ?? null);
+    setSelectedProfessorId((current) => current ?? dashboardData.professors[0]?.id ?? null);
+  }
+
+  async function refreshCertificatesQuietly() {
+    const certificateData = await getAdminCertificateRequests();
+    setCertificateRequests(certificateData.requests);
+    setSelectedCertificateRequestId((current) => current ?? certificateData.requests[0]?.id ?? null);
+  }
+
+  function runBackgroundRefresh(mode: "dashboard" | "certificates" | "all" = "dashboard") {
+    const refresh =
+      mode === "all" ? refreshData : mode === "certificates" ? refreshCertificatesQuietly : refreshDashboardQuietly;
+    void refresh().catch(() => undefined);
+  }
+
+  function updateAccountAction(userId: number, action: AdminAccountAction | null) {
+    setAccountActions((current) => {
+      const next = { ...current };
+      if (action) {
+        next[userId] = action;
+      } else {
+        delete next[userId];
+      }
+      return next;
+    });
+  }
+
+  function showAccountToast(message: string, tone: AdminActionToastState["tone"], busy = false) {
+    setAccountToast({
+      id: Date.now(),
+      message,
+      tone,
+      busy,
+      title: "Account updated",
+    });
+  }
+
+  function updateCertificateAction(requestId: number, action: AdminCertificateAction | null) {
+    setCertificateActions((current) => {
+      const next = { ...current };
+      if (action) {
+        next[requestId] = action;
+      } else {
+        delete next[requestId];
+      }
+      return next;
+    });
+  }
+
+  function showCertificateToast(message: string, tone: AdminActionToastState["tone"], busy = false) {
+    setCertificateToast({
+      id: Date.now(),
+      message,
+      tone,
+      busy,
+      title: "Certificate updated",
+    });
+  }
+
+  useEffect(() => {
+    if (!accountToast) return;
+    const timer = window.setTimeout(() => {
+      setAccountToast((current) => (current?.id === accountToast.id ? null : current));
+    }, ACCOUNT_TOAST_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [accountToast]);
+
+  useEffect(() => {
+    if (!certificateToast) return;
+    const timer = window.setTimeout(() => {
+      setCertificateToast((current) => (current?.id === certificateToast.id ? null : current));
+    }, CERTIFICATE_TOAST_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [certificateToast]);
+
+  useEffect(() => {
+    if (!statusToast) return;
+    const timer = window.setTimeout(() => {
+      setStatusToast((current) => (current?.id === statusToast.id ? null : current));
+    }, ADMIN_STATUS_TOAST_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [statusToast]);
+
+  function patchAccountBlockState(userId: number, role: string, blocked: boolean) {
+    const blockedAt = blocked ? new Date().toISOString() : "";
+    const blockReason = blocked ? "Blocked by admin" : "Active account";
+    setDashboard((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        students:
+          role === "student"
+            ? current.students.map((student) =>
+                student.id === userId
+                  ? {
+                      ...student,
+                      isBlocked: blocked,
+                      blockReason,
+                      blockedAt,
+                      status: blocked ? "blocked" : student.attendance >= 75 ? "active" : "watch",
+                    }
+                  : student,
+              )
+            : current.students,
+        professors:
+          role === "faculty"
+            ? current.professors.map((professor) =>
+                professor.id === userId
+                  ? {
+                      ...professor,
+                      isBlocked: blocked,
+                      blockReason,
+                      blockedAt,
+                      status: blocked ? "blocked" : "active",
+                    }
+                  : professor,
+              )
+            : current.professors,
+      };
+    });
+  }
+
+  function removeAccountFromLocalData(userId: number, role: string) {
+    setDashboard((current) => {
+      if (!current) return current;
+      const students = role === "student" ? current.students.filter((student) => student.id !== userId) : current.students;
+      const professors =
+        role === "faculty" ? current.professors.filter((professor) => professor.id !== userId) : current.professors;
+      const totalAccounts = Math.max(students.length + professors.length, 1);
+      return {
+        ...current,
+        account_ratio: {
+          students: students.length,
+          professors: professors.length,
+          studentShare: Number(((students.length / totalAccounts) * 100).toFixed(1)),
+          professorShare: Number(((professors.length / totalAccounts) * 100).toFixed(1)),
+        },
+        students,
+        professors,
+      };
+    });
+    if (role === "student") {
+      setComplaints((current) => current.filter((complaint) => complaint.studentId !== userId));
+      setCertificateRequests((current) => current.filter((request) => request.student_id !== userId));
+      setFeeData((current) => {
+        if (!current) return current;
+        const students = current.students.filter((student) => student.studentId !== userId);
+        return {
+          ...current,
+          students,
+          metrics: {
+            ...current.metrics,
+            studentCount: students.length,
+            paidStudents: students.filter((student) => student.status === "paid").length,
+            pendingStudents: students.filter((student) => student.status !== "paid").length,
+            totalCollected: students.reduce((sum, student) => sum + student.collected, 0),
+            totalPending: students.reduce((sum, student) => sum + student.outstanding, 0),
+          },
+        };
+      });
+    }
   }
 
   useEffect(() => {
@@ -195,7 +392,7 @@ function AdminDeskPage() {
     setLoading(true);
     refreshData()
       .catch((error) => {
-        if (live) setStatus(error instanceof Error ? error.message : "Admin dashboard failed to load");
+        if (live) showStatusToast(error instanceof Error ? error.message : "Admin dashboard failed to load", "error");
       })
       .finally(() => {
         if (live) setLoading(false);
@@ -207,7 +404,8 @@ function AdminDeskPage() {
 
   const [studentFilter, setStudentFilter] = useState<"all" | "watchlist" | "risk" | "blocked">("all");
 
-  const query = searchQuery.trim().toLowerCase();
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const query = deferredSearchQuery.trim().toLowerCase();
   const filteredStudents = useMemo(() => {
     return (dashboard?.students ?? []).filter((student) => {
       if (studentFilter === "watchlist" && student.attendance >= 75) return false;
@@ -323,6 +521,9 @@ function AdminDeskPage() {
     filteredCertificateRequests.find((request) => request.id === selectedCertificateRequestId) ??
     filteredCertificateRequests[0] ??
     null;
+  const selectedCertificateAction = selectedCertificateRequest
+    ? certificateActions[selectedCertificateRequest.id]
+    : undefined;
 
   useEffect(() => {
     if (selectedStudent && selectedStudent.id !== selectedStudentId) {
@@ -399,7 +600,7 @@ function AdminDeskPage() {
   async function save(event?: FormEvent) {
     event?.preventDefault();
     setSaving(true);
-    setStatus(null);
+    clearStatusToast();
     try {
       const managementData = await updateAdminAttendanceRadius({
         radius_meters: radius,
@@ -410,7 +611,7 @@ function AdminDeskPage() {
       setSettings(managementData);
       await refreshData("Attendance radius updated");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update management settings");
+      showStatusToast(error instanceof Error ? error.message : "Could not update management settings", "error");
     } finally {
       setSaving(false);
     }
@@ -419,7 +620,7 @@ function AdminDeskPage() {
   async function saveSemesterDuration(event?: FormEvent) {
     event?.preventDefault();
     setSaving(true);
-    setStatus(null);
+    clearStatusToast();
     try {
       const managementData = await updateAdminSemesterDuration({
         semester_duration_unit: semesterDurationUnit,
@@ -429,7 +630,7 @@ function AdminDeskPage() {
       setSettings(managementData);
       await refreshData("Semester duration updated");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update semester duration");
+      showStatusToast(error instanceof Error ? error.message : "Could not update semester duration", "error");
     } finally {
       setSaving(false);
     }
@@ -438,7 +639,7 @@ function AdminDeskPage() {
   async function createSlotRelease(event?: FormEvent) {
     event?.preventDefault();
     setSaving(true);
-    setStatus(null);
+    clearStatusToast();
     try {
       const normalizedName = slotBatchName.trim() || `Batch ${new Date().getFullYear()}`;
       const managementData = await createAdminSlotBatch({
@@ -452,7 +653,7 @@ function AdminDeskPage() {
       setOpenNewBatch(true);
       await refreshData(`${normalizedName} slot release created`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not create slot release");
+      showStatusToast(error instanceof Error ? error.message : "Could not create slot release", "error");
     } finally {
       setSaving(false);
     }
@@ -460,15 +661,15 @@ function AdminDeskPage() {
 
   async function toggleSlotRelease(batchId: number, nextState: boolean, batchName: string) {
     setSaving(true);
-    setStatus(null);
+    clearStatusToast();
     try {
       const managementData = await updateAdminSlotBatch(batchId, {
         open_for_intake: nextState,
       });
       setSettings(managementData);
-      await refreshData(`${batchName} intake ${nextState ? "opened" : "paused"}`);
+      await refreshData(`${batchName} intake ${nextState ? "opened" : "paused"}`, nextState ? "success" : "danger");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update slot release");
+      showStatusToast(error instanceof Error ? error.message : "Could not update slot release", "error");
     } finally {
       setSaving(false);
     }
@@ -476,51 +677,58 @@ function AdminDeskPage() {
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {
-      setStatus("This browser does not support location services");
+      showStatusToast("This browser does not support location services", "error");
       return;
     }
-    setStatus("Reading this device location...");
+    showStatusToast("Reading this device location...");
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLatitude(position.coords.latitude.toFixed(7));
         setLongitude(position.coords.longitude.toFixed(7));
-        setStatus("Campus center filled from this device. Save to apply it.");
+        showStatusToast("Campus center filled from this device. Save to apply it.");
       },
-      () => setStatus("Location permission was blocked or unavailable"),
+      () => showStatusToast("Location permission was blocked or unavailable", "error"),
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 15_000 },
     );
   }
 
   async function toggleUserBlock(userId: number, blocked: boolean, label: string) {
-    setSaving(true);
-    setStatus(null);
+    const action = blocked ? "block" : "unblock";
+    updateAccountAction(userId, action);
+    clearStatusToast();
+    showAccountToast(`${blocked ? "Blocking" : "Unblocking"} ${label}...`, blocked ? "danger" : "success", true);
     try {
       const result = await updateAdminUserBlock(userId, {
         blocked,
         reason: blocked ? "Blocked by admin" : undefined,
       });
-      await refreshData(result.message || `${label} ${blocked ? "blocked" : "unblocked"}`);
+      patchAccountBlockState(userId, result.role, result.is_blocked);
+      showAccountToast(result.message || `${label} ${blocked ? "blocked" : "unblocked"}`, blocked ? "danger" : "success");
+      runBackgroundRefresh("dashboard");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update account status");
+      showAccountToast(error instanceof Error ? error.message : "Could not update account status", "error");
     } finally {
-      setSaving(false);
+      updateAccountAction(userId, null);
     }
   }
 
   async function deleteUser(userId: number, label: string) {
     const okay = window.confirm(`Delete ${label} from CampusVerse? This also removes related account records.`);
     if (!okay) return;
-    setSaving(true);
-    setStatus(null);
+    updateAccountAction(userId, "delete");
+    clearStatusToast();
+    showAccountToast(`Deleting ${label}...`, "danger", true);
     try {
       const result = await deleteAdminUserAccount(userId);
       if (selectedStudentId === userId) setSelectedStudentId(null);
       if (selectedProfessorId === userId) setSelectedProfessorId(null);
-      await refreshData(result.message || `${label} deleted`);
+      removeAccountFromLocalData(userId, result.role);
+      showAccountToast(result.message || `${label} deleted`, "danger");
+      runBackgroundRefresh("all");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not delete account");
+      showAccountToast(error instanceof Error ? error.message : "Could not delete account", "error");
     } finally {
-      setSaving(false);
+      updateAccountAction(userId, null);
     }
   }
 
@@ -528,12 +736,12 @@ function AdminDeskPage() {
     const okay = window.confirm(`Reset the enrolled face template for ${label}? The student will need to re-enroll from the webcam scanner.`);
     if (!okay) return;
     setSaving(true);
-    setStatus(null);
+    clearStatusToast();
     try {
       const result = await resetAdminStudentBiometric(studentId);
-      await refreshData(result.message || `${label}'s face template was reset`);
+      await refreshData(result.message || `${label}'s face template was reset`, "danger");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not reset the student biometric template");
+      showStatusToast(error instanceof Error ? error.message : "Could not reset the student biometric template", "error");
     } finally {
       setSaving(false);
     }
@@ -544,15 +752,15 @@ function AdminDeskPage() {
     nextStatus: "acknowledged" | "in_progress" | "resolved",
   ) {
     setSaving(true);
-    setStatus(null);
+    clearStatusToast();
     try {
       const response = await updateAdminComplaintStatus(complaintId, { status: nextStatus });
       setComplaints((current) =>
         current.map((complaint) => (complaint.id === complaintId ? response.complaint : complaint)),
       );
-      setStatus(`Complaint moved to ${response.complaint.statusLabel}`);
+      showStatusToast(`Complaint moved to ${response.complaint.statusLabel}`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Complaint status could not be updated");
+      showStatusToast(error instanceof Error ? error.message : "Complaint status could not be updated", "error");
     } finally {
       setSaving(false);
     }
@@ -561,16 +769,16 @@ function AdminDeskPage() {
   async function saveSemesterFee(semester: number) {
     const amount = Math.max(1, Math.round(Number(feeAmountEdits[semester]) || 0));
     setSaving(true);
-    setStatus(null);
+    clearStatusToast();
     try {
       const response = await updateAdminSemesterFee(semester, { amount });
       setFeeData(response);
       setFeeAmountEdits(
         Object.fromEntries(response.settings.map((setting) => [setting.semester, setting.amount])),
       );
-      setStatus(`Semester ${semester} fee updated to ${formatCurrency(amount)}`);
+      showStatusToast(`Semester ${semester} fee updated to ${formatCurrency(amount)}`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update semester fee");
+      showStatusToast(error instanceof Error ? error.message : "Could not update semester fee", "error");
     } finally {
       setSaving(false);
     }
@@ -578,10 +786,13 @@ function AdminDeskPage() {
 
   async function approveCertificateRequest() {
     if (!selectedCertificateRequest) return;
-    setSaving(true);
-    setStatus(null);
+    const requestId = selectedCertificateRequest.id;
+    const certificateName = selectedCertificateRequest.certificate_name;
+    updateCertificateAction(requestId, "approve");
+    clearStatusToast();
+    showCertificateToast(`Approving ${certificateName}...`, "success", true);
     try {
-      const response = await approveAdminCertificateRequest(selectedCertificateRequest.id, {
+      const response = await approveAdminCertificateRequest(requestId, {
         purpose: certificatePurpose,
         certificate_body: certificateBody,
         signatory_name: certificateSignatoryName,
@@ -591,29 +802,32 @@ function AdminDeskPage() {
       setCertificateRequests((current) =>
         current.map((request) => (request.id === response.request.id ? response.request : request)),
       );
-      await refreshData(response.message || `${selectedCertificateRequest.certificate_name} approved`);
+      showCertificateToast(response.message || `${certificateName} approved`, "success");
+      runBackgroundRefresh("certificates");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not approve certificate request");
+      showCertificateToast(error instanceof Error ? error.message : "Could not approve certificate request", "error");
     } finally {
-      setSaving(false);
+      updateCertificateAction(requestId, null);
     }
   }
 
   async function rejectCertificateRequest(request: AdminCertificate) {
     const okay = window.confirm(`Reject ${request.certificate_name} for ${request.student_name}?`);
     if (!okay) return;
-    setSaving(true);
-    setStatus(null);
+    updateCertificateAction(request.id, "reject");
+    clearStatusToast();
+    showCertificateToast(`Rejecting ${request.certificate_name}...`, "danger", true);
     try {
       const response = await rejectAdminCertificateRequest(request.id);
       setCertificateRequests((current) =>
         current.map((item) => (item.id === response.request.id ? response.request : item)),
       );
-      await refreshData(response.message || `${request.certificate_name} rejected`);
+      showCertificateToast(response.message || `${request.certificate_name} rejected`, "danger");
+      runBackgroundRefresh("certificates");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not reject certificate request");
+      showCertificateToast(error instanceof Error ? error.message : "Could not reject certificate request", "error");
     } finally {
-      setSaving(false);
+      updateCertificateAction(request.id, null);
     }
   }
 
@@ -621,7 +835,7 @@ function AdminDeskPage() {
     event.preventDefault();
     if (!annTitle.trim() || !annBody.trim()) return;
     setAnnPosting(true);
-    setStatus(null);
+    clearStatusToast();
     try {
       const response = await createAdminAnnouncement({
         title: annTitle.trim(),
@@ -635,7 +849,7 @@ function AdminDeskPage() {
       setAnnPinned(false);
       await refreshData(response.message || "Announcement published & notifications generated!");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not publish announcement");
+      showStatusToast(error instanceof Error ? error.message : "Could not publish announcement", "error");
     } finally {
       setAnnPosting(false);
     }
@@ -645,12 +859,12 @@ function AdminDeskPage() {
     const okay = window.confirm(`Delete announcement "${title}"? This also removes it from student & professor feeds.`);
     if (!okay) return;
     setSaving(true);
-    setStatus(null);
+    clearStatusToast();
     try {
       const response = await deleteAdminAnnouncement(id);
-      await refreshData(response.message || "Announcement deleted");
+      await refreshData(response.message || "Announcement deleted", "danger");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not delete announcement");
+      showStatusToast(error instanceof Error ? error.message : "Could not delete announcement", "error");
     } finally {
       setSaving(false);
     }
@@ -844,6 +1058,8 @@ function AdminDeskPage() {
       </section>
 
       <section id="student" className={visible("student") ? "space-y-6" : "hidden"}>
+        {accountToast ? <AdminActionToast toast={accountToast} /> : null}
+
         <div className="grid gap-4 md:grid-cols-4">
           <MetricCard label="Student accounts" value={String(filteredStudents.length)} hint="Visible student records" />
           <MetricCard label="Average CGPA" value={studentAverageCgpa} hint="Across visible students" />
@@ -892,6 +1108,7 @@ function AdminDeskPage() {
               <div className="max-h-[720px] overflow-y-auto">
                 {filteredStudents.map((student) => {
                   const selected = selectedStudent?.id === student.id;
+                  const accountAction = accountActions[student.id];
                   return (
                     <div
                       key={student.id}
@@ -919,17 +1136,25 @@ function AdminDeskPage() {
                           onClick={() => toggleUserBlock(student.id, !student.isBlocked, student.name)}
                           icon={student.isBlocked ? UserCheck : Ban}
                           tone={student.isBlocked ? "emerald" : "rose"}
-                          disabled={saving}
+                          disabled={Boolean(accountAction)}
+                          busy={accountAction === "block" || accountAction === "unblock"}
                         >
-                          {student.isBlocked ? "Unblock" : "Block"}
+                          {accountAction === "block"
+                            ? "Blocking"
+                            : accountAction === "unblock"
+                              ? "Unblocking"
+                              : student.isBlocked
+                                ? "Unblock"
+                                : "Block"}
                         </ListActionButton>
                         <ListActionButton
                           onClick={() => deleteUser(student.id, student.name)}
                           icon={Trash2}
                           tone="rose"
-                          disabled={saving}
+                          disabled={Boolean(accountAction)}
+                          busy={accountAction === "delete"}
                         >
-                          Delete
+                          {accountAction === "delete" ? "Deleting" : "Delete"}
                         </ListActionButton>
                       </div>
                     </div>
@@ -996,6 +1221,8 @@ function AdminDeskPage() {
       </section>
 
       <section id="professor" className={visible("professor") ? "space-y-6" : "hidden"}>
+        {accountToast ? <AdminActionToast toast={accountToast} /> : null}
+
         <div className="grid gap-4 md:grid-cols-4">
           <MetricCard label="Faculty accounts" value={String(filteredProfessors.length)} hint="Visible professor records" />
           <MetricCard label="Verified faculty" value={String(verifiedProfessors)} hint="Approved faculty accounts" />
@@ -1023,6 +1250,7 @@ function AdminDeskPage() {
               <div className="max-h-[720px] overflow-y-auto">
                 {filteredProfessors.map((professor) => {
                   const selected = selectedProfessor?.id === professor.id;
+                  const accountAction = accountActions[professor.id];
                   return (
                     <div
                       key={professor.id}
@@ -1052,17 +1280,25 @@ function AdminDeskPage() {
                           onClick={() => toggleUserBlock(professor.id, !professor.isBlocked, professor.name)}
                           icon={professor.isBlocked ? UserCheck : Ban}
                           tone={professor.isBlocked ? "emerald" : "rose"}
-                          disabled={saving}
+                          disabled={Boolean(accountAction)}
+                          busy={accountAction === "block" || accountAction === "unblock"}
                         >
-                          {professor.isBlocked ? "Unblock" : "Block"}
+                          {accountAction === "block"
+                            ? "Blocking"
+                            : accountAction === "unblock"
+                              ? "Unblocking"
+                              : professor.isBlocked
+                                ? "Unblock"
+                                : "Block"}
                         </ListActionButton>
                         <ListActionButton
                           onClick={() => deleteUser(professor.id, professor.name)}
                           icon={Trash2}
                           tone="rose"
-                          disabled={saving}
+                          disabled={Boolean(accountAction)}
+                          busy={accountAction === "delete"}
                         >
-                          Delete
+                          {accountAction === "delete" ? "Deleting" : "Delete"}
                         </ListActionButton>
                       </div>
                     </div>
@@ -1666,6 +1902,8 @@ function AdminDeskPage() {
       </section>
 
       <section id="certificate" className={visible("certificate") ? "space-y-6" : "hidden"}>
+        {certificateToast ? <AdminActionToast toast={certificateToast} /> : null}
+
         <div className="grid gap-4 xl:grid-cols-5">
           <MetricCard label="Certificate requests" value={String(filteredCertificateRequests.length)} hint="Visible certification queue" />
           <MetricCard label="Pending review" value={String(pendingCertificateRequests)} hint="Waiting for admin approval" />
@@ -1723,6 +1961,8 @@ function AdminDeskPage() {
               <div className="max-h-[720px] overflow-y-auto">
                 {filteredCertificateRequests.map((request) => {
                   const selected = selectedCertificateRequest?.id === request.id;
+                  const certificateAction = certificateActions[request.id];
+                  const showRejectAction = request.status !== "downloaded";
                   return (
                     <div
                       key={request.id}
@@ -1753,14 +1993,17 @@ function AdminDeskPage() {
                         <ListActionButton onClick={() => setSelectedCertificateRequestId(request.id)} icon={Eye}>
                           View
                         </ListActionButton>
-                        <ListActionButton
-                          onClick={() => rejectCertificateRequest(request)}
-                          icon={Ban}
-                          tone="rose"
-                          disabled={saving || request.status === "rejected"}
-                        >
-                          Reject
-                        </ListActionButton>
+                        {showRejectAction ? (
+                          <ListActionButton
+                            onClick={() => rejectCertificateRequest(request)}
+                            icon={Ban}
+                            tone="rose"
+                            disabled={Boolean(certificateAction) || request.status === "rejected"}
+                            busy={certificateAction === "reject"}
+                          >
+                            {certificateAction === "reject" ? "Rejecting" : "Reject"}
+                          </ListActionButton>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -1855,23 +2098,33 @@ function AdminDeskPage() {
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    disabled={saving}
+                    disabled={Boolean(selectedCertificateAction)}
                     onClick={approveCertificateRequest}
                     className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition disabled:cursor-wait disabled:opacity-60"
                     style={{ background: "var(--grad-aurora)" }}
                   >
-                    {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                    Approve & Send
+                    {selectedCertificateAction === "approve" ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="size-4" />
+                    )}
+                    {selectedCertificateAction === "approve" ? "Approving" : "Approve & Send"}
                   </button>
-                  <button
-                    type="button"
-                    disabled={saving || selectedCertificateRequest.status === "rejected"}
-                    onClick={() => rejectCertificateRequest(selectedCertificateRequest)}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-wait disabled:opacity-60"
-                  >
-                    <Ban className="size-4" />
-                    Reject
-                  </button>
+                  {selectedCertificateRequest.status !== "downloaded" ? (
+                    <button
+                      type="button"
+                      disabled={Boolean(selectedCertificateAction) || selectedCertificateRequest.status === "rejected"}
+                      onClick={() => rejectCertificateRequest(selectedCertificateRequest)}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {selectedCertificateAction === "reject" ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Ban className="size-4" />
+                      )}
+                      {selectedCertificateAction === "reject" ? "Rejecting" : "Reject"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -2069,7 +2322,7 @@ function AdminDeskPage() {
                               void openProtectedResource(attachment.url, {
                                 fallbackName: attachment.filename,
                               }).catch((fileError) =>
-                                setStatus(fileError instanceof Error ? fileError.message : "Could not open proof file"),
+                                showStatusToast(fileError instanceof Error ? fileError.message : "Could not open proof file", "error"),
                               )
                             }
                             className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 uppercase tracking-[0.16em] text-[10px] text-white/70 transition hover:text-white"
@@ -2083,7 +2336,7 @@ function AdminDeskPage() {
                                 download: true,
                                 fallbackName: attachment.filename,
                               }).catch((fileError) =>
-                                setStatus(fileError instanceof Error ? fileError.message : "Could not save proof file"),
+                                showStatusToast(fileError instanceof Error ? fileError.message : "Could not save proof file", "error"),
                               )
                             }
                             className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 uppercase tracking-[0.16em] text-[10px] text-white/70 transition hover:text-white"
@@ -2135,17 +2388,44 @@ function AdminDeskPage() {
         </div>
       </section>
 
-      {status && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/70"
-        >
-          <ShieldCheck className="size-4 text-emerald-300" />
-          {status}
-        </motion.div>
-      )}
+      {statusToast ? <AdminActionToast toast={statusToast} /> : null}
     </div>
+  );
+}
+
+function AdminActionToast({ toast }: { toast: AdminActionToastState }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const isNegative = toast.tone === "error" || toast.tone === "danger";
+  const Icon = toast.busy ? Loader2 : isNegative ? AlertCircle : ShieldCheck;
+  const label = toast.busy ? "Working" : toast.tone === "error" ? "Action failed" : toast.title ?? "Action complete";
+  const toneClass =
+    isNegative
+      ? isDark
+        ? "border-rose-300/25 bg-rose-950/80 text-rose-50 shadow-rose-950/30"
+        : "border-rose-200 bg-rose-50 text-rose-950 shadow-rose-200/60"
+      : isDark
+        ? "border-emerald-300/25 bg-slate-950/85 text-emerald-50 shadow-emerald-950/30"
+        : "border-emerald-200 bg-emerald-50 text-emerald-950 shadow-emerald-200/60";
+  const iconClass = isNegative ? "text-rose-300" : "text-emerald-300";
+
+  return (
+    <motion.div
+      key={toast.id}
+      initial={{ opacity: 0, y: -12, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      role={isNegative ? "alert" : "status"}
+      aria-live="polite"
+      className={`fixed right-5 top-5 z-[80] flex w-[min(92vw,430px)] items-center gap-3 rounded-[22px] border px-4 py-3 shadow-2xl backdrop-blur-2xl ${toneClass}`}
+    >
+      <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${isDark ? "bg-white/10" : "bg-white/70"}`}>
+        <Icon className={`size-4 ${iconClass} ${toast.busy ? "animate-spin" : ""}`} />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-[0.28em] opacity-60">{label}</div>
+        <div className="mt-1 truncate text-sm font-semibold">{toast.message}</div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -2361,12 +2641,14 @@ function ListActionButton({
   icon: Icon,
   tone = "neutral",
   disabled,
+  busy = false,
 }: {
   children: ReactNode;
   onClick: () => void;
   icon: LucideIcon;
   tone?: "neutral" | "rose" | "emerald";
   disabled?: boolean;
+  busy?: boolean;
 }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -2388,7 +2670,7 @@ function ListActionButton({
       disabled={disabled}
       className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[10px] uppercase tracking-[0.18em] transition disabled:cursor-wait disabled:opacity-95 ${className}`}
     >
-      <Icon className="size-3.5" />
+      {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Icon className="size-3.5" />}
       {children}
     </button>
   );

@@ -1,37 +1,41 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  AlertCircle,
   ArrowUpDown,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   Eye,
   EyeOff,
   FileText,
-  Filter,
   Image as ImageIcon,
   Loader2,
   Pencil,
   Plus,
+  ReceiptText,
   Search,
   ShieldCheck,
   Sparkles,
-  Star,
   Trash2,
   User,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import {
+  createMarketplacePurchaseOrder,
   createMarketplaceItem,
   deleteMarketplaceItem,
   editMarketplaceItem,
   getMarketplaceItems,
   getMarketplaceMeta,
   getMarketplaceNotesPreview,
-  inquireMarketplaceItem,
+  getMarketplacePurchases,
   resolveResourceUrl,
   updateMarketplaceItem,
+  verifyMarketplacePurchasePayment,
   type MarketplaceItem,
+  type MarketplacePurchase,
   type NotesPreviewPayload,
 } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
@@ -76,6 +80,72 @@ const emptyForm: ListingFormState = {
 };
 
 const studentCreateOptions = ["Handwritten Notes", "Short Notes"];
+const RAZORPAY_SCRIPT_ID = "razorpay-checkout-js";
+const MARKETPLACE_TOAST_TIMEOUT_MS = 5_000;
+
+type MarketplaceToastTone = "danger" | "success" | "error";
+type MarketplaceToastState = {
+  id: number;
+  message: string;
+  tone: MarketplaceToastTone;
+  busy?: boolean;
+};
+
+type RazorpayCheckoutResponse = {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+};
+
+type RazorpayCheckoutOptions = {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+  };
+  theme?: {
+    color?: string;
+  };
+  modal?: {
+    ondismiss?: () => void;
+  };
+  handler: (response: RazorpayCheckoutResponse) => void | Promise<void>;
+};
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => { open: () => void };
+  }
+}
+
+function loadRazorpayCheckout() {
+  if (typeof window === "undefined") return Promise.reject(new Error("Razorpay checkout is available in the browser only"));
+  if (window.Razorpay) return Promise.resolve();
+
+  return new Promise<void>((resolve, reject) => {
+    const existingScript = document.getElementById(RAZORPAY_SCRIPT_ID) as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Could not load Razorpay checkout")), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = RAZORPAY_SCRIPT_ID;
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Could not load Razorpay checkout"));
+    document.body.appendChild(script);
+  });
+}
 
 function getInputClass(isDark: boolean) {
   return [
@@ -100,15 +170,31 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MarketplaceItem | null>(null);
   const [galleryItem, setGalleryItem] = useState<MarketplaceItem | null>(null);
+  const [isPurchasesOpen, setIsPurchasesOpen] = useState(false);
+  const [purchaseHistory, setPurchaseHistory] = useState<MarketplacePurchase[]>([]);
+  const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<MarketplaceToastState | null>(null);
   const [sortBy, setSortBy] = useState<"latest" | "priceAsc" | "priceDesc">("latest");
   const [form, setForm] = useState<ListingFormState>(emptyForm);
   const user = getStoredUser();
 
   const isAdmin = mode === "admin";
+
+  function showToast(message: string, tone: MarketplaceToastTone = "success", busy = false) {
+    setToast({
+      id: Date.now(),
+      message,
+      tone,
+      busy,
+    });
+  }
+
+  function clearToast() {
+    setToast(null);
+  }
 
   useEffect(() => {
     let live = true;
@@ -127,7 +213,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
       })
       .catch((error) => {
         if (!live) return;
-        setMessage(error instanceof Error ? error.message : "Marketplace failed to load");
+        showToast(error instanceof Error ? error.message : "Marketplace failed to load", "error");
       })
       .finally(() => {
         if (live) setIsLoading(false);
@@ -136,6 +222,14 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
       live = false;
     };
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => {
+      setToast((current) => (current?.id === toast.id ? null : current));
+    }, MARKETPLACE_TOAST_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const filteredItems = useMemo(() => {
     let next = items.filter((item) => {
@@ -179,6 +273,17 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
     }
   }
 
+  function patchMarketplaceItem(updatedItem: MarketplaceItem) {
+    setItems((current) => current.map((item) => (sameMarketplaceItem(item, updatedItem) ? updatedItem : item)));
+    setSelected((current) => (current && sameMarketplaceItem(current, updatedItem) ? updatedItem : current));
+  }
+
+  function removeMarketplaceItemLocally(itemToRemove: MarketplaceItem) {
+    const remainingItems = items.filter((item) => !sameMarketplaceItem(item, itemToRemove));
+    setItems(remainingItems);
+    setSelected((current) => (current && sameMarketplaceItem(current, itemToRemove) ? remainingItems[0] ?? null : current));
+  }
+
   function updateForm<K extends keyof ListingFormState>(key: K, value: ListingFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -191,7 +296,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
   async function submitListing(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
-    setMessage(null);
+    clearToast();
     try {
       const data = new FormData();
       data.append("title", form.title);
@@ -212,13 +317,13 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
       const res = editingItem?.key
         ? await editMarketplaceItem(editingItem.key, data)
         : await createMarketplaceItem(data);
-      setMessage(res.message);
+      showToast(res.message);
       setIsComposerOpen(false);
       setEditingItem(null);
       setForm({ ...emptyForm, category: isAdmin ? emptyForm.category : "Notes", subcategory: studentCreateOptions[0] });
       await refreshItems(res.item.key);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not create listing");
+      showToast(error instanceof Error ? error.message : "Could not create listing", "error");
     } finally {
       setIsSaving(false);
     }
@@ -257,36 +362,96 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
       setPreview(res);
       setIsPreviewOpen(true);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not open preview");
+      showToast(error instanceof Error ? error.message : "Could not open preview", "error");
     } finally {
       setBusyKey(null);
     }
   }
 
-  async function inquire(item: MarketplaceItem) {
-    if (!item.key) return;
-    setBusyKey(item.key);
+  async function openPurchaseHistory() {
+    if (!isAdmin) return;
+    setIsPurchasesOpen(true);
+    setIsPurchaseLoading(true);
+    clearToast();
     try {
-      const res = await inquireMarketplaceItem(item.key, {
-        note: `Interested in ${item.name} for ${item.price}`,
+      const res = await getMarketplacePurchases();
+      setPurchaseHistory(res.purchases);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not load marketplace purchases", "error");
+    } finally {
+      setIsPurchaseLoading(false);
+    }
+  }
+
+  async function purchase(item: MarketplaceItem) {
+    if (!item.key) return;
+    if (isSoldListing(item)) {
+      showToast("This listing is already sold.", "danger");
+      return;
+    }
+
+    setBusyKey(item.key);
+    showToast("Opening secure Razorpay checkout...", "success", true);
+    try {
+      const order = await createMarketplacePurchaseOrder(item.key);
+      await loadRazorpayCheckout();
+      if (!window.Razorpay) throw new Error("Razorpay checkout did not initialize");
+
+      const checkout = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: "CampusVerse",
+        description: `${item.name} marketplace purchase`,
+        order_id: order.orderId,
+        prefill: {
+          name: user?.full_name,
+          email: user?.email,
+        },
+        theme: {
+          color: "#a855f7",
+        },
+        modal: {
+          ondismiss: () => {
+            showToast("Razorpay checkout closed before purchase completion.", "danger");
+            setBusyKey(null);
+          },
+        },
+        handler: async (response) => {
+          showToast("Verifying marketplace purchase...", "success", true);
+          try {
+            const verified = await verifyMarketplacePurchasePayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            showToast(verified.message || "Marketplace purchase verified.");
+            await refreshItems(verified.item.key);
+            setSelected((current) => (current?.key === verified.item.key ? verified.item : current));
+          } catch (error) {
+            showToast(error instanceof Error ? error.message : "Marketplace purchase verification failed", "error");
+          } finally {
+            setBusyKey(null);
+          }
+        },
       });
-      setMessage(res.message);
+      checkout.open();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not send inquiry");
-    } finally {
+      showToast(error instanceof Error ? error.message : "Could not start marketplace purchase", "error");
       setBusyKey(null);
     }
   }
 
-  async function toggleItem(item: MarketplaceItem, payload: Record<string, unknown>, success: string) {
+  async function toggleItem(item: MarketplaceItem, payload: Record<string, unknown>, success: string, tone: MarketplaceToastTone = "success") {
     if (!item.key) return;
     setBusyKey(item.key);
     try {
-      await updateMarketplaceItem(item.key, payload);
-      setMessage(success);
-      await refreshItems(item.key);
+      const res = await updateMarketplaceItem(item.key, payload);
+      patchMarketplaceItem(res.item);
+      showToast(res.message || success, tone);
+      void refreshItems(item.key).catch(() => undefined);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Update failed");
+      showToast(error instanceof Error ? error.message : "Update failed", "error");
     } finally {
       setBusyKey(null);
     }
@@ -297,10 +462,11 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
     setBusyKey(item.key);
     try {
       const res = await deleteMarketplaceItem(item.key);
-      setMessage(res.message);
-      await refreshItems();
+      removeMarketplaceItemLocally(item);
+      showToast(res.message, "danger");
+      void refreshItems().catch(() => undefined);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Delete failed");
+      showToast(error instanceof Error ? error.message : "Delete failed", "error");
     } finally {
       setBusyKey(null);
     }
@@ -311,6 +477,10 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
   return (
     <PageTransition>
       <div className={wrapperClass}>
+        <AnimatePresence>
+          {toast ? <MarketplaceActionToast toast={toast} /> : null}
+        </AnimatePresence>
+
         <div className="mb-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <SectionHeading
             eyebrow={isAdmin ? "Campus Marketplace Control" : "Campus Peer Exchange"}
@@ -321,24 +491,33 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
                 : "Buy, sell, and browse a premium campus marketplace for notes, books, electronics, hostel gear, and more."
             }
           />
-          <button
-            type="button"
-            onClick={() => setIsComposerOpen(true)}
-            className={`inline-flex items-center gap-2 self-start rounded-full px-5 py-3 text-xs font-extrabold uppercase tracking-[0.2em] text-white shadow-md transition hover:opacity-90 ${
-              isDark ? "border border-fuchsia-300/20 bg-[var(--grad-aurora)] shadow-2xl" : "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600"
-            }`}
-          >
-            <Plus className="size-4" />
-            {isAdmin ? "Add New Listing" : "Post Item For Sale"}
-          </button>
-        </div>
-
-        {message ? (
-          <div className="mb-5 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white/75">
-            <ShieldCheck className="size-4 text-emerald-300" />
-            {message}
+          <div className="flex flex-wrap gap-2 self-start">
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => void openPurchaseHistory()}
+                className={`inline-flex items-center gap-2 rounded-full border px-5 py-3 text-xs font-extrabold uppercase tracking-[0.2em] transition ${
+                  isDark
+                    ? "border-white/10 bg-white/[0.05] text-white/75 hover:border-white/20 hover:text-white"
+                    : "border-slate-300 bg-white text-slate-800 hover:bg-slate-100 shadow-2xs"
+                }`}
+              >
+                <ReceiptText className="size-4" />
+                Purchases
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setIsComposerOpen(true)}
+              className={`inline-flex items-center gap-2 rounded-full px-5 py-3 text-xs font-extrabold uppercase tracking-[0.2em] text-white shadow-md transition hover:opacity-90 ${
+                isDark ? "border border-fuchsia-300/20 bg-[var(--grad-aurora)] shadow-2xl" : "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600"
+              }`}
+            >
+              <Plus className="size-4" />
+              {isAdmin ? "Add New Listing" : "Post Item For Sale"}
+            </button>
           </div>
-        ) : null}
+        </div>
 
         <div className="mb-5 flex flex-col gap-3 xl:flex-row">
           <div className="relative flex-1">
@@ -412,7 +591,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
                     busy={busyKey === selected.key}
                     onPreview={openPreview}
                     onGallery={openGallery}
-                    onInquire={inquire}
+                    onPurchase={purchase}
                   />
                   <AdminActions
                     item={selected}
@@ -455,7 +634,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
             onClose={() => setSelected(null)}
             onPreview={openPreview}
             onGallery={openGallery}
-            onInquire={inquire}
+            onPurchase={purchase}
           />
         ) : null}
       </AnimatePresence>
@@ -469,6 +648,16 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
       <AnimatePresence>
         {isPreviewOpen && preview ? (
           <PreviewModal preview={preview} onClose={() => setIsPreviewOpen(false)} />
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isAdmin && isPurchasesOpen ? (
+          <PurchaseHistoryModal
+            purchases={purchaseHistory}
+            loading={isPurchaseLoading}
+            onClose={() => setIsPurchasesOpen(false)}
+          />
         ) : null}
       </AnimatePresence>
 
@@ -597,17 +786,18 @@ function MarketplaceHeroCard({
   busy,
   onPreview,
   onGallery,
-  onInquire,
+  onPurchase,
 }: {
   item: MarketplaceItem;
   adminMode?: boolean;
   busy: boolean;
   onPreview: (item: MarketplaceItem) => void;
   onGallery: (item: MarketplaceItem) => void;
-  onInquire: (item: MarketplaceItem) => void;
+  onPurchase: (item: MarketplaceItem) => void;
 }) {
   const gallery = item.gallery?.length ? item.gallery : [resolveCardImage(item)];
   const hasGallery = getGalleryImages(item).length > 0;
+  const sold = isSoldListing(item);
   return (
     <GlassCard className="overflow-hidden border border-white/10 p-0">
       <div className="grid gap-0 lg:grid-cols-[1.2fr_minmax(0,0.8fr)]">
@@ -646,11 +836,12 @@ function MarketplaceHeroCard({
             {!adminMode ? (
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => onInquire(item)}
-                className="rounded-full bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-black disabled:opacity-50"
+                disabled={busy || sold}
+                onClick={() => onPurchase(item)}
+                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-black disabled:opacity-50"
               >
-                {busy ? "Sending..." : "Message Seller"}
+                {busy ? <Loader2 className="size-3.5 animate-spin" /> : <CreditCard className="size-3.5" />}
+                {busy ? "Opening..." : sold ? "Sold" : "Purchase"}
               </button>
             ) : null}
           </div>
@@ -709,91 +900,153 @@ function AdminActions({
 }: {
   item: MarketplaceItem;
   busy: boolean;
-  onAction: (item: MarketplaceItem, payload: Record<string, unknown>, success: string) => Promise<void>;
+  onAction: (item: MarketplaceItem, payload: Record<string, unknown>, success: string, tone?: MarketplaceToastTone) => Promise<void>;
   onDelete: (item: MarketplaceItem) => Promise<void>;
   onEdit: (item: MarketplaceItem) => void;
 }) {
+  const isHidden = item.visibility === "hidden";
+  const isApproved = item.approvalStatus === "approved";
+  const isSold = item.status === "Sold";
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      <ActionCard title="Edit" body="Update title, price, category, description, and replace images on the shared listing.">
-        <button
-          type="button"
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.035] p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="text-xs font-bold uppercase tracking-[0.22em] text-white/45">Admin actions</div>
+        {busy ? (
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">
+            <Loader2 className="size-3 animate-spin" />
+            Working
+          </span>
+        ) : null}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <AdminActionButton title="Edit listing details" disabled={busy} icon={Pencil} onClick={() => onEdit(item)}>
+          Edit
+        </AdminActionButton>
+        <AdminActionButton
+          title={isHidden ? "Restore listing visibility" : "Hide listing from students"}
           disabled={busy}
-          onClick={() => onEdit(item)}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/75"
-        >
-          <Pencil className="size-4" />
-          Edit Listing
-        </button>
-      </ActionCard>
-      <ActionCard title="Visibility" body="Hide or restore the listing without splitting the dataset.">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void onAction(item, { visibility: item.visibility === "hidden" ? "visible" : "hidden", deleted: false }, "Visibility updated")}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/75"
-        >
-          {item.visibility === "hidden" ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-          {item.visibility === "hidden" ? "Restore Listing" : "Hide Listing"}
-        </button>
-      </ActionCard>
-      <ActionCard title="Approval" body="Approve or reject student-submitted note listings immediately.">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void onAction(item, { approvalStatus: item.approvalStatus === "approved" ? "rejected" : "approved" }, "Approval updated")}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/75"
-        >
-          <ShieldCheck className="size-4" />
-          {item.approvalStatus === "approved" ? "Reject Listing" : "Approve Listing"}
-        </button>
-      </ActionCard>
-      <ActionCard title="Feature" body="Push standout listings higher in the shared marketplace experience.">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void onAction(item, { featured: !item.featured }, "Featured state updated")}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/75"
-        >
-          <Star className="size-4" />
-          {item.featured ? "Unfeature" : "Feature Listing"}
-        </button>
-      </ActionCard>
-      <ActionCard title="Availability" body="Switch availability without touching the shared record identity.">
-        <button
-          type="button"
-          disabled={busy}
+          icon={isHidden ? Eye : EyeOff}
+          tone={isHidden ? "positive" : "danger"}
           onClick={() =>
             void onAction(
               item,
-              { status: item.status === "Sold" ? "Available" : "Sold", availability: item.status === "Sold" ? "in_stock" : "sold" },
-              "Availability updated",
+              { visibility: isHidden ? "visible" : "hidden", deleted: false },
+              isHidden ? "Listing restored" : "Listing hidden",
+              isHidden ? "success" : "danger",
             )
           }
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/75"
         >
-          <CheckCircle2 className="size-4" />
-          {item.status === "Sold" ? "Mark Available" : "Change Availability"}
-        </button>
-      </ActionCard>
-      <ActionCard title="Category" body="Change the listing category inside the one shared marketplace inventory.">
-        <button
-          type="button"
+          {isHidden ? "Restore" : "Hide"}
+        </AdminActionButton>
+        <AdminActionButton
+          title={isApproved ? "Reject listing approval" : "Approve listing"}
           disabled={busy}
-          onClick={() => void onAction(item, { category: item.category === "Notes" ? "Books" : "Notes" }, "Category updated")}
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/75"
+          icon={ShieldCheck}
+          tone={isApproved ? "danger" : "positive"}
+          onClick={() =>
+            void onAction(
+              item,
+              { approvalStatus: isApproved ? "rejected" : "approved" },
+              isApproved ? "Listing rejected" : "Listing approved",
+              isApproved ? "danger" : "success",
+            )
+          }
         >
-          <Pencil className="size-4" />
-          Change Category
-        </button>
-      </ActionCard>
-      <ActionCard title="Delete" body="Soft-delete the listing from the shared marketplace inventory.">
-        <button type="button" disabled={busy} onClick={() => void onDelete(item)} className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-500/10 px-4 py-3 text-xs uppercase tracking-[0.18em] text-rose-100">
-          <Trash2 className="size-4" />
-          Delete Listing
-        </button>
-      </ActionCard>
+          {isApproved ? "Reject" : "Approve"}
+        </AdminActionButton>
+        <AdminActionButton
+          title={isSold ? "Mark listing as available" : "Mark listing as sold"}
+          disabled={busy}
+          icon={CheckCircle2}
+          onClick={() =>
+            void onAction(
+              item,
+              { status: isSold ? "Available" : "Sold", availability: isSold ? "in_stock" : "sold" },
+              isSold ? "Listing available" : "Listing marked sold",
+            )
+          }
+        >
+          {isSold ? "Available" : "Sold"}
+        </AdminActionButton>
+        <AdminActionButton title="Delete listing" disabled={busy} icon={Trash2} tone="danger" onClick={() => void onDelete(item)}>
+          Delete
+        </AdminActionButton>
+      </div>
     </div>
+  );
+}
+
+function AdminActionButton({
+  children,
+  disabled,
+  icon: Icon,
+  onClick,
+  title,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  disabled: boolean;
+  icon: typeof Pencil;
+  onClick: () => void;
+  title: string;
+  tone?: "neutral" | "positive" | "danger";
+}) {
+  const toneClass =
+    tone === "danger"
+      ? "border-rose-300/20 bg-rose-500/10 text-rose-100 hover:border-rose-300/35 hover:bg-rose-500/15"
+      : tone === "positive"
+        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:border-emerald-300/35 hover:bg-emerald-400/15"
+        : "border-white/10 bg-white/[0.05] text-white/75 hover:border-white/20 hover:bg-white/[0.075] hover:text-white";
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.16em] transition disabled:cursor-wait disabled:opacity-50 ${toneClass}`}
+    >
+      <Icon className="size-3.5 shrink-0" />
+      <span className="truncate">{children}</span>
+    </button>
+  );
+}
+
+function MarketplaceActionToast({ toast }: { toast: MarketplaceToastState }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const isNegative = toast.tone === "error" || toast.tone === "danger";
+  const Icon = toast.busy ? Loader2 : isNegative ? AlertCircle : ShieldCheck;
+  const label = toast.busy ? "Working" : toast.tone === "error" ? "Action failed" : "Marketplace updated";
+  const toneClass = isNegative
+    ? isDark
+      ? "border-rose-300/25 bg-rose-950/85 text-rose-50 shadow-rose-950/30"
+      : "border-rose-200 bg-rose-50 text-rose-950 shadow-rose-200/60"
+    : isDark
+      ? "border-emerald-300/25 bg-slate-950/90 text-emerald-50 shadow-emerald-950/30"
+      : "border-emerald-200 bg-emerald-50 text-emerald-950 shadow-emerald-200/60";
+  const iconClass = isNegative ? "text-rose-300" : "text-emerald-300";
+
+  return (
+    <motion.div
+      key={toast.id}
+      initial={{ opacity: 0, y: -12, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -12, scale: 0.98 }}
+      role={isNegative ? "alert" : "status"}
+      aria-live="polite"
+      className={`fixed right-5 top-5 z-[90] flex w-[min(92vw,420px)] items-center gap-3 rounded-[22px] border px-4 py-3 shadow-2xl backdrop-blur-2xl ${toneClass}`}
+    >
+      <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${isDark ? "bg-white/10" : "bg-white/70"}`}>
+        <Icon className={`size-4 ${iconClass} ${toast.busy ? "animate-spin" : ""}`} />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-[0.28em] opacity-60">{label}</div>
+        <div className="mt-1 truncate text-sm font-semibold">{toast.message}</div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -906,18 +1159,18 @@ function DetailModal({
   onClose,
   onPreview,
   onGallery,
-  onInquire,
+  onPurchase,
 }: {
   item: MarketplaceItem;
   busy: boolean;
   onClose: () => void;
   onPreview: (item: MarketplaceItem) => void;
   onGallery: (item: MarketplaceItem) => void;
-  onInquire: (item: MarketplaceItem) => void;
+  onPurchase: (item: MarketplaceItem) => void;
 }) {
   return (
     <ModalFrame onClose={onClose} title="Listing Details" wide>
-      <MarketplaceHeroCard item={item} busy={busy} onPreview={onPreview} onGallery={onGallery} onInquire={onInquire} />
+      <MarketplaceHeroCard item={item} busy={busy} onPreview={onPreview} onGallery={onGallery} onPurchase={onPurchase} />
     </ModalFrame>
   );
 }
@@ -1058,6 +1311,122 @@ function PreviewModal({ preview, onClose }: { preview: NotesPreviewPayload; onCl
   );
 }
 
+function PurchaseHistoryModal({
+  purchases,
+  loading,
+  onClose,
+}: {
+  purchases: MarketplacePurchase[];
+  loading: boolean;
+  onClose: () => void;
+}) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const paidPurchases = purchases.filter((purchase) => purchase.status === "paid");
+  const totalCollected = paidPurchases.reduce((sum, purchase) => sum + purchase.amount, 0);
+
+  return (
+    <ModalFrame onClose={onClose} title="Purchase Details" wide>
+      <div className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-3">
+          <PurchaseMetric label="Orders" value={String(purchases.length)} />
+          <PurchaseMetric label="Verified" value={String(paidPurchases.length)} />
+          <PurchaseMetric label="Collected" value={formatMarketplaceAmount(totalCollected, "INR")} />
+        </div>
+
+        <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="animate-pulse rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
+                <div className="h-4 w-1/4 rounded bg-white/[0.08]" />
+                <div className="mt-3 h-6 w-2/3 rounded bg-white/[0.08]" />
+                <div className="mt-3 h-4 w-1/2 rounded bg-white/[0.06]" />
+              </div>
+            ))
+          ) : null}
+          {!loading && !purchases.length ? (
+            <div className={`rounded-[26px] border border-dashed p-8 text-center text-sm font-bold ${
+              isDark ? "border-white/12 bg-white/[0.03] text-white/45" : "border-slate-300 bg-slate-50 text-slate-700"
+            }`}>
+              No marketplace purchases recorded yet.
+            </div>
+          ) : null}
+          {!loading
+            ? purchases.map((purchase) => (
+                <div
+                  key={purchase.id}
+                  className={`rounded-[26px] border p-4 ${
+                    isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className={`text-[10px] uppercase tracking-[0.22em] ${
+                        isDark ? "text-white/35" : "text-slate-500"
+                      }`}>
+                        {purchase.itemCategory}
+                      </div>
+                      <div className={`mt-1 truncate font-display text-xl font-extrabold ${
+                        isDark ? "text-white" : "text-slate-950"
+                      }`}>
+                        {purchase.itemName}
+                      </div>
+                      <div className={`mt-1 text-sm font-medium ${isDark ? "text-white/50" : "text-slate-600"}`}>
+                        Seller: {purchase.sellerLabel}
+                      </div>
+                    </div>
+                    <div className="min-w-0 lg:min-w-[260px]">
+                      <div className={`text-sm font-bold ${isDark ? "text-white/85" : "text-slate-950"}`}>
+                        {purchase.buyerName}
+                        {purchase.buyerStudentCode ? ` / ${purchase.buyerStudentCode}` : ""}
+                      </div>
+                      <div className={`mt-1 truncate text-xs font-medium ${isDark ? "text-white/45" : "text-slate-600"}`}>
+                        {purchase.buyerEmail}
+                      </div>
+                      <div className={`mt-2 text-xs font-semibold ${isDark ? "text-white/55" : "text-slate-700"}`}>
+                        {formatMarketplaceDate(purchase.purchasedAt ?? purchase.createdAt)}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3 lg:justify-end">
+                      <Badge text={purchase.status} tone={purchaseStatusTone(purchase.status)} />
+                      <div className="text-right">
+                        <div className={`font-display text-lg font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>
+                          {formatMarketplaceAmount(purchase.amount, purchase.currency)}
+                        </div>
+                        <div className={`mt-1 max-w-[220px] truncate text-[10px] uppercase tracking-[0.18em] ${
+                          isDark ? "text-white/35" : "text-slate-500"
+                        }`}>
+                          {purchase.razorpayPaymentId || purchase.razorpayOrderId || "Awaiting payment"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            : null}
+        </div>
+      </div>
+    </ModalFrame>
+  );
+}
+
+function PurchaseMetric({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  return (
+    <div className={`rounded-[24px] border p-4 ${
+      isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-slate-50"
+    }`}>
+      <div className={`text-[10px] uppercase tracking-[0.24em] ${isDark ? "text-white/35" : "text-slate-500"}`}>
+        {label}
+      </div>
+      <div className={`mt-2 font-display text-2xl font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function ModalFrame({
   children,
   onClose,
@@ -1180,16 +1549,6 @@ function UploadField({
   );
 }
 
-function ActionCard({ title, body, children }: { title: string; body: string; children: ReactNode }) {
-  return (
-    <GlassCard className="border border-white/10 p-5">
-      <div className="text-sm font-medium text-white">{title}</div>
-      <div className="mt-2 text-sm leading-6 text-white/55">{body}</div>
-      <div className="mt-4">{children}</div>
-    </GlassCard>
-  );
-}
-
 function Meta({ label, value, icon: Icon }: { label: string; value: string; icon: typeof User }) {
   return (
     <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
@@ -1234,6 +1593,36 @@ function EmptyState({ text }: { text: string }) {
 
 function parsePrice(value?: string) {
   return Number((value || "").replace(/[^\d]/g, "")) || 0;
+}
+
+function isSoldListing(item: MarketplaceItem) {
+  return (item.status || "").toLowerCase() === "sold" || (item.availability || "").toLowerCase() === "sold";
+}
+
+function sameMarketplaceItem(left?: MarketplaceItem | null, right?: MarketplaceItem | null) {
+  if (!left || !right) return false;
+  if (left.key && right.key) return left.key === right.key;
+  return left.id === right.id;
+}
+
+function purchaseStatusTone(status: string): "emerald" | "neutral" | "sky" | "rose" | "amber" {
+  const normalized = status.toLowerCase();
+  if (normalized === "paid") return "emerald";
+  if (normalized === "failed") return "rose";
+  if (normalized === "created" || normalized === "pending") return "amber";
+  return "neutral";
+}
+
+function formatMarketplaceDate(value?: string | null) {
+  if (!value) return "Awaiting payment";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function formatMarketplaceAmount(value: number, currency?: string) {
+  const prefix = (currency || "INR").toUpperCase() === "INR" ? "\u20B9" : currency || "INR";
+  return `${prefix} ${Math.round(value || 0).toLocaleString("en-IN")}`;
 }
 
 function getGalleryImages(item: MarketplaceItem) {

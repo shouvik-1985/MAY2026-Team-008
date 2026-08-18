@@ -303,15 +303,13 @@ def _apply_block_state(target: User, actor: User, blocked: bool, reason: str | N
 
 
 def _delete_connect_data(db: Session, user_id: int) -> None:
-    message_ids = [
-        row[0]
-        for row in db.query(ConnectMessage.id)
+    message_ids = (
+        db.query(ConnectMessage.id)
         .filter(or_(ConnectMessage.sender_id == user_id, ConnectMessage.receiver_id == user_id))
-        .all()
-    ]
-    if message_ids:
-        db.query(ConnectAttachment).filter(ConnectAttachment.message_id.in_(message_ids)).delete(synchronize_session=False)
-        db.query(ConnectMessageHidden).filter(ConnectMessageHidden.message_id.in_(message_ids)).delete(synchronize_session=False)
+        .scalar_subquery()
+    )
+    db.query(ConnectAttachment).filter(ConnectAttachment.message_id.in_(message_ids)).delete(synchronize_session=False)
+    db.query(ConnectMessageHidden).filter(ConnectMessageHidden.message_id.in_(message_ids)).delete(synchronize_session=False)
     db.query(ConnectMessageHidden).filter(ConnectMessageHidden.user_id == user_id).delete(synchronize_session=False)
     db.query(ConnectMessage).filter(
         or_(ConnectMessage.sender_id == user_id, ConnectMessage.receiver_id == user_id)
@@ -381,8 +379,9 @@ def _certificate_request_payload(
     req: StudentCertificateRequest,
     student: User,
     profile: StudentProfile | None,
+    setting: CampusAttendanceSetting | None = None,
 ) -> dict:
-    setting = get_campus_attendance_setting(db)
+    setting = setting or get_campus_attendance_setting(db)
     semester = resolve_student_semester(
         profile,
         student,
@@ -472,7 +471,7 @@ def _ensure_graduation_certificate_requests(db: Session) -> None:
                 )
             )
             changed = True
-        elif request.status not in {"ready", "downloaded"}:
+        elif request.status not in {"ready", "downloaded", "rejected"}:
             request.status = "ready"
             request.ready_at = request.ready_at or moment
             request.updated_at = moment
@@ -502,32 +501,26 @@ def _delete_user_records(db: Session, target: User) -> None:
     )
 
     if target.role == Role.student:
-        placement_application_ids = [
-            row[0]
-            for row in (
-                db.query(PlacementApplication.id)
-                .filter(PlacementApplication.student_id == target.id)
-                .all()
-            )
-        ]
-        if placement_application_ids:
-            db.query(PlacementNotification).filter(
-                PlacementNotification.application_id.in_(placement_application_ids)
-            ).delete(synchronize_session=False)
+        placement_application_ids = (
+            db.query(PlacementApplication.id)
+            .filter(PlacementApplication.student_id == target.id)
+            .scalar_subquery()
+        )
+        db.query(PlacementNotification).filter(
+            PlacementNotification.application_id.in_(placement_application_ids)
+        ).delete(synchronize_session=False)
         db.query(PlacementNotification).filter(PlacementNotification.student_id == target.id).delete(
             synchronize_session=False
         )
         db.query(PlacementApplication).filter(PlacementApplication.student_id == target.id).delete(
             synchronize_session=False
         )
-        complaint_ids = [
-            row[0]
-            for row in db.query(StudentComplaint.id).filter(StudentComplaint.student_id == target.id).all()
-        ]
-        if complaint_ids:
-            db.query(StudentComplaintAttachment).filter(
-                StudentComplaintAttachment.complaint_id.in_(complaint_ids)
-            ).delete(synchronize_session=False)
+        complaint_ids = (
+            db.query(StudentComplaint.id).filter(StudentComplaint.student_id == target.id).scalar_subquery()
+        )
+        db.query(StudentComplaintAttachment).filter(
+            StudentComplaintAttachment.complaint_id.in_(complaint_ids)
+        ).delete(synchronize_session=False)
         db.query(StudentComplaint).filter(StudentComplaint.student_id == target.id).delete(synchronize_session=False)
         db.query(StudentFeeInvoice).filter(StudentFeeInvoice.student_id == target.id).delete(synchronize_session=False)
         db.query(StudentCertificateRequest).filter(StudentCertificateRequest.student_id == target.id).delete(synchronize_session=False)
@@ -750,14 +743,18 @@ def update_user_block_state(
 ) -> dict:
     _require_admin(current_user)
     target = _require_manageable_user(current_user, db.get(User, user_id))
+    target_id = target.id
+    target_name = target.full_name
+    target_role = target.role.value
     _apply_block_state(target, current_user, payload.blocked, payload.reason)
+    is_blocked = target.is_blocked
     db.commit()
     return {
         "ok": True,
-        "user_id": target.id,
-        "role": target.role.value,
-        "is_blocked": target.is_blocked,
-        "message": f"{target.full_name} {'blocked' if target.is_blocked else 'unblocked'}",
+        "user_id": target_id,
+        "role": target_role,
+        "is_blocked": is_blocked,
+        "message": f"{target_name} {'blocked' if is_blocked else 'unblocked'}",
     }
 
 
@@ -772,9 +769,11 @@ def update_student_block_state_legacy(
     target = _require_manageable_user(current_user, db.get(User, student_id))
     if target.role != Role.student:
         raise HTTPException(status_code=404, detail="Student not found")
+    target_id = target.id
     _apply_block_state(target, current_user, payload.blocked, payload.reason)
+    is_blocked = target.is_blocked
     db.commit()
-    return {"ok": True, "id": target.id, "is_blocked": target.is_blocked}
+    return {"ok": True, "id": target_id, "is_blocked": is_blocked}
 
 
 @router.post("/professors/{professor_id}/block")
@@ -788,9 +787,11 @@ def update_professor_block_state_legacy(
     target = _require_manageable_user(current_user, db.get(User, professor_id))
     if target.role != Role.faculty:
         raise HTTPException(status_code=404, detail="Professor not found")
+    target_id = target.id
     _apply_block_state(target, current_user, payload.blocked, payload.reason)
+    is_blocked = target.is_blocked
     db.commit()
-    return {"ok": True, "id": target.id, "is_blocked": target.is_blocked}
+    return {"ok": True, "id": target_id, "is_blocked": is_blocked}
 
 
 @router.delete("/users/{user_id}")
@@ -850,6 +851,7 @@ def list_certificate_requests(
 ) -> dict:
     _require_admin(current_user)
     _ensure_graduation_certificate_requests(db)
+    setting = get_campus_attendance_setting(db)
     requests = (
         db.query(StudentCertificateRequest, User, StudentProfile)
         .join(User, StudentCertificateRequest.student_id == User.id)
@@ -858,7 +860,7 @@ def list_certificate_requests(
         .order_by(StudentCertificateRequest.requested_at.desc())
         .all()
     )
-    rows = [_certificate_request_payload(db, req, student, profile) for req, student, profile in requests]
+    rows = [_certificate_request_payload(db, req, student, profile, setting) for req, student, profile in requests]
     return {"ok": True, "requests": rows}
 
 

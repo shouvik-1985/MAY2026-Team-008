@@ -5,11 +5,10 @@ import { useState } from "react";
 import { GlassCard, PageTransition, SectionHeading, Counter } from "@/components/app/cinematic";
 import {
   createStudentFeeOrder,
-  getStudentDashboard,
   openProtectedResource,
   verifyStudentFeePayment,
 } from "@/lib/api";
-import { setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
+import { refreshStudentDashboard, setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
 import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/fees")({ component: FeesPage });
@@ -140,7 +139,7 @@ function FeesPage() {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
-            const freshDashboard = await getStudentDashboard();
+            const freshDashboard = await refreshStudentDashboard({ force: true });
             setStoredDashboard(freshDashboard);
             setStatus(verified.message || "Payment verified and receipt synced.");
           } catch (error) {

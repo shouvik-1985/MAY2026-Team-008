@@ -21,9 +21,9 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
-import { getStudentDashboard, openProtectedResource, requestStudentCertificate, resolveResourceUrl } from "@/lib/api";
+import { openProtectedResource, requestStudentCertificate, resolveResourceUrl } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
-import { setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
+import { refreshStudentDashboard, setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
 import { getStoredUser } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 
@@ -153,7 +153,7 @@ function CertificatesPage() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   async function refreshDashboard() {
-    const next = await getStudentDashboard();
+    const next = await refreshStudentDashboard({ force: true });
     setStoredDashboard(next);
   }
 

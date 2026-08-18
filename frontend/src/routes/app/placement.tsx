@@ -29,14 +29,13 @@ import {
   applyToPlacementRole,
   dismissPlacementRoleApplication,
   getPlacementStudentPortal,
-  getStudentDashboard,
   openProtectedResource,
   submitPlacementApplication,
   type PlacementApplication,
   type PlacementRole,
   type PlacementStudentPortal,
 } from "@/lib/api";
-import { setStoredDashboard } from "@/lib/student-session";
+import { refreshStudentDashboard, setStoredDashboard } from "@/lib/student-session";
 import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/placement")({ component: PlacementPortalPage });
@@ -69,7 +68,7 @@ function PlacementPortalPage() {
     setSelectedRoleId((current) => (current && data.jobs.some((role) => role.id === current) ? current : null));
     if (successMessage) setStatus(successMessage);
     try {
-      setStoredDashboard(await getStudentDashboard());
+      setStoredDashboard(await refreshStudentDashboard({ force: true }));
     } catch {
       // Placement portal data is already loaded; dashboard cache can retry from the shell.
     }
@@ -145,7 +144,7 @@ function PlacementPortalPage() {
       setSelectedRoleId(result.role.id);
       setStatus(result.message);
       try {
-        setStoredDashboard(await getStudentDashboard());
+        setStoredDashboard(await refreshStudentDashboard({ force: true }));
       } catch {
         // The placement portal state is already updated.
       }
@@ -212,7 +211,7 @@ function PlacementPortalPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6 pb-10">
+      <div className="cv-placement-page space-y-6 pb-10">
         <section className="grid gap-5 xl:grid-cols-[1fr_360px] xl:items-end">
           <div>
             <div className={`mb-4 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.32em] font-bold ${

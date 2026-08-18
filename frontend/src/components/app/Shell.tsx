@@ -269,7 +269,7 @@ export function Shell({ children }: { children: ReactNode }) {
           assistantOpen={openFab}
           notifUnread={notifUnread}
         />
-        <main className="px-5 md:px-10 py-6 pb-32 max-w-[1400px] mx-auto">{children}</main>
+        <main className="cv-app-content px-5 md:px-10 py-6 pb-32 max-w-[1400px] mx-auto">{children}</main>
       </div>
 
       {/* Floating Action */}

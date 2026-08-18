@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only, selectinload
 
 from app.announcement_flow import announcement_notifications_for_user, announcement_rows_for_user
 from app.assignment_ai import build_assignment_blueprint, grade_from_score, normalize_grade_code
@@ -47,7 +47,7 @@ from app.schemas import (
     StudentBlockUpdate,
     StudyResourceCreate,
 )
-from app.resource_files import public_resource_url, resource_file_url
+from app.resource_files import resource_file_url
 from app.storage import STUDY_RESOURCE_UPLOAD_DIR
 
 router = APIRouter(prefix="/professor", tags=["professor"])
@@ -90,6 +90,12 @@ def _avatar(name: str) -> str:
 def _safe_filename(filename: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(filename).name).strip(".-")
     return cleaned or "study-resource"
+
+
+def _resource_url_for_list(item: StudyResource) -> str:
+    if item.file_size or item.filename or (item.url and item.url.startswith("/uploads/study_resources/")):
+        return resource_file_url(item.id)
+    return item.url or ""
 
 
 def _resource_type_from_file(filename: str, content_type: str | None) -> str:
@@ -161,6 +167,19 @@ def _attendance_counts(db: Session, student_id: int) -> tuple[int, int, int]:
     return len(records), present, absent
 
 
+def _attendance_counts_by_student(db: Session) -> dict[int, dict[str, int]]:
+    counts: dict[int, dict[str, int]] = {}
+    records = db.query(StudentAttendance.student_id, StudentAttendance.status).all()
+    for student_id, status in records:
+        bucket = counts.setdefault(student_id, {"present": 0, "absent": 0, "total": 0})
+        bucket["total"] += 1
+        if status == "present":
+            bucket["present"] += 1
+        elif status == "absent":
+            bucket["absent"] += 1
+    return counts
+
+
 def _attendance_percentage(db: Session, student_id: int, fallback: float) -> float:
     total, present, _absent = _attendance_counts(db, student_id)
     if total == 0:
@@ -169,8 +188,15 @@ def _attendance_percentage(db: Session, student_id: int, fallback: float) -> flo
 
 
 def _student_rows(db: Session) -> list[dict]:
-    students = db.query(User).filter(User.role == Role.student).order_by(User.full_name.asc()).all()
+    students = (
+        db.query(User)
+        .options(selectinload(User.student_profile))
+        .filter(User.role == Role.student)
+        .order_by(User.full_name.asc())
+        .all()
+    )
     setting = get_campus_attendance_setting(db)
+    attendance_counts = _attendance_counts_by_student(db)
     today = _today()
     checkins = {
         checkin.student_id: checkin
@@ -188,8 +214,11 @@ def _student_rows(db: Session) -> list[dict]:
             setting.semester_duration_unit,
             setting.semester_duration_days,
         )
-        attendance = _attendance_percentage(db, student.id, profile.attendance)
-        total_marked, present_count, absent_count = _attendance_counts(db, student.id)
+        counts = attendance_counts.get(student.id, {"present": 0, "absent": 0, "total": 0})
+        total_marked = counts["total"]
+        present_count = counts["present"]
+        absent_count = counts["absent"]
+        attendance = round((present_count / total_marked) * 100, 2) if total_marked else round(profile.attendance, 2)
         checkin = checkins.get(student.id)
         if total_marked:
             profile.attendance = attendance
@@ -284,10 +313,32 @@ def _attendance_today(summary: list[dict]) -> dict:
 
 def _attendance_history(db: Session) -> list[dict]:
     records = db.query(StudentAttendance).order_by(desc(StudentAttendance.marked_at)).limit(60).all()
+    warnings = (
+        db.query(StudentBiometricCheckIn)
+        .filter(StudentBiometricCheckIn.warning_flag.is_(True))
+        .order_by(desc(StudentBiometricCheckIn.verified_at), desc(StudentBiometricCheckIn.detected_at))
+        .limit(30)
+        .all()
+    )
+    user_ids = {record.student_id for record in records}
+    user_ids.update(record.marked_by_id for record in records if record.marked_by_id)
+    user_ids.update(checkin.student_id for checkin in warnings)
+    users = {
+        user.id: user
+        for user in (
+            db.query(User)
+            .options(selectinload(User.student_profile))
+            .filter(User.id.in_(user_ids))
+            .all()
+            if user_ids
+            else []
+        )
+    }
+
     rows: list[dict] = []
     for record in records:
-        student = db.get(User, record.student_id)
-        marker = db.get(User, record.marked_by_id) if record.marked_by_id else None
+        student = users.get(record.student_id)
+        marker = users.get(record.marked_by_id) if record.marked_by_id else None
         rows.append(
             {
                 "id": record.id,
@@ -301,15 +352,8 @@ def _attendance_history(db: Session) -> list[dict]:
                 "warning": False,
             }
         )
-    warnings = (
-        db.query(StudentBiometricCheckIn)
-        .filter(StudentBiometricCheckIn.warning_flag.is_(True))
-        .order_by(desc(StudentBiometricCheckIn.verified_at), desc(StudentBiometricCheckIn.detected_at))
-        .limit(30)
-        .all()
-    )
     for checkin in warnings:
-        student = db.get(User, checkin.student_id)
+        student = users.get(checkin.student_id)
         rows.append(
             {
                 "id": -checkin.id,
@@ -353,16 +397,16 @@ def _announcement_rows(db: Session, professor: User) -> list[dict]:
     ]
 
 
-def _resource_payload(db: Session, item: StudyResource) -> dict:
-    professor = db.get(User, item.created_by_id) if item.created_by_id else None
+def _resource_payload(db: Session, item: StudyResource, professor_name: str | None = None) -> dict:
+    professor = None if professor_name is not None else db.get(User, item.created_by_id) if item.created_by_id else None
     return {
         "id": item.id,
         "title": item.title,
         "subject": item.subject,
         "resourceType": item.resource_type,
         "tag": item.tag,
-        "url": public_resource_url(item),
-        "professorName": professor.full_name if professor else "Campus faculty",
+        "url": _resource_url_for_list(item),
+        "professorName": professor_name or (professor.full_name if professor else "Campus faculty"),
         "createdAt": item.created_at.isoformat(),
         "createdDate": item.created_at.date().isoformat(),
         "time": item.created_at.strftime("%d %b %Y, %I:%M %p"),
@@ -370,11 +414,29 @@ def _resource_payload(db: Session, item: StudyResource) -> dict:
 
 
 def _resource_rows(db: Session, professor: User | None = None, limit: int = 60) -> list[dict]:
-    query = db.query(StudyResource)
+    query = (
+        db.query(StudyResource, User.full_name)
+        .options(
+            load_only(
+                StudyResource.id,
+                StudyResource.created_by_id,
+                StudyResource.title,
+                StudyResource.subject,
+                StudyResource.resource_type,
+                StudyResource.url,
+                StudyResource.filename,
+                StudyResource.content_type,
+                StudyResource.file_size,
+                StudyResource.tag,
+                StudyResource.created_at,
+            )
+        )
+        .outerjoin(User, StudyResource.created_by_id == User.id)
+    )
     if professor:
         query = query.filter(StudyResource.created_by_id == professor.id)
     rows = query.order_by(desc(StudyResource.created_at)).limit(limit).all()
-    return [_resource_payload(db, item) for item in rows]
+    return [_resource_payload(db, item, professor_name=professor_name) for item, professor_name in rows]
 
 
 def _json_loads(value: str | None, fallback):
@@ -432,9 +494,14 @@ def _assignment_rows(db: Session, professor: User | None = None, limit: int = 20
     return [_assignment_payload(item) for item in query.order_by(desc(Assignment.created_at)).limit(limit).all()]
 
 
-def _submission_payload(db: Session, item: AssignmentSubmission) -> dict:
-    assignment = db.get(Assignment, item.assignment_id)
-    student = db.get(User, item.student_id)
+def _submission_payload(
+    db: Session,
+    item: AssignmentSubmission,
+    assignment: Assignment | None = None,
+    student: User | None = None,
+) -> dict:
+    assignment = assignment or db.get(Assignment, item.assignment_id)
+    student = student or db.get(User, item.student_id)
     ai_review = _json_loads(item.ai_review_json, {})
     answers = _json_loads(item.answers_json, {})
     total_points = assignment.total_points if assignment else 100
@@ -485,12 +552,53 @@ def _submission_payload(db: Session, item: AssignmentSubmission) -> dict:
 
 
 def _submission_rows(db: Session, limit: int = 40) -> list[dict]:
-    rows = db.query(AssignmentSubmission).order_by(desc(AssignmentSubmission.updated_at)).limit(limit).all()
-    return [_submission_payload(db, item) for item in rows]
+    rows = (
+        db.query(AssignmentSubmission, Assignment, User)
+        .options(
+            load_only(
+                AssignmentSubmission.id,
+                AssignmentSubmission.assignment_id,
+                AssignmentSubmission.student_id,
+                AssignmentSubmission.submission_type,
+                AssignmentSubmission.answers_json,
+                AssignmentSubmission.notes,
+                AssignmentSubmission.filename,
+                AssignmentSubmission.content_type,
+                AssignmentSubmission.file_size,
+                AssignmentSubmission.ai_grade,
+                AssignmentSubmission.ai_score,
+                AssignmentSubmission.ai_feedback,
+                AssignmentSubmission.ai_review_json,
+                AssignmentSubmission.professor_score,
+                AssignmentSubmission.professor_grade,
+                AssignmentSubmission.professor_feedback,
+                AssignmentSubmission.status,
+                AssignmentSubmission.submitted_at,
+                AssignmentSubmission.updated_at,
+            ),
+            load_only(
+                Assignment.id,
+                Assignment.title,
+                Assignment.subject,
+                Assignment.assignment_type,
+                Assignment.total_points,
+            ),
+            load_only(User.id, User.full_name),
+        )
+        .outerjoin(Assignment, Assignment.id == AssignmentSubmission.assignment_id)
+        .outerjoin(User, User.id == AssignmentSubmission.student_id)
+        .order_by(desc(AssignmentSubmission.updated_at))
+        .limit(limit)
+        .all()
+    )
+    return [
+        _submission_payload(db, item, assignment=assignment, student=student)
+        for item, assignment, student in rows
+    ]
 
 
-def _review_rows(db: Session) -> list[dict]:
-    submission_rows = _submission_rows(db, limit=10)
+def _review_rows(db: Session, submission_rows: list[dict] | None = None) -> list[dict]:
+    submission_rows = submission_rows if submission_rows is not None else _submission_rows(db, limit=10)
     rows = db.query(AssignmentReview).order_by(desc(AssignmentReview.updated_at)).limit(10).all()
     legacy_rows = [
         {
@@ -744,7 +852,8 @@ def dashboard(
         [item for item in today_checkins if item.biometric_verified and not item.professor_confirmed]
     )
     today["warnings"] = len([item for item in today_checkins if item.warning_flag])
-    queue = _review_queue(db, students)
+    submission_rows = _submission_rows(db, limit=120)
+    queue = submission_rows[:30]
 
     return ProfessorDashboard(
         professor={
@@ -779,8 +888,8 @@ def dashboard(
         notifications=announcement_notifications_for_user(db, current_user, limit=20),
         resources=_resource_rows(db, current_user),
         assignments=_assignment_rows(db, current_user),
-        assignment_submissions=_submission_rows(db, limit=120),
-        assignment_reviews=_review_rows(db),
+        assignment_submissions=submission_rows,
+        assignment_reviews=_review_rows(db, submission_rows[:10]),
         review_queue=queue,
         academic_controls=[
             {"label": "CGPA", "detail": "Semester performance criteria"},

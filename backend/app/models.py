@@ -730,3 +730,50 @@ class MarketplaceItem(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
+
+class MarketplaceAsset(Base):
+    __tablename__ = "marketplace_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    asset_key: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(120), default="application/octet-stream", nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    file_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class MarketplacePurchase(Base):
+    __tablename__ = "marketplace_purchases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey("marketplace_items.id"), nullable=False, index=True)
+    item_key: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    item_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    item_category: Mapped[str] = mapped_column(String(80), default="Notes", nullable=False)
+    buyer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    buyer_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    buyer_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    buyer_student_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    seller_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    seller_label: Mapped[str] = mapped_column(String(180), nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="INR", nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="created", nullable=False, index=True)
+    razorpay_order_id: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True, index=True)
+    razorpay_payment_id: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True, index=True)
+    razorpay_signature: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    purchased_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

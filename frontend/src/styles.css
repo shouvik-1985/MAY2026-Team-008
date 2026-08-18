@@ -362,6 +362,113 @@
 :root.light .cv-profile-card .text-indigo-100 {
   color: #e0e7ff !important;
 }
+
+/* Student light-mode control contrast */
+:root.light .cv-app-content button[class*="bg-gradient"],
+:root.light .cv-app-content a[class*="bg-gradient"],
+:root.light .cv-app-content [role="button"][class*="bg-gradient"],
+:root.light .cv-app-content button[class*="bg-[var(--grad"],
+:root.light .cv-app-content a[class*="bg-[var(--grad"],
+:root.light .cv-app-content [role="button"][class*="bg-[var(--grad"],
+:root.light .cv-app-content button[style*="var(--grad"],
+:root.light .cv-app-content button[style*="gradient"],
+:root.light .cv-app-content button[style*="grad"] {
+  color: #ffffff !important;
+}
+
+:root.light .cv-app-content button[class*="bg-gradient"] *,
+:root.light .cv-app-content a[class*="bg-gradient"] *,
+:root.light .cv-app-content [role="button"][class*="bg-gradient"] *,
+:root.light .cv-app-content button[class*="bg-[var(--grad"] *,
+:root.light .cv-app-content a[class*="bg-[var(--grad"] *,
+:root.light .cv-app-content [role="button"][class*="bg-[var(--grad"] *,
+:root.light .cv-app-content button[style*="var(--grad"] *,
+:root.light .cv-app-content button[style*="gradient"] *,
+:root.light .cv-app-content button[style*="grad"] * {
+  color: #ffffff !important;
+}
+
+:root.light .cv-app-content button[class*="bg-gradient"]:disabled,
+:root.light .cv-app-content button[class*="bg-[var(--grad"]:disabled,
+:root.light .cv-app-content button[style*="var(--grad"]:disabled {
+  color: rgba(255, 255, 255, 0.86) !important;
+}
+
+:root.light .cv-app-content [role="switch"][data-state="checked"] {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 56%, #0891b2 100%) !important;
+  border-color: transparent !important;
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.28) !important;
+}
+
+:root.light .cv-app-content [role="switch"][data-state="unchecked"] {
+  background: #cbd5e1 !important;
+  border-color: #94a3b8 !important;
+}
+
+:root.light .cv-app-content [role="switch"] span {
+  background: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.22) !important;
+}
+
+:root.light .cv-app-content button[data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]),
+:root.light .cv-app-content [role="button"][data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]) {
+  background: #e0e7ff !important;
+  border-color: #a5b4fc !important;
+  color: #312e81 !important;
+}
+
+:root.light .cv-app-content button[data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]) *,
+:root.light .cv-app-content [role="button"][data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]) * {
+  color: #312e81 !important;
+}
+
+:root.light .cv-app-content [role="tab"][data-state="active"] {
+  background: #ffffff !important;
+  border-color: #a5b4fc !important;
+  color: #312e81 !important;
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.12) !important;
+}
+
+:root.light .cv-app-content [role="tab"][data-state="active"] * {
+  color: #312e81 !important;
+}
+
+:root.light .cv-app-content [class*="bg-[#11131a]"],
+:root.light .cv-app-content [class*="bg-[#0a0b10]"],
+:root.light .cv-app-content [class*="bg-[#080808]"] {
+  color: #ffffff !important;
+}
+
+:root.light .cv-app-content [class*="bg-[#11131a]"] .text-white,
+:root.light .cv-app-content [class*="bg-[#0a0b10]"] .text-white,
+:root.light .cv-app-content [class*="bg-[#080808]"] .text-white,
+:root.light .cv-app-content [class*="bg-[#11131a]"] h1,
+:root.light .cv-app-content [class*="bg-[#11131a]"] h2,
+:root.light .cv-app-content [class*="bg-[#11131a]"] h3,
+:root.light .cv-app-content [class*="bg-[#0a0b10]"] h1,
+:root.light .cv-app-content [class*="bg-[#0a0b10]"] h2,
+:root.light .cv-app-content [class*="bg-[#0a0b10]"] h3 {
+  color: #ffffff !important;
+}
+
+:root.light .cv-app-content [class*="bg-[#11131a]"] [class*="text-white/"],
+:root.light .cv-app-content [class*="bg-[#0a0b10]"] [class*="text-white/"],
+:root.light .cv-app-content [class*="bg-[#080808]"] [class*="text-white/"] {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+:root.light .cv-app-content [class*="bg-[#11131a]"] .glass,
+:root.light .cv-app-content [class*="bg-[#0a0b10]"] .glass,
+:root.light .cv-app-content [class*="bg-[#080808]"] .glass {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
+}
+
+:root.light .cv-app-content .fixed[class*="bg-black/"],
+:root.light .cv-app-content [class*="fixed"][class*="bg-black/"] {
+  background: rgba(0, 0, 0, 0.78) !important;
+}
 :root.light .cv-admin-content .text-amber-300,
 :root.light .cv-admin-content [class*="text-amber-300"] {
   color: #92400e !important;
@@ -515,6 +622,127 @@
 :root.light .cv-admin-content .rounded-3xl[class*="bg-black"] {
   background: rgba(241, 245, 249, 0.95) !important;
   border-color: #cbd5e1 !important;
+}
+
+/* Student light-mode primary action buttons */
+:root.light .cv-app-content button[class*="bg-indigo-600"],
+:root.light .cv-app-content button[class*="bg-purple-600"],
+:root.light .cv-app-content button[class*="bg-fuchsia-600"],
+:root.light .cv-app-content button[class*="bg-blue-600"],
+:root.light .cv-app-content button[class*="bg-cyan-600"],
+:root.light .cv-app-content button[class*="bg-emerald-600"],
+:root.light .cv-app-content button[class*="bg-rose-600"],
+:root.light .cv-app-content a[class*="bg-indigo-600"],
+:root.light .cv-app-content a[class*="bg-purple-600"],
+:root.light .cv-app-content a[class*="bg-fuchsia-600"],
+:root.light .cv-app-content a[class*="bg-blue-600"],
+:root.light .cv-app-content a[class*="bg-cyan-600"],
+:root.light .cv-app-content a[class*="bg-emerald-600"],
+:root.light .cv-app-content a[class*="bg-rose-600"],
+:root.light .cv-app-content button:has(> span[style*="var(--grad"]),
+:root.light .cv-app-content button:has(> span[style*="gradient"]),
+:root.light .cv-app-content button:has(> span[class*="bg-gradient"]) {
+  color: #ffffff !important;
+  text-shadow: 0 1px 1px rgba(15, 23, 42, 0.2);
+}
+
+:root.light .cv-app-content button[class*="bg-indigo-600"] *,
+:root.light .cv-app-content button[class*="bg-purple-600"] *,
+:root.light .cv-app-content button[class*="bg-fuchsia-600"] *,
+:root.light .cv-app-content button[class*="bg-blue-600"] *,
+:root.light .cv-app-content button[class*="bg-cyan-600"] *,
+:root.light .cv-app-content button[class*="bg-emerald-600"] *,
+:root.light .cv-app-content button[class*="bg-rose-600"] *,
+:root.light .cv-app-content a[class*="bg-indigo-600"] *,
+:root.light .cv-app-content a[class*="bg-purple-600"] *,
+:root.light .cv-app-content a[class*="bg-fuchsia-600"] *,
+:root.light .cv-app-content a[class*="bg-blue-600"] *,
+:root.light .cv-app-content a[class*="bg-cyan-600"] *,
+:root.light .cv-app-content a[class*="bg-emerald-600"] *,
+:root.light .cv-app-content a[class*="bg-rose-600"] *,
+:root.light .cv-app-content button:has(> span[style*="var(--grad"]) *,
+:root.light .cv-app-content button:has(> span[style*="gradient"]) *,
+:root.light .cv-app-content button:has(> span[class*="bg-gradient"]) * {
+  color: #ffffff !important;
+}
+
+:root.light .cv-app-content button[class*="bg-indigo-600"]:disabled,
+:root.light .cv-app-content button[class*="bg-purple-600"]:disabled,
+:root.light .cv-app-content button[class*="bg-fuchsia-600"]:disabled,
+:root.light .cv-app-content button[class*="bg-blue-600"]:disabled,
+:root.light .cv-app-content button[class*="bg-cyan-600"]:disabled,
+:root.light .cv-app-content button[class*="bg-emerald-600"]:disabled,
+:root.light .cv-app-content button[class*="bg-rose-600"]:disabled {
+  opacity: 0.72 !important;
+}
+
+/* Student placement role cards */
+:root.light .cv-placement-page [class*="bg-emerald-400"],
+:root.light .cv-placement-page [class*="bg-emerald-500"] {
+  background-color: rgba(16, 185, 129, 0.13) !important;
+}
+
+:root.light .cv-placement-page [class*="border-emerald-300"],
+:root.light .cv-placement-page [class*="border-emerald-400"],
+:root.light .cv-placement-page [class*="border-emerald-500"] {
+  border-color: rgba(16, 185, 129, 0.34) !important;
+}
+
+:root.light .cv-placement-page [class*="text-emerald-50"],
+:root.light .cv-placement-page [class*="text-emerald-100"],
+:root.light .cv-placement-page [class*="text-emerald-200"] {
+  color: #047857 !important;
+}
+
+:root.light .cv-placement-page [class*="bg-amber-400"],
+:root.light .cv-placement-page [class*="bg-amber-500"] {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+:root.light .cv-placement-page [class*="border-amber-300"],
+:root.light .cv-placement-page [class*="border-amber-400"],
+:root.light .cv-placement-page [class*="border-amber-500"] {
+  border-color: rgba(217, 119, 6, 0.34) !important;
+}
+
+:root.light .cv-placement-page [class*="text-amber-50"],
+:root.light .cv-placement-page [class*="text-amber-100"],
+:root.light .cv-placement-page [class*="text-amber-200"] {
+  color: #92400e !important;
+}
+
+:root.light .cv-placement-page [class*="bg-cyan-400"],
+:root.light .cv-placement-page [class*="bg-cyan-500"] {
+  background-color: rgba(14, 165, 233, 0.13) !important;
+}
+
+:root.light .cv-placement-page [class*="border-cyan-300"],
+:root.light .cv-placement-page [class*="border-cyan-400"],
+:root.light .cv-placement-page [class*="border-cyan-500"] {
+  border-color: rgba(14, 165, 233, 0.34) !important;
+}
+
+:root.light .cv-placement-page [class*="text-cyan-50"],
+:root.light .cv-placement-page [class*="text-cyan-100"],
+:root.light .cv-placement-page [class*="text-cyan-200"] {
+  color: #0369a1 !important;
+}
+
+:root.light .cv-placement-page [class*="bg-rose-400"],
+:root.light .cv-placement-page [class*="bg-rose-500"] {
+  background-color: rgba(244, 63, 94, 0.12) !important;
+}
+
+:root.light .cv-placement-page [class*="border-rose-300"],
+:root.light .cv-placement-page [class*="border-rose-400"],
+:root.light .cv-placement-page [class*="border-rose-500"] {
+  border-color: rgba(244, 63, 94, 0.32) !important;
+}
+
+:root.light .cv-placement-page [class*="text-rose-50"],
+:root.light .cv-placement-page [class*="text-rose-100"],
+:root.light .cv-placement-page [class*="text-rose-200"] {
+  color: #be123c !important;
 }
 
 

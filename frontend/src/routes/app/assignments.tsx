@@ -18,12 +18,11 @@ import {
 } from "lucide-react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 import {
-  getStudentDashboard,
   submitStudentDigitalAssignment,
   submitStudentFileAssignment,
   type StudentDashboard,
 } from "@/lib/api";
-import { setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
+import { refreshStudentDashboard, setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
 import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/assignments")({ component: AssignmentsPage });
@@ -119,7 +118,7 @@ function AssignmentsPage() {
   }
 
   async function refreshAssignmentsFromDashboard() {
-    const fresh = await getStudentDashboard();
+    const fresh = await refreshStudentDashboard({ force: true });
     setStoredDashboard(fresh);
     setAssignmentList(fresh.assignment_items);
     return fresh.assignment_items;

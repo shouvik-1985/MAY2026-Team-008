@@ -755,6 +755,33 @@ export type MarketplaceItem = {
   } | null;
 };
 
+export type MarketplacePurchase = {
+  id: number;
+  itemKey: string;
+  itemName: string;
+  itemCategory: string;
+  buyerId: number;
+  buyerName: string;
+  buyerEmail: string;
+  buyerStudentCode?: string | null;
+  sellerId?: number | null;
+  sellerLabel: string;
+  amount: number;
+  currency: string;
+  status: string;
+  razorpayOrderId?: string | null;
+  razorpayPaymentId?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  purchasedAt?: string | null;
+};
+
+export type MarketplacePurchaseMetrics = {
+  totalPurchases: number;
+  paidPurchases: number;
+  totalCollected: number;
+};
+
 export type MarketplaceMeta = {
   ok: boolean;
   categories: string[];
@@ -1253,6 +1280,40 @@ export function deleteMarketplaceItem(itemKey: string) {
 
 export function getMarketplaceNotesPreview(itemKey: string) {
   return request<NotesPreviewPayload>(`/marketplace/items/${itemKey}/notes-preview`);
+}
+
+export function createMarketplacePurchaseOrder(itemKey: string) {
+  return request<{
+    ok: boolean;
+    keyId: string;
+    orderId: string;
+    amount: number;
+    currency: string;
+    purchase: MarketplacePurchase;
+    item: MarketplaceItem;
+  }>(`/marketplace/items/${itemKey}/purchase/order`, {
+    method: "POST",
+  });
+}
+
+export function verifyMarketplacePurchasePayment(payload: {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}) {
+  return request<{ ok: boolean; message: string; purchase: MarketplacePurchase; item: MarketplaceItem }>(
+    "/marketplace/purchases/verify",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function getMarketplacePurchases() {
+  return request<{ ok: boolean; purchases: MarketplacePurchase[]; metrics: MarketplacePurchaseMetrics }>(
+    "/marketplace/purchases",
+  );
 }
 
 export function sendStudentAssistantMessage(payload: {

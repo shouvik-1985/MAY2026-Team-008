@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, load_only, selectinload
 
 from app.attendance_flow import get_campus_attendance_setting, now_utc
 from app.complaint_flow import complaint_code_for_id, complaint_payload, normalize_complaint_status
@@ -12,6 +12,16 @@ from app.models import Role, StudentComplaint, StudentComplaintAttachment, User
 from app.schemas import AdminComplaintStatusUpdate
 
 router = APIRouter(prefix="/complaints", tags=["complaints"])
+
+
+def _complaint_attachment_metadata():
+    return selectinload(StudentComplaint.attachments).load_only(
+        StudentComplaintAttachment.id,
+        StudentComplaintAttachment.complaint_id,
+        StudentComplaintAttachment.filename,
+        StudentComplaintAttachment.content_type,
+        StudentComplaintAttachment.file_size,
+    )
 
 
 def _require_student(user: User) -> None:
@@ -49,7 +59,7 @@ def list_student_complaints(
     complaints = (
         db.query(StudentComplaint)
         .options(
-            selectinload(StudentComplaint.attachments),
+            _complaint_attachment_metadata(),
             selectinload(StudentComplaint.student).selectinload(User.student_profile),
         )
         .filter(StudentComplaint.student_id == current_user.id)
@@ -119,7 +129,7 @@ async def create_student_complaint(
     complaint = (
         db.query(StudentComplaint)
         .options(
-            selectinload(StudentComplaint.attachments),
+            _complaint_attachment_metadata(),
             selectinload(StudentComplaint.student).selectinload(User.student_profile),
         )
         .filter(StudentComplaint.id == complaint.id)
@@ -149,7 +159,7 @@ def list_admin_complaints(
     complaints = (
         db.query(StudentComplaint)
         .options(
-            selectinload(StudentComplaint.attachments),
+            _complaint_attachment_metadata(),
             selectinload(StudentComplaint.student).selectinload(User.student_profile),
         )
         .order_by(StudentComplaint.submitted_at.desc())
@@ -208,7 +218,7 @@ def update_admin_complaint_status(
     refreshed = (
         db.query(StudentComplaint)
         .options(
-            selectinload(StudentComplaint.attachments),
+            _complaint_attachment_metadata(),
             selectinload(StudentComplaint.student).selectinload(User.student_profile),
         )
         .filter(StudentComplaint.id == complaint_id)

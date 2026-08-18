@@ -20,6 +20,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_demo_data(db)
+        marketplace.backfill_local_marketplace_upload_assets(db)
         backfill_local_study_resource_files(db)
     finally:
         db.close()

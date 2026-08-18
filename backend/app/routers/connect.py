@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.attendance_flow import get_campus_attendance_setting
 from app.avatar import avatar_initials, user_avatar_url
@@ -43,9 +43,12 @@ def _aware_datetime(value: datetime) -> datetime:
     return value
 
 
-def _touch_presence(db: Session, user: User) -> None:
+def _touch_presence(db: Session, user: User) -> bool:
+    if user.last_seen_at and (_now() - _aware_datetime(user.last_seen_at)).total_seconds() < 15:
+        return False
     user.last_seen_at = _now()
     db.flush()
+    return True
 
 
 def _is_online(user: User) -> bool:
@@ -121,10 +124,10 @@ def _require_friendship(db: Session, current_user: User, target_id: int) -> Conn
     return relationship
 
 
-def _person_profile(db: Session, user: User) -> dict:
+def _person_profile(db: Session, user: User, setting=None) -> dict:
     if user.role == Role.student:
         profile = user.student_profile
-        setting = get_campus_attendance_setting(db)
+        setting = setting or get_campus_attendance_setting(db)
         semester = resolve_student_semester(
             profile,
             user,
@@ -168,9 +171,14 @@ def _person_profile(db: Session, user: User) -> dict:
     }
 
 
-def _person_out(db: Session, user: User, viewer_id: int) -> dict:
-    relationship = _relationship(db, viewer_id, user.id)
-    profile = _person_profile(db, user)
+def _person_out(
+    db: Session,
+    user: User,
+    viewer_id: int,
+    relationship: ConnectRelationship | None = None,
+    setting=None,
+) -> dict:
+    profile = _person_profile(db, user, setting)
     return {
         "id": user.id,
         "name": user.full_name,
@@ -200,15 +208,23 @@ def _attachment_out(attachment: ConnectAttachment) -> dict:
 
 
 def _message_out(db: Session, viewer_id: int, message: ConnectMessage) -> dict:
-    attachments = []
-    if not message.deleted_for_everyone:
-        attachments = [
-            _attachment_out(attachment)
-            for attachment in db.query(ConnectAttachment)
+    return _message_out_with_attachments(db, viewer_id, message, None)
+
+
+def _message_out_with_attachments(
+    db: Session,
+    viewer_id: int,
+    message: ConnectMessage,
+    attachments: list[ConnectAttachment] | None,
+) -> dict:
+    if attachments is None and not message.deleted_for_everyone:
+        attachments = (
+            db.query(ConnectAttachment)
             .filter(ConnectAttachment.message_id == message.id)
             .order_by(ConnectAttachment.id.asc())
             .all()
-        ]
+        )
+    visible_attachments = [] if message.deleted_for_everyone else attachments or []
 
     return {
         "id": message.id,
@@ -221,7 +237,7 @@ def _message_out(db: Session, viewer_id: int, message: ConnectMessage) -> dict:
         "createdAt": message.created_at.isoformat(),
         "edited": bool(message.edited_at),
         "deletedForEveryone": message.deleted_for_everyone,
-        "files": attachments,
+        "files": [_attachment_out(attachment) for attachment in visible_attachments],
     }
 
 
@@ -242,15 +258,35 @@ def connect_hub(
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     _require_connect_user(current_user)
-    _touch_presence(db, current_user)
-    db.commit()
+    touched = _touch_presence(db, current_user)
+    if touched:
+        db.commit()
+    setting = get_campus_attendance_setting(db)
     users = (
         db.query(User)
+        .options(selectinload(User.student_profile), selectinload(User.professor_profile))
         .filter(User.role.in_(CONNECT_ROLES), User.id != current_user.id)
         .order_by(User.full_name.asc())
         .all()
     )
-    people = [_person_out(db, user, current_user.id) for user in users]
+    relationships = (
+        db.query(ConnectRelationship)
+        .filter(
+            or_(
+                ConnectRelationship.user_low_id == current_user.id,
+                ConnectRelationship.user_high_id == current_user.id,
+            )
+        )
+        .all()
+    )
+    relationships_by_user = {
+        relationship.user_high_id if relationship.user_low_id == current_user.id else relationship.user_low_id: relationship
+        for relationship in relationships
+    }
+    people = [
+        _person_out(db, user, current_user.id, relationships_by_user.get(user.id), setting)
+        for user in users
+    ]
     return {
         "viewer": {
             "id": current_user.id,
@@ -413,7 +449,21 @@ def conversation_messages(
         .limit(300)
         .all()
     )
-    messages = [_message_out(db, current_user.id, row) for row in rows if row.id not in hidden_ids]
+    visible_rows = [row for row in rows if row.id not in hidden_ids]
+    attachments_by_message: dict[int, list[ConnectAttachment]] = {row.id: [] for row in visible_rows}
+    if attachments_by_message:
+        attachments = (
+            db.query(ConnectAttachment)
+            .filter(ConnectAttachment.message_id.in_(list(attachments_by_message)))
+            .order_by(ConnectAttachment.message_id.asc(), ConnectAttachment.id.asc())
+            .all()
+        )
+        for attachment in attachments:
+            attachments_by_message.setdefault(attachment.message_id, []).append(attachment)
+    messages = [
+        _message_out_with_attachments(db, current_user.id, row, attachments_by_message.get(row.id, []))
+        for row in visible_rows
+    ]
     return {"ok": True, "messages": messages}
 
 

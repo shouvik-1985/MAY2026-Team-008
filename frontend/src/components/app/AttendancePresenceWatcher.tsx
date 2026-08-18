@@ -22,6 +22,9 @@ type CachedFaceScan = {
   capturedAt: number;
 };
 
+const RADIUS_CHECK_INTERVAL_MS = 60_000;
+const ATTENDANCE_SETTINGS_CACHE_MS = 5 * 60_000;
+
 function storageKey(kind: string) {
   const userId = typeof window !== "undefined" ? getStoredUser()?.id ?? "anon" : "anon";
   return `cv-attendance-${userId}-${kind}-${new Date().toISOString().slice(0, 10)}`;
@@ -48,6 +51,7 @@ export function AttendancePresenceWatcher() {
   const cameraBootRef = useRef<Promise<void> | null>(null);
   const precomputeRef = useRef<Promise<void> | null>(null);
   const cachedFaceScanRef = useRef<CachedFaceScan | null>(null);
+  const settingsCacheRef = useRef<{ campusConfigured: boolean; syncedAt: number } | null>(null);
 
   function stopCamera() {
     if (streamRef.current) {
@@ -180,7 +184,15 @@ export function AttendancePresenceWatcher() {
       }
       checkingRef.current = true;
       try {
-        const settings = await getStudentAttendanceSettings();
+        const cachedSettings = settingsCacheRef.current;
+        const settings =
+          cachedSettings && Date.now() - cachedSettings.syncedAt < ATTENDANCE_SETTINGS_CACHE_MS
+            ? { campus_configured: cachedSettings.campusConfigured }
+            : await getStudentAttendanceSettings();
+        settingsCacheRef.current = {
+          campusConfigured: settings.campus_configured,
+          syncedAt: Date.now(),
+        };
         if (!settings.campus_configured) {
           checkingRef.current = false;
           return;
@@ -241,7 +253,7 @@ export function AttendancePresenceWatcher() {
           // Browser permission failures are intentionally quiet on the dashboard.
           checkingRef.current = false;
         },
-        { enableHighAccuracy: true, maximumAge: 15_000, timeout: 12_000 },
+        { enableHighAccuracy: true, maximumAge: RADIUS_CHECK_INTERVAL_MS, timeout: 12_000 },
       );
     }
     inspectRadiusRef.current = inspectRadius;
@@ -253,7 +265,9 @@ export function AttendancePresenceWatcher() {
     }
 
     const startId = window.setTimeout(inspectRadius, 600);
-    intervalId = window.setInterval(inspectRadius, 15_000);
+    intervalId = window.setInterval(() => {
+      if (!document.hidden) void inspectRadius();
+    }, RADIUS_CHECK_INTERVAL_MS);
     window.addEventListener("focus", inspectRadius);
     document.addEventListener("visibilitychange", handleVisible);
     return () => {

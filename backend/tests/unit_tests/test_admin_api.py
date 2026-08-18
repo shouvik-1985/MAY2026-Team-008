@@ -439,6 +439,33 @@ def test_admin_reject_certificate_request_success(client, admin_headers, make_st
     assert response.json()["ok"] is True
 
 
+def test_admin_rejected_graduation_certificate_stays_rejected_after_refresh(
+    client,
+    admin_headers,
+    make_eligible_student,
+):
+    student = make_eligible_student()
+    listing = client.get("/api/admin/certificates/requests", headers=admin_headers).json()["requests"]
+    request_id = next(
+        row["id"]
+        for row in listing
+        if row["student_email"] == student["email"] and row["certificate_key"] == "graduation"
+    )
+
+    reject = client.post(f"/api/admin/certificates/{request_id}/reject", headers=admin_headers)
+    assert reject.status_code == 200
+    assert reject.json()["request"]["status"] == "rejected"
+
+    refreshed = client.get("/api/admin/certificates/requests", headers=admin_headers)
+    assert refreshed.status_code == 200
+    refreshed_row = next(
+        row
+        for row in refreshed.json()["requests"]
+        if row["student_email"] == student["email"] and row["certificate_key"] == "graduation"
+    )
+    assert refreshed_row["status"] == "rejected"
+
+
 def test_admin_reject_unknown_certificate_request_returns_404(client, admin_headers):
     response = client.post("/api/admin/certificates/9999999/reject", headers=admin_headers)
     assert response.status_code in (404, 401, 403)
