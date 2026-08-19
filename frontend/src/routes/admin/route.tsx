@@ -116,7 +116,7 @@ function AdminShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={`relative min-h-screen w-full overflow-x-auto overflow-y-visible box-border cv-admin-content ${isDark ? "text-white" : "text-slate-900"} bg-[var(--page-bg)]`}>
+    <div className={`relative min-h-screen w-full overflow-x-hidden overflow-y-visible box-border cv-admin-content ${isDark ? "text-white" : "text-slate-900"} bg-[var(--page-bg)]`}>
       <aside className={`fixed inset-y-0 left-0 z-40 hidden w-[276px] flex-col p-3 md:flex ${isDark ? "" : "shadow-sm"}`}>
         <div className={`relative flex h-full flex-col overflow-hidden rounded-3xl ${isDark ? "glass-strong" : "glass bg-white/85 border border-slate-200/80"}`}>
           <div className={`flex items-center gap-2.5 px-4 py-5 ${isDark ? "" : "text-slate-900"}`}>
@@ -185,7 +185,7 @@ function AdminShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-h-screen w-full max-w-full overflow-x-auto overflow-y-visible box-border min-w-0 px-5 py-6 md:pl-[316px] md:pr-10">
+      <main className="min-h-screen overflow-x-hidden overflow-y-visible box-border min-w-0 px-4 py-6 md:pl-[296px] md:pr-6">
         <header className={`sticky top-0 z-30 mb-8 px-5 py-3 backdrop-blur-xl md:px-10 ${
           isDark ? "bg-[#050505]/65" : "bg-white/95 border border-slate-200/80 shadow-sm"
         }`}>

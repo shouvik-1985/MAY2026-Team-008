@@ -21,6 +21,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   ClipboardCheck,
   Download,
   Edit3,
@@ -169,6 +170,8 @@ function ProfessorDashboardPage() {
   const [reviewFeedback, setReviewFeedback] = useState("");
   const [reviewSubmissionId, setReviewSubmissionId] = useState<number | null>(null);
   const [assignmentDetailView, setAssignmentDetailView] = useState<AssignmentDetailView | null>(null);
+  const [reviewLeftTab, setReviewLeftTab] = useState<"queue" | "assignments" | "history">("queue");
+  const [reviewRightTab, setReviewRightTab] = useState<"build" | "grade">("build");
 
   const [assignmentType, setAssignmentType] = useState<AssignmentType>("mcq");
   const [assignmentTitle, setAssignmentTitle] = useState("");
@@ -1811,573 +1814,749 @@ function ProfessorDashboardPage() {
 
       <section
         id="reviews"
-        className={visible("reviews") ? "grid gap-5 xl:h-[calc(100vh-7.5rem)] xl:grid-cols-[0.9fr_1.1fr] xl:overflow-hidden" : "hidden"}
+        className={visible("reviews") ? "grid gap-6 xl:h-[calc(100vh-7.5rem)] xl:grid-cols-[0.9fr_1.1fr] xl:overflow-hidden" : "hidden"}
       >
-        <Panel className="flex min-h-0 flex-col overflow-hidden p-5 xl:max-h-[calc(100vh-7.5rem)] glass-strong border border-white/12 shadow-2xl relative">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500 opacity-80" />
-          <div className="flex min-h-[11rem] flex-1 flex-col xl:min-h-0">
-            <div className="flex items-center justify-between gap-3">
-              <SectionTitle icon={ClipboardCheck} eyebrow="Submitted work" title="AI review queue" />
-              <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-fuchsia-200 shadow-[0_0_12px_rgba(217,70,239,0.2)]">
-                {(dashboard?.review_queue ?? []).length} Pending
-              </span>
+        {/* ── LEFT PANEL: Tabbed list ── */}
+        <Panel className="flex min-h-0 flex-col overflow-hidden p-6 xl:max-h-[calc(100vh-7.5rem)] glass-strong border border-white/12 shadow-2xl relative">
+          <div className="absolute top-0 left-0 right-0 h-[3px] rounded-t-2xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500" />
+
+          {/* Tab bar — theme-aware */}
+          <div className={`flex items-center gap-2 rounded-2xl border p-1.5 mb-6 shadow-inner ${
+            isDark ? "border-white/10 bg-black/30" : "border-slate-200 bg-slate-100"
+          }`}>
+            {(
+              [
+                { key: "queue", label: "Review Queue", count: (dashboard?.review_queue ?? []).length, color: "fuchsia" },
+                { key: "assignments", label: "Published", count: (dashboard?.assignments ?? []).length, color: "cyan" },
+                { key: "history", label: "History", count: null, color: "purple" },
+              ] as const
+            ).map(({ key, label, count, color }) => {
+              const active = reviewLeftTab === key;
+              const activeStyles = {
+                fuchsia: "bg-fuchsia-600 border-fuchsia-500/60 !text-white shadow-[0_2px_12px_rgba(217,70,239,0.35)]",
+                cyan:    "bg-cyan-600 border-cyan-500/60 !text-white shadow-[0_2px_12px_rgba(6,182,212,0.35)]",
+                purple:  "bg-purple-600 border-purple-500/60 !text-white shadow-[0_2px_12px_rgba(168,85,247,0.35)]",
+              };
+              const activeBadgeStyles = {
+                fuchsia: "bg-white !text-fuchsia-700",
+                cyan:    "bg-white !text-cyan-700",
+                purple:  "bg-white !text-purple-700",
+              };
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setReviewLeftTab(key)}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold tracking-wide transition-all duration-200 ${
+                    active
+                      ? activeStyles[color]
+                      : isDark
+                        ? "border-transparent text-white/50 hover:text-white/80 hover:bg-white/5"
+                        : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-white"
+                  }`}
+                >
+                  <span>{label}</span>
+                  {count !== null && (
+                    <span className={`rounded-full min-w-[20px] text-center px-1.5 py-1 text-[10px] font-mono font-bold leading-none ${
+                      active
+                        ? activeBadgeStyles[color]
+                        : isDark
+                          ? "bg-white/10 text-white/60"
+                          : "bg-slate-200 text-slate-600"
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+
+          {/* Tab: Review Queue */}
+          {reviewLeftTab === "queue" && (
+            <div className="flex min-h-0 flex-1 flex-col pt-1">
+              <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
+                {(dashboard?.review_queue ?? []).map((item) => {
+                  const active = item.submissionId && item.submissionId === reviewSubmissionId;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        loadReview(item);
+                        setAssignmentDetailView({ kind: "submission", item });
+                        setReviewRightTab("grade");
+                      }}
+                      className={`group relative w-full text-left rounded-2xl p-4 transition-all duration-200 border ${
+                        active
+                          ? isDark
+                            ? "border-fuchsia-500/60 bg-gradient-to-r from-fuchsia-500/20 via-purple-500/10 to-transparent shadow-[0_0_20px_rgba(217,70,239,0.18)]"
+                            : "border-fuchsia-400 bg-fuchsia-50 shadow-md"
+                          : isDark
+                            ? "border-white/10 bg-white/[0.03] hover:border-fuchsia-500/30 hover:bg-white/[0.06] hover:shadow-md"
+                            : "border-slate-200 bg-white hover:border-fuchsia-300 hover:bg-fuchsia-50/50 hover:shadow-sm"
+                      }`}
+                    >
+                      {/* Title + chevron row */}
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className={`truncate text-sm font-semibold transition leading-snug ${
+                            active
+                              ? isDark ? "text-fuchsia-100" : "text-fuchsia-800"
+                              : isDark ? "text-white group-hover:text-fuchsia-100" : "text-slate-800 group-hover:text-fuchsia-700"
+                          }`}>
+                            {item.title}
+                          </div>
+                          <div className="mt-1 flex items-center gap-1.5 text-xs">
+                            <span className={`font-medium ${isDark ? "text-white/70" : "text-slate-600"}`}>{item.student}</span>
+                            <span className={isDark ? "text-white/25" : "text-slate-300"}>·</span>
+                            <span className={isDark ? "text-white/40" : "text-slate-400"}>{item.submitted}</span>
+                          </div>
+                        </div>
+                        <ChevronRight className={`size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 ${
+                          active
+                            ? isDark ? "text-fuchsia-300" : "text-fuchsia-500"
+                            : isDark ? "text-white/20 group-hover:text-fuchsia-300/70" : "text-slate-300 group-hover:text-fuchsia-400"
+                        }`} />
+                      </div>
+                      {/* Consolidated status row: type · priority · AI grade */}
+                      <div className="mt-2.5 flex items-center gap-1.5 text-[11px]">
+                        <span className={`rounded-full border px-2 py-0.5 font-medium uppercase tracking-wide ${
+                          isDark
+                            ? "border-white/15 bg-white/5 text-white/55"
+                            : "border-slate-200 bg-slate-100 text-slate-500"
+                        }`}>
+                          {(item.assignmentType ?? "manual").replace("qa", "Q&A")}
+                        </span>
+                        {item.priority === "high" && (
+                          <span className={`rounded-full border px-2 py-0.5 font-bold uppercase tracking-wide ${
+                            isDark
+                              ? "bg-rose-600/20 border-rose-500/40 text-rose-300"
+                              : "bg-rose-50 border-rose-300 text-rose-600"
+                          }`}>
+                            High
+                          </span>
+                        )}
+                        {item.aiGrade && (
+                          <span className={`rounded-full border px-2 py-0.5 font-bold uppercase tracking-wide ${
+                            isDark
+                              ? "border-emerald-500/40 bg-emerald-600/20 text-emerald-300"
+                              : "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          }`}>
+                            AI {item.aiGrade}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+                {(dashboard?.review_queue ?? []).length === 0 && (
+                  <div className={`rounded-3xl border border-dashed py-10 text-center text-sm ${
+                    isDark ? "border-white/15 text-white/45 bg-white/[0.01]" : "border-slate-200 text-slate-400 bg-slate-50/50"
+                  }`}>
+                    Student submissions will appear here after AI review.
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
-              {(dashboard?.review_queue ?? []).map((item) => {
-                const active = item.submissionId && item.submissionId === reviewSubmissionId;
-                return (
+          )}
+
+          {/* Tab: Published Assignments */}
+          {reviewLeftTab === "assignments" && (
+            <div className="flex min-h-0 flex-1 flex-col pt-1">
+              <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
+                {(dashboard?.assignments ?? []).map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => {
-                      loadReview(item);
-                      setAssignmentDetailView({ kind: "submission", item });
-                    }}
-                    className={`group relative w-full text-left rounded-2xl p-4 transition-all duration-200 border ${
-                      active
-                        ? "border-fuchsia-400/60 bg-gradient-to-r from-fuchsia-500/20 via-purple-500/10 to-transparent shadow-[0_0_25px_rgba(217,70,239,0.2)]"
-                        : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06] hover:shadow-lg"
+                    type="button"
+                    onClick={() => setAssignmentDetailView({ kind: "assignment", item })}
+                    className={`group w-full rounded-2xl border p-4 text-left transition-all duration-200 ${
+                      isDark
+                        ? "border-white/10 bg-white/[0.03] hover:border-cyan-400/40 hover:bg-white/[0.06] hover:shadow-lg"
+                        : "border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50/50 hover:shadow-sm"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-white group-hover:text-fuchsia-200 transition">
+                        <div className={`truncate text-sm font-semibold transition ${
+                          isDark ? "text-white group-hover:text-cyan-200" : "text-slate-800 group-hover:text-cyan-700"
+                        }`}>
                           {item.title}
                         </div>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-white/55">
-                          <span className="font-medium text-white/80">{item.student}</span>
-                          <span>•</span>
-                          <span className="font-mono text-white/40">{item.submitted}</span>
+                        <div className={`mt-1 text-xs truncate ${isDark ? "text-white/45" : "text-slate-400"}`}>
+                          {item.subject} <span className={isDark ? "text-white/20" : "text-slate-200"}>•</span> {item.sourceTitle}
                         </div>
                       </div>
-                      <span
-                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider ${
-                          item.priority === "high"
-                            ? "bg-rose-500/15 border border-rose-500/35 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.25)]"
-                            : "bg-white/5 border border-white/10 text-white/45"
-                        }`}
-                      >
-                        {item.priority}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.16em]">
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-white/60 font-medium">
-                        {(item.assignmentType ?? "manual").replace("qa", "Q&A")}
-                      </span>
-                      {item.aiGrade && (
-                        <span className="rounded-full border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-0.5 font-bold text-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
-                          AI {item.aiGrade}
-                        </span>
-                      )}
-                      {item.fileName && (
-                        <span className="truncate max-w-[140px] rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-white/50">
-                          📎 {item.fileName}
-                        </span>
-                      )}
-                      <span className="ml-auto inline-flex items-center gap-1.5 font-medium text-cyan-300 group-hover:translate-x-0.5 transition-transform">
-                        <Eye className="size-3.5" />
-                        Inspect
+                      <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] ${
+                        isDark
+                          ? "border-cyan-400/30 bg-cyan-500/15 text-cyan-200"
+                          : "border-cyan-300 bg-cyan-50 text-cyan-700"
+                      }`}>
+                        {item.assignmentType === "qa" ? "Q&A" : item.assignmentType.toUpperCase()}
                       </span>
                     </div>
                   </button>
-                );
-              })}
-              {(dashboard?.review_queue ?? []).length === 0 && (
-                <div className="rounded-3xl border border-dashed border-white/15 py-10 text-center text-sm text-white/45 bg-white/[0.01]">
-                  Student submissions will appear here after AI review.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-5 flex min-h-[11rem] flex-1 flex-col border-t border-white/10 pt-4 xl:min-h-0">
-            <div className="flex items-center justify-between gap-3">
-              <SectionTitle icon={FileText} eyebrow="Published" title="AI assignments" />
-              <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-cyan-200">
-                {(dashboard?.assignments ?? []).length} Active
-              </span>
-            </div>
-            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
-              {(dashboard?.assignments ?? []).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setAssignmentDetailView({ kind: "assignment", item })}
-                  className="group w-full rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition-all duration-200 hover:border-cyan-400/40 hover:bg-white/[0.06] hover:shadow-lg"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-white group-hover:text-cyan-200 transition">
-                        {item.title}
-                      </div>
-                      <div className="mt-1 text-xs text-white/45 truncate">
-                        {item.subject} <span className="text-white/20">•</span> {item.sourceTitle}
-                      </div>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-cyan-200 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
-                      {item.assignmentType === "qa" ? "Q&A" : item.assignmentType.toUpperCase()}
-                    </span>
+                ))}
+                {(dashboard?.assignments ?? []).length === 0 && (
+                  <div className={`rounded-3xl border border-dashed py-8 text-center text-sm ${
+                    isDark ? "border-white/15 text-white/45 bg-white/[0.01]" : "border-slate-200 text-slate-400 bg-slate-50/50"
+                  }`}>
+                    Create the first AI assignment from the builder.
                   </div>
-                  <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-cyan-300 group-hover:translate-x-0.5 transition-transform">
-                    <Eye className="size-3.5" />
-                    View generated paper & rubric
-                  </div>
-                </button>
-              ))}
-              {(dashboard?.assignments ?? []).length === 0 && (
-                <div className="rounded-3xl border border-dashed border-white/15 py-8 text-center text-sm text-white/45 bg-white/[0.01]">
-                  Create the first AI assignment from the builder.
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          <StudentAssignmentHistory
-            className="mt-5 min-h-[10rem] flex-[0.9] xl:min-h-0"
-            listClassName="max-h-none flex-1"
-            items={selectedStudentAssignmentHistory}
-            assignments={dashboard?.assignments ?? []}
-            studentName={selectedStudentName}
-            selectedSubmissionId={reviewSubmissionId}
-            onOpen={openStudentAssignmentHistory}
-          />
+          {/* Tab: Student History */}
+          {reviewLeftTab === "history" && (
+            <StudentAssignmentHistory
+              className="flex-1 min-h-0"
+              listClassName="max-h-none flex-1"
+              items={selectedStudentAssignmentHistory}
+              assignments={dashboard?.assignments ?? []}
+              studentName={selectedStudentName}
+              selectedSubmissionId={reviewSubmissionId}
+              onOpen={openStudentAssignmentHistory}
+            />
+          )}
         </Panel>
 
-        <div className="space-y-5 xl:max-h-[calc(100vh-7.5rem)] xl:overflow-y-auto xl:pr-2">
-          <Panel className="p-6 glass-strong border border-white/12 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-500 opacity-70" />
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <SectionTitle icon={Sparkles} eyebrow="GenAI Assignment System" title="AI Intelligence Builder" />
-              <div className="inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-3.5 py-1.5 text-[11px] font-medium text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
-                <span className="size-2 rounded-full bg-purple-400 animate-pulse" />
-                AI Engine Live
-              </div>
-            </div>
+        {/* ── RIGHT PANEL: Tabbed Build / Grade ── */}
+        <div className="flex min-h-0 flex-col xl:max-h-[calc(100vh-7.5rem)] xl:overflow-hidden">
+          {/* Tab switcher — theme-aware */}
+          <div className={`flex items-center gap-2 rounded-2xl border p-1.5 mb-6 shadow-inner ${
+            isDark ? "border-white/10 bg-black/30" : "border-slate-200 bg-slate-100"
+          }`}>
+            {(
+              [
+                { key: "build", label: "AI Builder", icon: Sparkles, color: "purple" },
+                { key: "grade", label: "Grade Submission", icon: CheckCircle2, color: "emerald" },
+              ] as const
+            ).map(({ key, label, icon: Icon, color }) => {
+              const active = reviewRightTab === key;
+              const activeStyles = {
+                purple:  "bg-purple-600 border-purple-500/60 !text-white shadow-[0_2px_12px_rgba(168,85,247,0.35)]",
+                emerald: "bg-emerald-600 border-emerald-500/60 !text-white shadow-[0_2px_12px_rgba(16,185,129,0.35)]",
+              };
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setReviewRightTab(key)}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold tracking-wide transition-all duration-200 ${
+                    active
+                      ? activeStyles[color]
+                      : isDark
+                        ? "border-transparent text-white/50 hover:text-white/80 hover:bg-white/5"
+                        : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-white"
+                  }`}
+                >
+                  <Icon className="size-3.5 shrink-0" />
+                  <span>{label}</span>
+                  {key === "grade" && selectedReviewItem && (
+                    <span className="ml-0.5 size-2 rounded-full bg-emerald-300 animate-pulse" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-            <form onSubmit={submitGeneratedAssignment} className="mt-6 space-y-5">
-              <div>
-                <span className="mb-2 block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                  1. Select Paper Format
-                </span>
-                <div className="grid gap-2.5 sm:grid-cols-3">
-                  {[
-                    { value: "mcq" as const, label: "MCQ Paper", icon: ClipboardCheck, desc: "Auto-graded quiz" },
-                    { value: "qa" as const, label: "Q&A Assessment", icon: Edit3, desc: "Descriptive paper" },
-                    { value: "file" as const, label: "File Project", icon: Upload, desc: "Submission brief" },
-                  ].map((option) => {
-                    const Icon = option.icon;
-                    const active = assignmentType === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setAssignmentType(option.value)}
-                        className={`group relative rounded-2xl border p-3.5 text-left transition-all duration-200 ${
-                          active
-                            ? "border-fuchsia-400/60 bg-gradient-to-br from-fuchsia-500/20 via-purple-500/15 to-transparent text-white shadow-[0_0_20px_rgba(217,70,239,0.25)]"
-                            : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25 hover:bg-white/[0.06] hover:text-white"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 font-semibold text-sm">
-                          <Icon className={`size-4 ${active ? "text-fuchsia-300" : "text-white/45 group-hover:text-white"}`} />
-                          {option.label}
-                        </div>
-                        <div className="mt-1 text-[11px] text-white/40">{option.desc}</div>
-                      </button>
-                    );
-                  })}
+
+          {/* Right panel scrollable content */}
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1 space-y-4">
+
+            {/* ── BUILD TAB ── */}
+            {reviewRightTab === "build" && (
+              <Panel className="p-5 glass-strong border border-white/12 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-500 opacity-70" />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <SectionTitle icon={Sparkles} eyebrow="GenAI Assignment System" title="AI Intelligence Builder" />
+                  <div className="inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-3.5 py-1.5 text-[11px] font-medium text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
+                    <span className="size-2 rounded-full bg-purple-400 animate-pulse" />
+                    AI Engine Live
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                    Assignment Title (Optional)
-                  </span>
-                  <Input
-                    value={assignmentTitle}
-                    onChange={(event) => setAssignmentTitle(event.target.value)}
-                    placeholder="Auto-generated by AI if blank"
-                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                    Target Subject
-                  </span>
-                  <SearchableOptionInput
-                    id="professor-assignment-subject"
-                    value={assignmentSubject}
-                    onChange={setAssignmentSubject}
-                    options={STUDY_SUBJECTS}
-                    placeholder="Select subject"
-                  />
-                </label>
-              </div>
+                <form onSubmit={submitGeneratedAssignment} className="mt-4 space-y-4">
+                  <div>
+                    <span className="mb-2 block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                      1. Paper Format
+                    </span>
+                    <div className={`flex items-center rounded-xl border p-1 gap-1 ${isDark ? "border-white/10 bg-black/25" : "border-slate-200 bg-slate-100"}`}>
+                      {[
+                        { value: "mcq" as const, label: "MCQ Paper", icon: ClipboardCheck },
+                        { value: "qa" as const, label: "Q&A Assessment", icon: Edit3 },
+                        { value: "file" as const, label: "File Project", icon: Upload },
+                      ].map((option) => {
+                        const Icon = option.icon;
+                        const active = assignmentType === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setAssignmentType(option.value)}
+                            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 ${
+                              active
+                                ? isDark
+                                  ? "bg-fuchsia-600/80 border border-fuchsia-400/50 text-white shadow-[0_1px_8px_rgba(217,70,239,0.3)]"
+                                  : "bg-white border border-fuchsia-400 text-fuchsia-700 shadow-sm"
+                                : isDark
+                                  ? "border border-transparent text-white/50 hover:text-white/80 hover:bg-white/5"
+                                  : "border border-transparent text-slate-500 hover:text-slate-800 hover:bg-white/70"
+                            }`}
+                          >
+                            <Icon className="size-3.5 shrink-0" />
+                            <span className="truncate">{option.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              <div>
-                <span className="mb-2 block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                  2. Select AI Context Source
-                </span>
-                <div className="grid gap-2.5 sm:grid-cols-3">
-                  {[
-                    { value: "resources" as const, label: "Uploaded Resources", icon: BookOpen },
-                    { value: "syllabus" as const, label: "Syllabus Outline", icon: FileText },
-                    { value: "content" as const, label: "Custom Text Prompt", icon: Edit3 },
-                  ].map((option) => {
-                    const Icon = option.icon;
-                    const active = assignmentSourceKind === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setAssignmentSourceKind(option.value)}
-                        className={`rounded-2xl border px-4 py-3 text-left text-xs font-medium transition-all duration-200 ${
-                          active
-                            ? "border-cyan-400/60 bg-cyan-500/20 text-cyan-100 shadow-[0_0_15px_rgba(6,182,212,0.25)]"
-                            : "border-white/10 bg-white/[0.03] text-white/55 hover:border-white/20 hover:text-white"
-                        }`}
-                      >
-                        <span className="inline-flex items-center gap-2">
-                          <Icon className="size-4" />
-                          {option.label}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                        Assignment Title (Optional)
+                      </span>
+                      <Input
+                        value={assignmentTitle}
+                        onChange={(event) => setAssignmentTitle(event.target.value)}
+                        placeholder="Auto-generated by AI if blank"
+                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900"}`}
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                        Target Subject
+                      </span>
+                      <SearchableOptionInput
+                        id="professor-assignment-subject"
+                        value={assignmentSubject}
+                        onChange={setAssignmentSubject}
+                        options={STUDY_SUBJECTS}
+                        placeholder="Select subject"
+                      />
+                    </label>
+                  </div>
+
+                  <div>
+                    <span className="mb-2 block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                      2. AI Context Source
+                    </span>
+                    <div className={`flex items-center rounded-xl border p-1 gap-1 ${isDark ? "border-white/10 bg-black/25" : "border-slate-200 bg-slate-100"}`}>
+                      {[
+                        { value: "resources" as const, label: "Uploaded Resources", icon: BookOpen },
+                        { value: "syllabus" as const, label: "Syllabus Outline", icon: FileText },
+                        { value: "content" as const, label: "Custom Text", icon: Edit3 },
+                      ].map((option) => {
+                        const Icon = option.icon;
+                        const active = assignmentSourceKind === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setAssignmentSourceKind(option.value)}
+                            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 ${
+                              active
+                                ? isDark
+                                  ? "bg-cyan-600/70 border border-cyan-400/50 text-white shadow-[0_1px_8px_rgba(6,182,212,0.3)]"
+                                  : "bg-white border border-cyan-400 text-cyan-700 shadow-sm"
+                                : isDark
+                                  ? "border border-transparent text-white/50 hover:text-white/80 hover:bg-white/5"
+                                  : "border border-transparent text-slate-500 hover:text-slate-800 hover:bg-white/70"
+                            }`}
+                          >
+                            <Icon className="size-3.5 shrink-0" />
+                            <span className="truncate">{option.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {assignmentSourceKind === "resources" && (
+                    <div className="rounded-2xl border border-white/12 bg-white/[0.03] p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                          Study Material (Max 6)
                         </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {assignmentSourceKind === "resources" && (
-                <div className="rounded-3xl border border-white/12 bg-white/[0.03] p-4.5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                      Select Study Material (Max 6)
-                    </span>
-                    <span className="text-xs text-cyan-300 font-mono">
-                      {assignmentResourceIds.length} selected
-                    </span>
-                  </div>
-                  <div className="grid gap-2.5 lg:grid-cols-2">
-                    {professorResources.slice(0, 6).map((resource) => {
-                      const checked = assignmentResourceIds.includes(resource.id);
-                      return (
-                        <button
-                          key={resource.id}
-                          type="button"
-                          onClick={() => toggleAssignmentResource(resource.id)}
-                          className={`rounded-2xl border p-3.5 text-left transition-all duration-200 ${
-                            checked
-                              ? "border-emerald-400/60 bg-emerald-500/15 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-                              : "border-white/10 bg-black/20 text-white/70 hover:border-white/25 hover:bg-black/30"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="block truncate text-sm font-semibold">{resource.title}</span>
-                            {checked && (
-                              <span className="size-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                            )}
+                        <span className="text-xs text-cyan-300 font-mono">
+                          {assignmentResourceIds.length} selected
+                        </span>
+                      </div>
+                      <div className="grid gap-2 lg:grid-cols-2">
+                        {professorResources.slice(0, 6).map((resource) => {
+                          const checked = assignmentResourceIds.includes(resource.id);
+                          return (
+                            <button
+                              key={resource.id}
+                              type="button"
+                              onClick={() => toggleAssignmentResource(resource.id)}
+                              className={`rounded-xl border p-3 text-left transition-all duration-200 ${
+                                checked
+                                  ? "border-emerald-400/60 bg-emerald-500/15 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                                  : "border-white/10 bg-black/20 text-white/70 hover:border-white/25 hover:bg-black/30"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="block truncate text-xs font-semibold">{resource.title}</span>
+                                {checked && (
+                                  <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                                )}
+                              </div>
+                              <span className="mt-0.5 block text-[11px] text-white/40">
+                                {resource.subject} &bull; {resource.resourceType}
+                              </span>
+                            </button>
+                          );
+                        })}
+                        {professorResources.length === 0 && (
+                          <div className="col-span-2 rounded-xl border border-dashed border-white/15 p-4 text-center text-xs text-white/45 bg-white/[0.01]">
+                            Upload resources in Study Resources first, or switch to syllabus/content mode above.
                           </div>
-                          <span className="mt-1 block text-xs text-white/45">
-                            {resource.subject} • {resource.resourceType}
-                          </span>
-                        </button>
-                      );
-                    })}
-                    {professorResources.length === 0 && (
-                      <div className="col-span-2 rounded-2xl border border-dashed border-white/15 p-5 text-center text-sm text-white/45 bg-white/[0.01]">
-                        Upload resources in Study Resources first, or switch to syllabus/content mode above.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {assignmentSourceKind === "syllabus" && (
-                <Textarea
-                  value={assignmentSyllabus}
-                  onChange={(event) => setAssignmentSyllabus(event.target.value)}
-                  placeholder="Paste syllabus modules, topics, learning objectives, or unit summaries here..."
-                  className="bg-white/[0.04] border-white/12 focus:border-cyan-400/50 rounded-2xl min-h-[100px]"
-                />
-              )}
-
-              {assignmentSourceKind === "content" && (
-                <Textarea
-                  value={assignmentContent}
-                  onChange={(event) => setAssignmentContent(event.target.value)}
-                  placeholder="Paste any custom textbook excerpt, lecture notes, or reference text for GenAI..."
-                  className="bg-white/[0.04] border-white/12 focus:border-cyan-400/50 rounded-2xl min-h-[100px]"
-                />
-              )}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                    Assignment Duration
-                  </span>
-                  <Input
-                    value={assignmentDueLabel}
-                    onChange={(event) => setAssignmentDueLabel(event.target.value)}
-                    placeholder="e.g. in 7 days"
-                    required
-                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                    Question Count
-                  </span>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={assignmentType === "file" ? 1 : 12}
-                    value={assignmentType === "file" ? 1 : assignmentQuestionCount}
-                    onChange={(event) => setAssignmentQuestionCount(Number(event.target.value) || 1)}
-                    disabled={assignmentType === "file"}
-                    placeholder="Number of questions"
-                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
-                  />
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full py-3.5 px-6 rounded-2xl border border-purple-400/30 bg-purple-500/15 hover:bg-purple-500/25 text-purple-100 font-semibold text-xs tracking-[0.2em] uppercase shadow-[0_0_20px_rgba(168,85,247,0.2)] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
-              >
-                <Sparkles className="size-4 text-purple-300" />
-                <span>{saving ? "Generating Paper via AI..." : "Create AI Assignment Paper"}</span>
-              </button>
-            </form>
-          </Panel>
-
-          <Panel className="p-6 glass-strong border border-white/12 shadow-2xl relative overflow-hidden">
-            <div className="flex items-center justify-between gap-3">
-              <SectionTitle icon={CheckCircle2} eyebrow="Submission Assessment" title="Grade submission" />
-              {selectedReviewItem && (
-                <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-emerald-200">
-                  Ready to Review
-                </span>
-              )}
-            </div>
-
-            {selectedReviewItem && (
-              <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-xl backdrop-blur-2xl">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-purple-300">
-                      <Sparkles className="size-3.5" />
-                      AI Review Snapshot
-                    </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5">
-                        <div className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white/40">
-                          AI Score
-                        </div>
-                        <div className="mt-1 font-display text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-purple-200">
-                          {selectedReviewScore !== null
-                            ? `${selectedReviewScore} / ${selectedReviewTotalPoints}`
-                            : "Pending"}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5">
-                        <div className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white/40">
-                          AI Grade
-                        </div>
-                        <div className="mt-1 font-display text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200">
-                          {selectedReviewItem.aiGrade || selectedReviewItem.grade || "Pending"}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5">
-                        <div className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white/40">
-                          Submission
-                        </div>
-                        <div className="mt-1 font-display text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-200">
-                          {selectedReviewItem.answerCount
-                            ? `${selectedReviewItem.answerCount} answers`
-                            : selectedReviewItem.fileName
-                              ? "File uploaded"
-                              : "Manual"}
-                        </div>
+                        )}
                       </div>
                     </div>
-                    <p className="mt-3 text-sm leading-relaxed text-white/80 font-medium">
-                      {selectedReviewItem.aiFeedback || selectedReviewItem.feedback || "No AI feedback available yet."}
-                    </p>
-                    <p className="mt-2 text-xs leading-5 text-white/45">
-                      AI score is an automated evaluation baseline. Professor grade and feedback below will form the final grade.
-                    </p>
+                  )}
+
+
+                   {assignmentSourceKind === "syllabus" && (
+                    <Textarea
+                      value={assignmentSyllabus}
+                      onChange={(event) => setAssignmentSyllabus(event.target.value)}
+                      placeholder="Paste syllabus modules, topics, learning objectives, or unit summaries here..."
+                      className={`rounded-2xl min-h-[100px] ${isDark ? "bg-white/[0.04] border-white/12 focus:border-cyan-400/50" : "bg-white border-slate-200 focus:border-cyan-500 text-slate-900"}`}
+                    />
+                  )}
+
+                  {assignmentSourceKind === "content" && (
+                    <Textarea
+                      value={assignmentContent}
+                      onChange={(event) => setAssignmentContent(event.target.value)}
+                      placeholder="Paste any custom textbook excerpt, lecture notes, or reference text for GenAI..."
+                      className={`rounded-2xl min-h-[100px] ${isDark ? "bg-white/[0.04] border-white/12 focus:border-cyan-400/50" : "bg-white border-slate-200 focus:border-cyan-500 text-slate-900"}`}
+                    />
+                  )}
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className={`block text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                        Assignment Duration
+                      </span>
+                      <Input
+                        value={assignmentDueLabel}
+                        onChange={(event) => setAssignmentDueLabel(event.target.value)}
+                        placeholder="e.g. in 7 days"
+                        required
+                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900"}`}
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className={`block text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                        Question Count
+                      </span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={assignmentType === "file" ? 1 : 12}
+                        value={assignmentType === "file" ? 1 : assignmentQuestionCount}
+                        onChange={(event) => setAssignmentQuestionCount(Number(event.target.value) || 1)}
+                        disabled={assignmentType === "file"}
+                        placeholder="Number of questions"
+                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900"}`}
+                      />
+                    </label>
                   </div>
-                  {selectedReviewItem.fileUrl && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void openProtectedResource(selectedReviewItem.fileUrl || "", {
-                          openAndDownload: true,
-                          fallbackName: selectedReviewItem.fileName || "assignment-submission",
-                        })
-                      }
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 shadow-[0_0_12px_rgba(6,182,212,0.2)]"
-                    >
-                      <Download className="size-3.5" />
-                      Download File
-                    </button>
+
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="w-full py-3.5 px-6 rounded-2xl border border-purple-400/30 bg-purple-500/15 hover:bg-purple-500/25 text-purple-100 font-semibold text-xs tracking-[0.2em] uppercase shadow-[0_0_20px_rgba(168,85,247,0.2)] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    <Sparkles className="size-4 text-purple-300" />
+                    <span>{saving ? "Generating Paper via AI..." : "Create AI Assignment Paper"}</span>
+                  </button>
+                </form>
+              </Panel>
+            )}
+
+            {/* ── GRADE TAB ── */}
+            {reviewRightTab === "grade" && (
+              <Panel className={`p-6 glass-strong shadow-2xl relative overflow-hidden ${
+                isDark ? "border border-white/12" : "border border-slate-200 bg-white"
+              }`}>
+                <div className="flex items-center justify-between gap-3">
+                  <SectionTitle icon={CheckCircle2} eyebrow="Submission Assessment" title="Grade submission" />
+                  {selectedReviewItem && (
+                    <span className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                      isDark
+                        ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                        : "border-emerald-300 bg-emerald-50 text-emerald-700"
+                    }`}>
+                      Ready to Review
+                    </span>
                   )}
                 </div>
 
-                <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                  {(selectedReviewItem.aiReview?.criteria ?? []).map((criterion) => (
-                    <div key={criterion.label} className="rounded-2xl border border-white/10 bg-black/30 p-3">
-                      <div className="text-xs font-semibold text-white">{criterion.label}</div>
-                      <div className="mt-1 text-xs text-white/50">{criterion.detail}</div>
+                {selectedReviewItem && (
+                  <div className={`mt-5 rounded-3xl border p-5 shadow-sm backdrop-blur-2xl ${
+                    isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"
+                  }`}>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex-1">
+                        <div className={`flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-[0.25em] ${
+                          isDark ? "text-purple-300" : "text-purple-600"
+                        }`}>
+                          <Sparkles className="size-3.5" />
+                          AI Review Snapshot
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                          <div className={`rounded-2xl border p-3.5 ${
+                            isDark ? "border-white/10 bg-black/40" : "border-slate-200 bg-white"
+                          }`}>
+                            <div className={`text-[10px] uppercase tracking-[0.2em] font-semibold ${isDark ? "text-white/40" : "text-slate-400"}`}>
+                              AI Score
+                            </div>
+                            <div className={`mt-1 font-display text-2xl font-bold ${
+                              isDark
+                                ? "text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-purple-200"
+                                : "text-fuchsia-700"
+                            }`}>
+                              {selectedReviewScore !== null
+                                ? `${selectedReviewScore} / ${selectedReviewTotalPoints}`
+                                : "Pending"}
+                            </div>
+                          </div>
+                          <div className={`rounded-2xl border p-3.5 ${
+                            isDark ? "border-white/10 bg-black/40" : "border-slate-200 bg-white"
+                          }`}>
+                            <div className={`text-[10px] uppercase tracking-[0.2em] font-semibold ${isDark ? "text-white/40" : "text-slate-400"}`}>
+                              AI Grade
+                            </div>
+                            <div className={`mt-1 font-display text-2xl font-bold ${
+                              isDark
+                                ? "text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200"
+                                : "text-emerald-700"
+                            }`}>
+                              {selectedReviewItem.aiGrade || selectedReviewItem.grade || "Pending"}
+                            </div>
+                          </div>
+                          <div className={`rounded-2xl border p-3.5 ${
+                            isDark ? "border-white/10 bg-black/40" : "border-slate-200 bg-white"
+                          }`}>
+                            <div className={`text-[10px] uppercase tracking-[0.2em] font-semibold ${isDark ? "text-white/40" : "text-slate-400"}`}>
+                              Submission
+                            </div>
+                            <div className={`mt-1 font-display text-2xl font-bold ${
+                              isDark
+                                ? "text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-200"
+                                : "text-cyan-700"
+                            }`}>
+                              {selectedReviewItem.answerCount
+                                ? `${selectedReviewItem.answerCount} answers`
+                                : selectedReviewItem.fileName
+                                  ? "File uploaded"
+                                  : "Manual"}
+                            </div>
+                          </div>
+                        </div>
+                        <p className={`mt-3 text-sm leading-relaxed font-medium ${isDark ? "text-white/80" : "text-slate-700"}`}>
+                          {selectedReviewItem.aiFeedback || selectedReviewItem.feedback || "No AI feedback available yet."}
+                        </p>
+                        <p className={`mt-2 text-xs leading-5 ${isDark ? "text-white/45" : "text-slate-400"}`}>
+                          AI score is an automated evaluation baseline. Professor grade and feedback below will form the final grade.
+                        </p>
+                      </div>
+                      {selectedReviewItem.fileUrl && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void openProtectedResource(selectedReviewItem.fileUrl || "", {
+                              openAndDownload: true,
+                              fallbackName: selectedReviewItem.fileName || "assignment-submission",
+                            })
+                          }
+                          className={`inline-flex items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
+                            isDark
+                              ? "border-cyan-400/30 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/20 shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+                              : "border-cyan-300 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 shadow-sm"
+                          }`}
+                        >
+                          <Download className="size-3.5" />
+                          Download File
+                        </button>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </div>
+
+                    <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                      {(selectedReviewItem.aiReview?.criteria ?? []).map((criterion) => (
+                        <div key={criterion.label} className={`rounded-2xl border p-3 ${
+                          isDark ? "border-white/10 bg-black/30" : "border-slate-200 bg-white"
+                        }`}>
+                          <div className={`text-xs font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>{criterion.label}</div>
+                          <div className={`mt-1 text-xs ${isDark ? "text-white/50" : "text-slate-500"}`}>{criterion.detail}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={submitReview} className="mt-6 space-y-5">
+                  <label className="block space-y-2">
+                    <span className={`text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                      Select Student
+                    </span>
+                    <Select
+                      value={reviewStudentId}
+                      onChange={(event) => {
+                        setReviewStudentId(event.target.value);
+                        setReviewSubmissionId(null);
+                        setReviewTitle("");
+                        setReviewSubject("");
+                        setReviewScore("");
+                        setReviewGrade("");
+                        setReviewFeedback("");
+                      }}
+                      required
+                      className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 text-white" : "bg-white border-slate-200 focus:border-emerald-400 text-slate-900"}`}
+                    >
+                      <option value="" className={`py-2 ${isDark ? "bg-neutral-950 text-white" : "bg-white text-slate-800"}`}>
+                        Select student to evaluate
+                      </option>
+                      {students.map((student) => (
+                        <option key={student.id} value={student.id} className={`py-2 font-medium ${isDark ? "bg-neutral-950 text-white" : "bg-white text-slate-800"}`}>
+                          {student.name} ({student.studentCode})
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <label className="space-y-2">
+                      <span className={`block text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                        Assignment Title
+                      </span>
+                      <Input
+                        value={reviewTitle}
+                        onChange={(event) => setReviewTitle(event.target.value)}
+                        placeholder="Assignment title"
+                        required
+                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900"}`}
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className={`block text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                        Subject
+                      </span>
+                      <Input
+                        value={reviewSubject}
+                        onChange={(event) => setReviewSubject(event.target.value)}
+                        placeholder="Subject"
+                        required
+                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900"}`}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className={`text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                      Evaluation &amp; Final Grade
+                    </span>
+                    <button
+                      type="button"
+                      onClick={fillAiReviewDraft}
+                      className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                        isDark
+                          ? "border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-200 hover:bg-fuchsia-500/25 shadow-[0_0_15px_rgba(217,70,239,0.2)]"
+                          : "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100 shadow-sm"
+                      }`}
+                    >
+                      <Sparkles className="size-3.5" />
+                      Load AI Suggestion
+                    </button>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-[1fr_0.65fr]">
+                    <label className="block space-y-2">
+                      <span className={`text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                        Professor Final Marks
+                      </span>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={selectedReviewTotalPoints}
+                        step="1"
+                        value={reviewScore}
+                        onChange={(event) => {
+                          setReviewScore(event.target.value);
+                          const score = Number(event.target.value);
+                          if (Number.isFinite(score)) {
+                            setReviewGrade(gradeCodeFromMarks(score, selectedReviewTotalPoints));
+                          }
+                        }}
+                        placeholder={`Marks out of ${selectedReviewTotalPoints}`}
+                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900"}`}
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
+                        Grade Code
+                      </span>
+                      <Select
+                        value={finalGradeCode}
+                        onChange={(event) => setReviewGrade(event.target.value)}
+                        aria-label="Professor final grade code"
+                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 text-white" : "bg-white border-slate-200 focus:border-emerald-400 text-slate-900"}`}
+                      >
+                        {GRADE_OPTIONS.map((code) => (
+                          <option key={code} value={code} className={`py-2 ${isDark ? "bg-neutral-950 text-white" : "bg-white text-slate-800"}`}>
+                            {code}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                  </div>
+
+                  <div className={`rounded-2xl p-3.5 text-xs leading-5 font-mono border ${
+                    isDark ? "border-white/10 bg-white/[0.02] text-white/50" : "border-slate-200 bg-slate-50/50 text-slate-500"
+                  }`}>
+                    Grade Scale: S (90+), A (80+), B (70+), C (60+), D (50+), E (40+), U (&lt;40). Special: P (Pass), F (Fail), W (Withdrawn), I (Incomplete).
+                  </div>
+
+                  <label className="block space-y-2">
+                    <span className={`text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                      Professor Feedback to Student
+                    </span>
+                    <Textarea
+                      value={reviewFeedback}
+                      onChange={(event) => setReviewFeedback(event.target.value)}
+                      placeholder="Provide constructive feedback for the student..."
+                      className={`rounded-2xl min-h-[90px] ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900"}`}
+                    />
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={
+                      saving ||
+                      !reviewStudentId ||
+                      Boolean(reviewSubmissionId && (parsedReviewScore === null || !Number.isFinite(parsedReviewScore)))
+                    }
+                    className={`w-full py-3.5 px-6 rounded-2xl border text-xs font-bold tracking-[0.2em] uppercase active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer ${
+                      isDark
+                        ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                        : "border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                    }`}
+                  >
+                    <Save className={`size-4 ${isDark ? "text-emerald-300" : "text-white"}`} />
+                    <span>{saving ? "Publishing Review..." : "Publish Final Review & Save Grade"}</span>
+                  </button>
+                </form>
+              </Panel>
             )}
 
-            <form onSubmit={submitReview} className="mt-6 space-y-5">
-              <label className="block space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                  Select Student
-                </span>
-                <Select
-                  value={reviewStudentId}
-                  onChange={(event) => {
-                    setReviewStudentId(event.target.value);
-                    setReviewSubmissionId(null);
-                    setReviewTitle("");
-                    setReviewSubject("");
-                    setReviewScore("");
-                    setReviewGrade("");
-                    setReviewFeedback("");
-                  }}
-                  required
-                  className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl text-white"
-                >
-                  <option value="" className="bg-neutral-950 text-white py-2">
-                    Select student to evaluate
-                  </option>
-                  {students.map((student) => (
-                    <option key={student.id} value={student.id} className="bg-neutral-950 text-white py-2 font-medium">
-                      {student.name} ({student.studentCode})
-                    </option>
-                  ))}
-                </Select>
-              </label>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <label className="space-y-2">
-                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                    Assignment Title
-                  </span>
-                  <Input
-                    value={reviewTitle}
-                    onChange={(event) => setReviewTitle(event.target.value)}
-                    placeholder="Assignment title"
-                    required
-                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className="block text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                    Subject
-                  </span>
-                  <Input
-                    value={reviewSubject}
-                    onChange={(event) => setReviewSubject(event.target.value)}
-                    placeholder="Subject"
-                    required
-                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
-                  />
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                  Evaluation & Final Grade
-                </span>
-                <button
-                  type="button"
-                  onClick={fillAiReviewDraft}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-fuchsia-400/40 bg-fuchsia-500/15 px-3.5 py-1.5 text-xs font-semibold text-fuchsia-200 transition hover:bg-fuchsia-500/25 shadow-[0_0_15px_rgba(217,70,239,0.2)]"
-                >
-                  <Sparkles className="size-3.5" />
-                  Load AI Suggestion
-                </button>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-[1fr_0.65fr]">
-                <label className="block space-y-2">
-                  <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                    Professor Final Marks
-                  </span>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={selectedReviewTotalPoints}
-                    step="1"
-                    value={reviewScore}
-                    onChange={(event) => {
-                      setReviewScore(event.target.value);
-                      const score = Number(event.target.value);
-                      if (Number.isFinite(score)) {
-                        setReviewGrade(gradeCodeFromMarks(score, selectedReviewTotalPoints));
-                      }
-                    }}
-                    placeholder={`Marks out of ${selectedReviewTotalPoints}`}
-                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
-                  />
-                </label>
-                <label className="block space-y-2">
-                  <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                    Grade Code
-                  </span>
-                  <Select
-                    value={finalGradeCode}
-                    onChange={(event) => setReviewGrade(event.target.value)}
-                    aria-label="Professor final grade code"
-                    className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl"
-                  >
-                    {GRADE_OPTIONS.map((code) => (
-                      <option key={code} value={code} className="bg-neutral-950 text-white">
-                        {code}
-                      </option>
-                    ))}
-                  </Select>
-                </label>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5 text-xs leading-5 text-white/50 font-mono">
-                Grade Scale: S (90+), A (80+), B (70+), C (60+), D (50+), E (40+), U (&lt;40). Special: P (Pass), F (Fail), W (Withdrawn), I (Incomplete).
-              </div>
-
-              <label className="block space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
-                  Professor Feedback to Student
-                </span>
-                <Textarea
-                  value={reviewFeedback}
-                  onChange={(event) => setReviewFeedback(event.target.value)}
-                  placeholder="Provide constructive feedback for the student..."
-                  className="bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 rounded-2xl min-h-[90px]"
-                />
-              </label>
-
-              <button
-                type="submit"
-                disabled={
-                  saving ||
-                  !reviewStudentId ||
-                  Boolean(reviewSubmissionId && (parsedReviewScore === null || !Number.isFinite(parsedReviewScore)))
-                }
-                className="w-full py-3.5 px-6 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-100 font-semibold text-xs tracking-[0.2em] uppercase shadow-[0_0_20px_rgba(16,185,129,0.2)] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
-              >
-                <Save className="size-4 text-emerald-300" />
-                <span>{saving ? "Publishing Review..." : "Publish Final Review & Save Grade"}</span>
-              </button>
-            </form>
-          </Panel>
+          </div>
         </div>
       </section>
 
@@ -3437,6 +3616,8 @@ function SearchableOptionInput({
   placeholder: string;
   required?: boolean;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [open, setOpen] = useState(false);
   const normalizedValue = value.trim().toLowerCase();
   const filteredOptions = useMemo(() => {
@@ -3448,7 +3629,7 @@ function SearchableOptionInput({
   return (
     <div className="relative">
       {label && (
-        <span className="mb-2 block text-[10px] uppercase tracking-[0.28em] text-white/35">
+        <span className={`mb-2 block text-[10px] uppercase tracking-[0.28em] ${isDark ? "text-white/35" : "text-slate-500"}`}>
           {label}
         </span>
       )}
@@ -3472,13 +3653,19 @@ function SearchableOptionInput({
           aria-expanded={open}
           aria-controls={`${id}-menu`}
           autoComplete="off"
-          className="w-full rounded-2xl border border-white/10 bg-white/[0.08] px-4 py-3 pr-11 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/25"
+          className={`w-full rounded-2xl border px-4 py-3 pr-11 text-sm outline-none transition ${
+            isDark
+              ? "border-white/10 bg-white/[0.08] text-white placeholder:text-white/35 focus:border-white/25"
+              : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+          }`}
         />
         <button
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => setOpen((value) => !value)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-white/45 transition hover:text-white"
+          className={`absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 transition ${
+            isDark ? "text-white/45 hover:text-white" : "text-slate-400 hover:text-slate-600"
+          }`}
           aria-label="Open options"
         >
           <ChevronDown className={`size-4 transition ${open ? "rotate-180" : ""}`} />
@@ -3488,7 +3675,11 @@ function SearchableOptionInput({
       {open && (
         <div
           id={`${id}-menu`}
-          className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] max-h-72 overflow-y-auto rounded-2xl border border-white/12 bg-[#101010]/98 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl"
+          className={`absolute left-0 right-0 top-[calc(100%+8px)] z-[80] max-h-72 overflow-y-auto rounded-2xl border p-2 shadow-2xl backdrop-blur-xl ${
+            isDark
+              ? "border-white/12 bg-[#101010]/98 shadow-black/40"
+              : "border-slate-200 bg-white/98 shadow-slate-200/50"
+          }`}
           role="listbox"
         >
           {filteredOptions.map((option) => (
@@ -3502,8 +3693,12 @@ function SearchableOptionInput({
               }}
               className={`block w-full rounded-xl px-3 py-2.5 text-left text-sm transition ${
                 option === value
-                  ? "bg-white/12 text-white"
-                  : "text-white/65 hover:bg-white/8 hover:text-white"
+                  ? isDark
+                    ? "bg-white/12 text-white"
+                    : "bg-slate-100 text-slate-900 font-medium"
+                  : isDark
+                    ? "text-white/65 hover:bg-white/8 hover:text-white"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}
               role="option"
               aria-selected={option === value}
@@ -3512,7 +3707,7 @@ function SearchableOptionInput({
             </button>
           ))}
           {filteredOptions.length === 0 && (
-            <div className="px-3 py-4 text-sm text-white/40">No matching option.</div>
+            <div className={`px-3 py-4 text-sm ${isDark ? "text-white/40" : "text-slate-400"}`}>No matching option.</div>
           )}
         </div>
       )}
@@ -4025,29 +4220,47 @@ function SectionTitle({
 }
 
 function Input(props: InputHTMLAttributes<HTMLInputElement>) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <input
       {...props}
-      className="w-full glass rounded-2xl px-4 py-3 text-sm text-white placeholder-white/35 focus:outline-none focus:border-white/30 transition"
+      className={`w-full rounded-2xl px-4 py-3 text-sm transition focus:outline-none border ${
+        isDark
+          ? "glass text-white border-white/10 placeholder-white/35 focus:border-white/30"
+          : "bg-white border-slate-200 text-slate-850 placeholder-slate-400 focus:border-slate-300"
+      } ${props.className || ""}`}
     />
   );
 }
 
 function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <textarea
       {...props}
-      rows={4}
-      className="w-full glass rounded-2xl px-4 py-3 text-sm text-white placeholder-white/35 focus:outline-none focus:border-white/30 transition resize-none"
+      rows={props.rows ?? 4}
+      className={`w-full rounded-2xl px-4 py-3 text-sm transition resize-none focus:outline-none border ${
+        isDark
+          ? "glass text-white border-white/10 placeholder-white/35 focus:border-white/30"
+          : "bg-white border-slate-200 text-slate-850 placeholder-slate-400 focus:border-slate-300"
+      } ${props.className || ""}`}
     />
   );
 }
 
 function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <select
       {...props}
-      className="w-full rounded-2xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none transition"
+      className={`w-full rounded-2xl px-4 py-3 text-sm focus:outline-none transition border ${
+        isDark
+          ? "border-white/10 bg-neutral-950 text-white focus:border-white/30"
+          : "border-slate-200 bg-white text-slate-850 focus:border-slate-300"
+      } ${props.className || ""}`}
     />
   );
 }

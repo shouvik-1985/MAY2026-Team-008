@@ -922,7 +922,7 @@ function AdminDeskPage() {
   const rejectedCertificateRequests = filteredCertificateRequests.filter((request) => request.status === "rejected").length;
 
   return (
-    <div className="cv-admin-content mx-auto max-w-[1480px] space-y-6 pb-10">
+    <div className="cv-admin-content w-full mx-auto max-w-[1480px] space-y-6 pb-10">
       <section className="grid gap-4 xl:grid-cols-[1fr_auto]">
         <div className={`rounded-[28px] border p-4 backdrop-blur-2xl ${
           isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white/95 shadow-sm"
@@ -1097,71 +1097,69 @@ function AdminDeskPage() {
                 placeholder="Search by name, roll, address, department"
               />
             </div>
-            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/10">
-              <div className="grid grid-cols-[1.8fr_0.9fr_1fr_0.8fr_1fr] gap-4 border-b border-white/10 px-5 py-4 text-[10px] uppercase tracking-[0.28em] text-white/35">
-                <div>Student</div>
-                <div>Roll</div>
-                <div>Address</div>
-                <div>Attendance</div>
-                <div>Actions</div>
+            <div className={`overflow-hidden rounded-[24px] border ${isDark ? "border-white/10 bg-black/10" : "border-slate-200 bg-white"}`}>
+              <div className={`grid grid-cols-[2fr_1.1fr_1fr_0.5fr_auto] gap-3 border-b px-4 py-3 text-[10px] uppercase tracking-[0.28em] ${isDark ? "border-white/10 text-white/35" : "border-slate-100 text-slate-400 bg-slate-50/80"}`}>
+                <div className="min-w-0">Student</div>
+                <div className="min-w-0">Roll</div>
+                <div className="min-w-0">Address</div>
+                <div className="min-w-0">Att.</div>
+                <div className="pr-1">Actions</div>
               </div>
-              <div className="max-h-[720px] overflow-y-auto">
+              <div className="max-h-[480px] overflow-y-auto divide-y divide-transparent">
                 {filteredStudents.map((student) => {
                   const selected = selectedStudent?.id === student.id;
                   const accountAction = accountActions[student.id];
                   return (
                     <div
                       key={student.id}
-                      className={`grid grid-cols-[1.8fr_0.9fr_1fr_0.8fr_1fr] gap-4 border-b border-white/5 px-5 py-4 text-sm text-white/80 last:border-b-0 ${
-                        selected ? "bg-white/[0.045]" : ""
+                      className={`grid grid-cols-[2fr_1.1fr_1fr_0.5fr_auto] gap-3 items-center border-b px-4 py-2 text-sm last:border-b-0 cursor-pointer transition-colors ${
+                        isDark
+                          ? `border-white/5 text-white/80 ${selected ? "bg-white/[0.06]" : "hover:bg-white/[0.025]"}`
+                          : `border-slate-100 text-slate-700 ${selected ? "bg-indigo-50" : "hover:bg-slate-50/80"}`
                       }`}
+                      onClick={() => setSelectedStudentId(student.id)}
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-3">
-                          <AvatarBadge value={student.avatar} imageUrl={student.avatarUrl} />
-                          <div className="min-w-0">
-                            <div className="truncate font-semibold text-white">{student.name}</div>
-                            <div className="truncate text-white/45">{student.email}</div>
-                          </div>
+                      <div className="min-w-0 flex items-center gap-2.5">
+                        <AvatarBadge value={student.avatar} imageUrl={student.avatarUrl} small />
+                        <div className="min-w-0">
+                          <div className={`truncate text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>{student.name}</div>
+                          <div className={`truncate text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>{student.email}</div>
                         </div>
                       </div>
-                      <div className="text-white/65">{student.studentCode}</div>
-                      <div className="text-white/65">{student.address}</div>
-                      <div className="font-semibold text-emerald-300">{student.attendance.toFixed(1)}%</div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <ListActionButton onClick={() => setSelectedStudentId(student.id)} icon={Eye}>
-                          View
-                        </ListActionButton>
-                        <ListActionButton
+                      <div className={`min-w-0 text-[11px] font-mono whitespace-nowrap ${isDark ? "text-white/65" : "text-slate-600"}`}>{student.studentCode}</div>
+                      <div className={`min-w-0 text-xs truncate ${isDark ? "text-white/65" : "text-slate-600"}`}>{student.address}</div>
+                      <div className={`min-w-0 text-xs font-bold tabular-nums ${isDark ? "text-emerald-300" : "text-emerald-600"}`}>{student.attendance.toFixed(0)}%</div>
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <CompactActionButton
+                          onClick={() => setSelectedStudentId(student.id)}
+                          icon={Eye}
+                          title="View details"
+                          isDark={isDark}
+                        />
+                        <CompactActionButton
                           onClick={() => toggleUserBlock(student.id, !student.isBlocked, student.name)}
                           icon={student.isBlocked ? UserCheck : Ban}
                           tone={student.isBlocked ? "emerald" : "rose"}
+                          title={student.isBlocked ? "Unblock" : "Block"}
                           disabled={Boolean(accountAction)}
                           busy={accountAction === "block" || accountAction === "unblock"}
-                        >
-                          {accountAction === "block"
-                            ? "Blocking"
-                            : accountAction === "unblock"
-                              ? "Unblocking"
-                              : student.isBlocked
-                                ? "Unblock"
-                                : "Block"}
-                        </ListActionButton>
-                        <ListActionButton
+                          isDark={isDark}
+                        />
+                        <CompactActionButton
                           onClick={() => deleteUser(student.id, student.name)}
                           icon={Trash2}
                           tone="rose"
+                          title="Delete"
                           disabled={Boolean(accountAction)}
                           busy={accountAction === "delete"}
-                        >
-                          {accountAction === "delete" ? "Deleting" : "Delete"}
-                        </ListActionButton>
+                          isDark={isDark}
+                        />
                       </div>
                     </div>
                   );
                 })}
                 {filteredStudents.length === 0 && (
-                  <div className="px-5 py-12 text-center text-sm text-white/45">No student accounts match this search.</div>
+                  <div className={`px-5 py-10 text-center text-sm ${isDark ? "text-white/45" : "text-slate-400"}`}>No student accounts match this search.</div>
                 )}
               </div>
             </div>
@@ -1182,26 +1180,28 @@ function AdminDeskPage() {
             {selectedStudent ? (
               <div className="space-y-4">
                 <DetailGrid>
-                  <DetailCard label="Email" value={selectedStudent.email} />
-                  <DetailCard label="Roll" value={selectedStudent.studentCode} />
-                  <DetailCard label="Department" value={selectedStudent.department} />
-                  <DetailCard label="Semester" value={String(selectedStudent.semester)} />
-                  <DetailCard label="CGPA" value={selectedStudent.cgpa.toFixed(2)} />
-                  <DetailCard label="Attendance" value={`${selectedStudent.attendance.toFixed(1)}%`} />
-                  <DetailCard label="Address" value={selectedStudent.address} />
-                  <DetailCard label="Attendance marked" value={String(selectedStudent.attendanceMarked)} />
-                  <DetailCard label="Present" value={String(selectedStudent.presentCount)} />
-                  <DetailCard label="Absent" value={String(selectedStudent.absentCount)} />
+                  <DetailCard label="Email" value={selectedStudent.email} compact />
+                  <DetailCard label="Roll" value={selectedStudent.studentCode} compact />
+                  <DetailCard label="Department" value={selectedStudent.department} compact />
+                  <DetailCard label="Semester" value={String(selectedStudent.semester)} compact />
+                  <DetailCard label="CGPA" value={selectedStudent.cgpa.toFixed(2)} compact />
+                  <DetailCard label="Attendance" value={`${selectedStudent.attendance.toFixed(1)}%`} compact />
+                  <DetailCard label="Address" value={selectedStudent.address} compact />
+                  <DetailCard label="Attendance marked" value={String(selectedStudent.attendanceMarked)} compact />
+                  <DetailCard label="Present" value={String(selectedStudent.presentCount)} compact />
+                  <DetailCard label="Absent" value={String(selectedStudent.absentCount)} compact />
                   <DetailCard
                     label="Biometric"
                     value={selectedStudent.biometricEnrolled ? "Face template enrolled" : "No face template"}
+                    compact
                   />
                   <DetailCard
                     label="Enrolled at"
                     value={selectedStudent.biometricEnrolledAt ? formatDateTime(selectedStudent.biometricEnrolledAt) : "Not enrolled"}
+                    compact
                   />
-                  <DetailCard label="Blocked reason" value={selectedStudent.blockReason} />
-                  <DetailCard label="Created" value={formatDateTime(selectedStudent.createdAt)} />
+                  <DetailCard label="Blocked reason" value={selectedStudent.blockReason} compact />
+                  <DetailCard label="Created" value={formatDateTime(selectedStudent.createdAt)} compact />
                 </DetailGrid>
                 <div className="flex flex-wrap gap-3">
                   <ListActionButton
@@ -1239,73 +1239,79 @@ function AdminDeskPage() {
                 placeholder="Search by name, designation, address, department"
               />
             </div>
-            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/10">
-              <div className="grid grid-cols-[1.6fr_0.8fr_0.9fr_0.8fr_1fr] gap-4 border-b border-white/10 px-5 py-4 text-[10px] uppercase tracking-[0.28em] text-white/35">
-                <div>Professor</div>
-                <div>Designation</div>
-                <div>Address</div>
-                <div>Status</div>
-                <div>Actions</div>
-              </div>
-              <div className="max-h-[720px] overflow-y-auto">
+            <div className={`overflow-hidden rounded-[24px] border ${isDark ? "border-white/10 bg-black/10" : "border-slate-200 bg-white"}`}>
+              <div className="max-h-[480px] overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
                 {filteredProfessors.map((professor) => {
                   const selected = selectedProfessor?.id === professor.id;
                   const accountAction = accountActions[professor.id];
                   return (
                     <div
                       key={professor.id}
-                      className={`grid grid-cols-[1.6fr_0.8fr_0.9fr_0.8fr_1fr] gap-4 border-b border-white/5 px-5 py-4 text-sm text-white/80 last:border-b-0 ${
-                        selected ? "bg-white/[0.045]" : ""
+                      className={`flex flex-row items-start justify-between gap-4 p-4 cursor-pointer transition-colors ${
+                        isDark
+                          ? `${selected ? "bg-white/[0.06]" : "hover:bg-white/[0.025]"}`
+                          : `${selected ? "bg-indigo-50/80" : "hover:bg-slate-50/80"}`
                       }`}
+                      onClick={() => setSelectedProfessorId(professor.id)}
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-3">
-                          <AvatarBadge value={professor.avatar} imageUrl={professor.avatarUrl} />
+                      <div className="min-w-0 flex-1">
+                        {/* Profile Info */}
+                        <div className="flex items-center gap-2.5">
+                          <AvatarBadge value={professor.avatar} imageUrl={professor.avatarUrl} small />
                           <div className="min-w-0">
-                            <div className="truncate font-semibold text-white">{professor.name}</div>
-                            <div className="truncate text-white/45">{professor.email}</div>
+                            <div className={`truncate text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>{professor.name}</div>
+                            <div className={`truncate text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>{professor.email}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Job & Address details */}
+                        <div className="mt-2.5 space-y-0.5">
+                          <div className={`text-sm font-semibold ${isDark ? "text-white/90" : "text-slate-800"}`}>{professor.designation}</div>
+                          <div className={`text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                            {professor.address || "No address listed"}
                           </div>
                         </div>
                       </div>
-                      <div className="text-white/65">{professor.designation}</div>
-                      <div className="text-white/65">{professor.address}</div>
-                      <div>
-                        <VerificationPill status={professor.isBlocked ? "blocked" : professor.verificationStatus} />
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <ListActionButton onClick={() => setSelectedProfessorId(professor.id)} icon={Eye}>
-                          View
-                        </ListActionButton>
-                        <ListActionButton
-                          onClick={() => toggleUserBlock(professor.id, !professor.isBlocked, professor.name)}
-                          icon={professor.isBlocked ? UserCheck : Ban}
-                          tone={professor.isBlocked ? "emerald" : "rose"}
-                          disabled={Boolean(accountAction)}
-                          busy={accountAction === "block" || accountAction === "unblock"}
-                        >
-                          {accountAction === "block"
-                            ? "Blocking"
-                            : accountAction === "unblock"
-                              ? "Unblocking"
-                              : professor.isBlocked
-                                ? "Unblock"
-                                : "Block"}
-                        </ListActionButton>
-                        <ListActionButton
-                          onClick={() => deleteUser(professor.id, professor.name)}
-                          icon={Trash2}
-                          tone="rose"
-                          disabled={Boolean(accountAction)}
-                          busy={accountAction === "delete"}
-                        >
-                          {accountAction === "delete" ? "Deleting" : "Delete"}
-                        </ListActionButton>
+
+                      {/* Status and Action controls */}
+                      <div className="flex flex-col items-end gap-3 shrink-0">
+                        <div>
+                          <VerificationPill status={professor.isBlocked ? "blocked" : professor.verificationStatus} />
+                        </div>
+                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <CompactActionButton
+                            onClick={() => setSelectedProfessorId(professor.id)}
+                            icon={Eye}
+                            title="View details"
+                            isDark={isDark}
+                          />
+                          <CompactActionButton
+                            onClick={() => toggleUserBlock(professor.id, !professor.isBlocked, professor.name)}
+                            icon={professor.isBlocked ? UserCheck : Ban}
+                            tone={professor.isBlocked ? "emerald" : "rose"}
+                            title={professor.isBlocked ? "Unblock" : "Block"}
+                            disabled={Boolean(accountAction)}
+                            busy={accountAction === "block" || accountAction === "unblock"}
+                            isDark={isDark}
+                          />
+                          <CompactActionButton
+                            onClick={() => deleteUser(professor.id, professor.name)}
+                            icon={Trash2}
+                            tone="rose"
+                            title="Delete"
+                            disabled={Boolean(accountAction)}
+                            busy={accountAction === "delete"}
+                            isDark={isDark}
+                          />
+                        </div>
                       </div>
                     </div>
                   );
                 })}
                 {filteredProfessors.length === 0 && (
-                  <div className="px-5 py-12 text-center text-sm text-white/45">No professor accounts match this search.</div>
+                  <div className={`px-5 py-12 text-center text-sm ${isDark ? "text-white/45" : "text-slate-400"}`}>
+                    No professor accounts match this search.
+                  </div>
                 )}
               </div>
             </div>
@@ -1325,17 +1331,17 @@ function AdminDeskPage() {
           >
             {selectedProfessor ? (
               <DetailGrid>
-                <DetailCard label="Email" value={selectedProfessor.email} />
-                <DetailCard label="Designation" value={selectedProfessor.designation} />
-                <DetailCard label="Department" value={selectedProfessor.department} />
-                <DetailCard label="Expertise" value={selectedProfessor.expertiseField} />
-                <DetailCard label="Highest education" value={selectedProfessor.highestEducation} />
-                <DetailCard label="Address" value={selectedProfessor.address} />
-                <DetailCard label="Verification" value={selectedProfessor.verificationStatus} />
-                <DetailCard label="License document" value={selectedProfessor.licenseDocumentName} />
-                <DetailCard label="Students managed" value={String(selectedProfessor.studentsManaged)} />
-                <DetailCard label="Blocked reason" value={selectedProfessor.blockReason} />
-                <DetailCard label="Created" value={formatDateTime(selectedProfessor.createdAt)} />
+                <DetailCard label="Email" value={selectedProfessor.email} compact />
+                <DetailCard label="Designation" value={selectedProfessor.designation} compact />
+                <DetailCard label="Department" value={selectedProfessor.department} compact />
+                <DetailCard label="Expertise" value={selectedProfessor.expertiseField} compact />
+                <DetailCard label="Highest education" value={selectedProfessor.highestEducation} compact />
+                <DetailCard label="Address" value={selectedProfessor.address} compact />
+                <DetailCard label="Verification" value={selectedProfessor.verificationStatus} compact />
+                <DetailCard label="License document" value={selectedProfessor.licenseDocumentName} compact />
+                <DetailCard label="Students managed" value={String(selectedProfessor.studentsManaged)} compact />
+                <DetailCard label="Blocked reason" value={selectedProfessor.blockReason} compact />
+                <DetailCard label="Created" value={formatDateTime(selectedProfessor.createdAt)} compact />
               </DetailGrid>
             ) : (
               <EmptyState text="Choose a professor record to inspect account details." />
@@ -1514,7 +1520,11 @@ function AdminDeskPage() {
                   <input
                     value={campusName}
                     onChange={(event) => setCampusName(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                    className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+                      isDark
+                        ? "border-white/10 bg-white/[0.06] text-white focus:border-cyan-200/40"
+                        : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                    }`}
                     placeholder="CampusVerse College"
                   />
                 </label>
@@ -1528,7 +1538,11 @@ function AdminDeskPage() {
                       max={2000}
                       value={radius}
                       onChange={(event) => setRadius(Number(event.target.value))}
-                      className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-fuchsia-200/40"
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+                        isDark
+                          ? "border-white/10 bg-white/[0.06] text-white focus:border-fuchsia-200/40"
+                          : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                      }`}
                     />
                   </label>
                   <label className="grid gap-2">
@@ -1536,7 +1550,11 @@ function AdminDeskPage() {
                     <input
                       value={latitude}
                       onChange={(event) => setLatitude(event.target.value)}
-                      className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+                        isDark
+                          ? "border-white/10 bg-white/[0.06] text-white focus:border-cyan-200/40"
+                          : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                      }`}
                       placeholder="28.5355000"
                     />
                   </label>
@@ -1545,7 +1563,11 @@ function AdminDeskPage() {
                     <input
                       value={longitude}
                       onChange={(event) => setLongitude(event.target.value)}
-                      className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+                        isDark
+                          ? "border-white/10 bg-white/[0.06] text-white focus:border-cyan-200/40"
+                          : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                      }`}
                       placeholder="77.3910000"
                     />
                   </label>
@@ -1820,7 +1842,11 @@ function AdminDeskPage() {
                             [setting.semester]: Number(event.target.value),
                           }))
                         }
-                        className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                        className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+                          isDark
+                            ? "border-white/10 bg-white/[0.06] text-white focus:border-cyan-200/40"
+                            : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                        }`}
                       />
                     </label>
                     <button
@@ -1857,8 +1883,8 @@ function AdminDeskPage() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/10">
-              <div className="grid grid-cols-[1.35fr_0.45fr_0.7fr_0.7fr_0.62fr_1.1fr] gap-4 border-b border-white/10 px-5 py-4 text-[10px] uppercase tracking-[0.28em] text-white/35">
+            <div className={`overflow-hidden rounded-[24px] border ${isDark ? "border-white/10 bg-black/10" : "border-slate-200 bg-white"}`}>
+              <div className={`grid grid-cols-[1.5fr_0.45fr_0.7fr_0.7fr_0.62fr_1.1fr] gap-3 border-b px-4 py-3 text-[10px] uppercase tracking-[0.28em] ${isDark ? "border-white/10 text-white/35" : "border-slate-100 text-slate-400 bg-slate-50/80"}`}>
                 <div>Student</div>
                 <div>Sem</div>
                 <div>Pending</div>
@@ -1866,24 +1892,24 @@ function AdminDeskPage() {
                 <div>Status</div>
                 <div>Invoices</div>
               </div>
-              <div className="max-h-[720px] overflow-y-auto">
+              <div className="max-h-[440px] overflow-y-auto divide-y divide-transparent">
                 {filteredFeeStudents.map((student) => (
                   <div
                     key={student.studentId}
-                    className="grid grid-cols-[1.35fr_0.45fr_0.7fr_0.7fr_0.62fr_1.1fr] gap-4 border-b border-white/5 px-5 py-4 text-sm text-white/80 last:border-b-0"
+                    className={`grid grid-cols-[1.5fr_0.45fr_0.7fr_0.7fr_0.62fr_1.1fr] gap-3 items-center border-b px-4 py-2.5 text-sm last:border-b-0 ${isDark ? "border-white/5 text-white/80" : "border-slate-100 text-slate-700 bg-white"}`}
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-3">
-                        <AvatarBadge value={avatarFromName(student.name)} imageUrl={student.avatarUrl} />
+                      <div className="flex items-center gap-2.5">
+                        <AvatarBadge value={avatarFromName(student.name)} imageUrl={student.avatarUrl} small />
                         <div className="min-w-0">
-                          <div className="truncate font-semibold text-white">{student.name}</div>
-                          <div className="truncate text-white/45">{student.studentCode}</div>
+                          <div className={`truncate text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>{student.name}</div>
+                          <div className={`truncate text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>{student.studentCode}</div>
                         </div>
                       </div>
                     </div>
-                    <div className="text-white/65">{student.semester}</div>
-                    <div className="font-semibold text-amber-200">{formatCurrency(student.outstanding)}</div>
-                    <div className="font-semibold text-emerald-200">{formatCurrency(student.collected)}</div>
+                    <div className={`text-xs ${isDark ? "text-white/65" : "text-slate-600"}`}>Sem {student.semester}</div>
+                    <div className={`text-xs font-semibold tabular-nums ${isDark ? "text-amber-200" : "text-amber-600"}`}>{formatCurrency(student.outstanding)}</div>
+                    <div className={`text-xs font-semibold tabular-nums ${isDark ? "text-emerald-200" : "text-emerald-600"}`}>{formatCurrency(student.collected)}</div>
                     <div>
                       <FeeStatusPill status={student.status} />
                     </div>
@@ -1891,7 +1917,7 @@ function AdminDeskPage() {
                   </div>
                 ))}
                 {filteredFeeStudents.length === 0 && (
-                  <div className="px-5 py-12 text-center text-sm text-white/45">
+                  <div className={`px-5 py-10 text-center text-sm ${isDark ? "text-white/45" : "text-slate-550"}`}>
                     No fee ledger records match this search.
                   </div>
                 )}
@@ -1914,51 +1940,36 @@ function AdminDeskPage() {
 
         <div className="grid gap-5 xl:grid-cols-[1.12fr_1fr]">
           <Panel icon={Award} eyebrow="Certificate" title="Student certificate requests">
-            <div className="mb-5 grid gap-3 xl:grid-cols-[1fr_220px_auto] xl:items-center">
+            <div className="mb-5 space-y-3">
               <InlineSearch
                 value={searchQuery}
                 onChange={setSearchQuery}
                 placeholder="Search by student, roll, department, certificate"
               />
-              <select
-                value={certificateStatusFilter}
-                onChange={(event) => setCertificateStatusFilter(event.target.value as CertificateStatusFilter)}
-                className="rounded-[24px] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none"
-              >
-                <option value="all" className="bg-neutral-950 text-white">
-                  All status
-                </option>
-                <option value="requested" className="bg-neutral-950 text-white">
-                  Requested
-                </option>
-                <option value="ready" className="bg-neutral-950 text-white">
-                  Approved
-                </option>
-                <option value="downloaded" className="bg-neutral-950 text-white">
-                  Downloaded
-                </option>
-                <option value="rejected" className="bg-neutral-950 text-white">
-                  Rejected
-                </option>
-              </select>
-              <button
-                type="button"
-                onClick={clearCertificateFilters}
-                className="rounded-[24px] border border-white/10 bg-white/[0.05] px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/65 transition hover:text-white"
-              >
-                Clear
-              </button>
+              <div className="grid gap-2.5 grid-cols-[1fr_auto]">
+                <select
+                  value={certificateStatusFilter}
+                  onChange={(event) => setCertificateStatusFilter(event.target.value as CertificateStatusFilter)}
+                  className={`rounded-[24px] border px-4 py-3 text-sm outline-none w-full ${isDark ? "border-white/10 bg-white/[0.06] text-white" : "border-slate-200 bg-white text-slate-900"}`}
+                >
+                  <option value="all" className="bg-[#0d0d12] text-white">All status</option>
+                  <option value="requested" className="bg-[#0d0d12] text-white">Requested</option>
+                  <option value="ready" className="bg-[#0d0d12] text-white">Approved</option>
+                  <option value="downloaded" className="bg-[#0d0d12] text-white">Downloaded</option>
+                  <option value="rejected" className="bg-[#0d0d12] text-white">Rejected</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={clearCertificateFilters}
+                  className={`rounded-[24px] border px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] transition ${isDark ? "border-white/10 bg-white/[0.05] text-white/65 hover:text-white" : "border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200"}`}
+                >
+                  Clear
+                </button>
+              </div>
             </div>
 
-            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/10">
-              <div className="grid grid-cols-[1.25fr_1fr_0.72fr_0.82fr_0.72fr] gap-4 border-b border-white/10 px-5 py-4 text-[10px] uppercase tracking-[0.28em] text-white/35">
-                <div>Student</div>
-                <div>Certificate</div>
-                <div>Status</div>
-                <div>Requested</div>
-                <div>Actions</div>
-              </div>
-              <div className="max-h-[720px] overflow-y-auto">
+            <div className={`overflow-hidden rounded-[24px] border ${isDark ? "border-white/10 bg-black/10" : "border-slate-200 bg-white"}`}>
+              <div className="max-h-[440px] overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
                 {filteredCertificateRequests.map((request) => {
                   const selected = selectedCertificateRequest?.id === request.id;
                   const certificateAction = certificateActions[request.id];
@@ -1966,50 +1977,65 @@ function AdminDeskPage() {
                   return (
                     <div
                       key={request.id}
-                      className={`grid grid-cols-[1.25fr_1fr_0.72fr_0.82fr_0.72fr] gap-4 border-b border-white/5 px-5 py-4 text-sm text-white/80 last:border-b-0 ${
-                        selected ? "bg-white/[0.045]" : ""
+                      className={`flex flex-row items-start justify-between gap-4 p-4 cursor-pointer transition-colors ${
+                        isDark
+                          ? `${selected ? "bg-white/[0.06]" : "hover:bg-white/[0.025]"}`
+                          : `${selected ? "bg-indigo-50/80" : "hover:bg-slate-50/80"}`
                       }`}
+                      onClick={() => setSelectedCertificateRequestId(request.id)}
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-3">
-                          <AvatarBadge value={avatarFromName(request.student_name)} imageUrl={request.avatar_url} />
+                      <div className="min-w-0 flex-1">
+                        {/* Student info */}
+                        <div className="flex items-center gap-2.5">
+                          <AvatarBadge value={avatarFromName(request.student_name)} imageUrl={request.avatar_url} small />
                           <div className="min-w-0">
-                            <div className="truncate font-semibold text-white">{request.student_name}</div>
-                            <div className="truncate text-white/45">{request.student_code}</div>
+                            <div className={`truncate text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>{request.student_name}</div>
+                            <div className={`truncate text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>{request.student_code}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Certificate details */}
+                        <div className="mt-2.5">
+                          <div className={`text-sm font-semibold ${isDark ? "text-white/90" : "text-slate-800"}`}>{request.certificate_name}</div>
+                          <div className={`text-xs mt-0.5 ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                            Sem {request.semester} / CGPA {request.cgpa.toFixed(2)}
+                          </div>
+                          <div className={`text-[10px] tracking-wide mt-1.5 ${isDark ? "text-white/35" : "text-slate-400 font-medium"}`}>
+                            Requested: {formatDateTime(request.requested_at ?? "")}
                           </div>
                         </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="truncate font-medium text-white">{request.certificate_name}</div>
-                        <div className="truncate text-white/45">
-                          Sem {request.semester} / CGPA {request.cgpa.toFixed(2)}
+
+                      {/* Status and Action controls */}
+                      <div className="flex flex-col items-end gap-3 shrink-0">
+                        <div>
+                          <CertificateStatusPill status={request.status} label={request.status_label} />
                         </div>
-                      </div>
-                      <div>
-                        <CertificateStatusPill status={request.status} label={request.status_label} />
-                      </div>
-                      <div className="text-white/55">{formatDateTime(request.requested_at ?? "")}</div>
-                      <div className="flex flex-wrap gap-2">
-                        <ListActionButton onClick={() => setSelectedCertificateRequestId(request.id)} icon={Eye}>
-                          View
-                        </ListActionButton>
-                        {showRejectAction ? (
-                          <ListActionButton
-                            onClick={() => rejectCertificateRequest(request)}
-                            icon={Ban}
-                            tone="rose"
-                            disabled={Boolean(certificateAction) || request.status === "rejected"}
-                            busy={certificateAction === "reject"}
-                          >
-                            {certificateAction === "reject" ? "Rejecting" : "Reject"}
-                          </ListActionButton>
-                        ) : null}
+                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <CompactActionButton
+                            onClick={() => setSelectedCertificateRequestId(request.id)}
+                            icon={Eye}
+                            title="View details"
+                            isDark={isDark}
+                          />
+                          {showRejectAction ? (
+                            <CompactActionButton
+                              onClick={() => rejectCertificateRequest(request)}
+                              icon={Ban}
+                              tone="rose"
+                              title="Reject"
+                              disabled={Boolean(certificateAction) || request.status === "rejected"}
+                              busy={certificateAction === "reject"}
+                              isDark={isDark}
+                            />
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
                 {filteredCertificateRequests.length === 0 && (
-                  <div className="px-5 py-12 text-center text-sm text-white/45">
+                  <div className={`px-5 py-12 text-center text-sm ${isDark ? "text-white/45" : "text-slate-400"}`}>
                     No certificate requests match this search yet.
                   </div>
                 )}
@@ -2033,16 +2059,16 @@ function AdminDeskPage() {
             }
           >
             {selectedCertificateRequest ? (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 <DetailGrid>
-                  <DetailCard label="Student" value={selectedCertificateRequest.student_name} />
-                  <DetailCard label="Roll" value={selectedCertificateRequest.student_code || "Not assigned"} />
-                  <DetailCard label="Department" value={selectedCertificateRequest.department || "N/A"} />
-                  <DetailCard label="Semester" value={`Sem ${selectedCertificateRequest.semester}`} />
-                  <DetailCard label="CGPA" value={selectedCertificateRequest.cgpa.toFixed(2)} />
-                  <DetailCard label="Attendance" value={`${selectedCertificateRequest.attendance.toFixed(1)}%`} />
-                  <DetailCard label="Requested" value={formatDateTime(selectedCertificateRequest.requested_at ?? "")} />
-                  <DetailCard label="Ready" value={formatDateTime(selectedCertificateRequest.ready_at ?? "")} />
+                  <DetailCard label="Student" value={selectedCertificateRequest.student_name} compact />
+                  <DetailCard label="Roll" value={selectedCertificateRequest.student_code || "Not assigned"} compact />
+                  <DetailCard label="Department" value={selectedCertificateRequest.department || "N/A"} compact />
+                  <DetailCard label="Semester" value={`Sem ${selectedCertificateRequest.semester}`} compact />
+                  <DetailCard label="CGPA" value={selectedCertificateRequest.cgpa.toFixed(2)} compact />
+                  <DetailCard label="Attendance" value={`${selectedCertificateRequest.attendance.toFixed(1)}%`} compact />
+                  <DetailCard label="Requested" value={formatDateTime(selectedCertificateRequest.requested_at ?? "")} compact />
+                  <DetailCard label="Ready" value={formatDateTime(selectedCertificateRequest.ready_at ?? "")} compact />
                 </DetailGrid>
 
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
@@ -2053,25 +2079,37 @@ function AdminDeskPage() {
                       <input
                         value={certificatePurpose}
                         onChange={(event) => setCertificatePurpose(event.target.value)}
-                        className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+                          isDark
+                            ? "border-white/10 bg-white/[0.06] text-white focus:border-cyan-200/40"
+                            : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                        }`}
                       />
                     </label>
-                    <label className="grid gap-2">
+                     <label className="grid gap-2">
                       <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">Certificate body</span>
                       <textarea
-                        rows={7}
+                        rows={4}
                         value={certificateBody}
                         onChange={(event) => setCertificateBody(event.target.value)}
-                        className="resize-none rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-200/40"
+                        className={`w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-6 outline-none transition ${
+                          isDark
+                            ? "border-white/10 bg-white/[0.06] text-white focus:border-cyan-200/40"
+                            : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                        }`}
                       />
                     </label>
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <label className="grid gap-2">
                         <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">Signatory name</span>
                         <input
                           value={certificateSignatoryName}
                           onChange={(event) => setCertificateSignatoryName(event.target.value)}
-                          className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                          className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+                            isDark
+                              ? "border-white/10 bg-white/[0.06] text-white focus:border-cyan-200/40"
+                              : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                          }`}
                         />
                       </label>
                       <label className="grid gap-2">
@@ -2079,7 +2117,11 @@ function AdminDeskPage() {
                         <input
                           value={certificateSignatoryTitle}
                           onChange={(event) => setCertificateSignatoryTitle(event.target.value)}
-                          className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                          className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${
+                            isDark
+                              ? "border-white/10 bg-white/[0.06] text-white focus:border-cyan-200/40"
+                              : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                          }`}
                         />
                       </label>
                     </div>
@@ -2089,7 +2131,11 @@ function AdminDeskPage() {
                         rows={3}
                         value={certificateAdminNote}
                         onChange={(event) => setCertificateAdminNote(event.target.value)}
-                        className="resize-none rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-200/40"
+                        className={`w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-6 outline-none transition ${
+                          isDark
+                            ? "border-white/10 bg-white/[0.06] text-white focus:border-cyan-200/40"
+                            : "border-slate-200 bg-white text-slate-900 focus:border-indigo-500 shadow-sm font-semibold"
+                        }`}
                       />
                     </label>
                   </div>
@@ -2146,48 +2192,34 @@ function AdminDeskPage() {
         <div className="grid gap-5 xl:grid-cols-[1.18fr_1.02fr]">
           <Panel icon={AlertCircle} eyebrow="Complaints" title="Student complaints">
             <div className="mb-5 space-y-3">
-              <div className="grid gap-3 xl:grid-cols-[1.35fr_0.85fr_0.85fr_0.8fr_auto]">
-                <InlineSearch
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  placeholder="Search by student name, complaint code, category, title"
-                />
+              <InlineSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search by student name, code, category..."
+              />
+              <div className="grid gap-2.5 grid-cols-2">
                 <select
                   value={complaintStatusFilter}
                   onChange={(event) =>
                     setComplaintStatusFilter(event.target.value as "all" | "open" | AdminComplaint["status"])
                   }
-                  className="rounded-[24px] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none"
+                  className={`rounded-[24px] border px-4 py-3 text-sm outline-none ${isDark ? "border-white/10 bg-white/[0.06] text-white" : "border-slate-200 bg-white text-slate-900"}`}
                 >
-                  <option value="all" className="bg-neutral-950 text-white">
-                    All status
-                  </option>
-                  <option value="open" className="bg-neutral-950 text-white">
-                    Open
-                  </option>
-                  <option value="submitted" className="bg-neutral-950 text-white">
-                    Submitted
-                  </option>
-                  <option value="acknowledged" className="bg-neutral-950 text-white">
-                    Acknowledged
-                  </option>
-                  <option value="in_progress" className="bg-neutral-950 text-white">
-                    In Progress
-                  </option>
-                  <option value="resolved" className="bg-neutral-950 text-white">
-                    Resolved
-                  </option>
+                  <option value="all" className="bg-[#0d0d12] text-white">All status</option>
+                  <option value="open" className="bg-[#0d0d12] text-white">Open</option>
+                  <option value="submitted" className="bg-[#0d0d12] text-white">Submitted</option>
+                  <option value="acknowledged" className="bg-[#0d0d12] text-white">Acknowledged</option>
+                  <option value="in_progress" className="bg-[#0d0d12] text-white">In Progress</option>
+                  <option value="resolved" className="bg-[#0d0d12] text-white">Resolved</option>
                 </select>
                 <select
                   value={complaintCategoryFilter}
                   onChange={(event) => setComplaintCategoryFilter(event.target.value)}
-                  className="rounded-[24px] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none"
+                  className={`rounded-[24px] border px-4 py-3 text-sm outline-none ${isDark ? "border-white/10 bg-white/[0.06] text-white" : "border-slate-200 bg-white text-slate-900"}`}
                 >
-                  <option value="all" className="bg-neutral-950 text-white">
-                    All categories
-                  </option>
+                  <option value="all" className="bg-[#0d0d12] text-white">All categories</option>
                   {complaintCategories.map((category) => (
-                    <option key={category} value={category} className="bg-neutral-950 text-white">
+                    <option key={category} value={category} className="bg-[#0d0d12] text-white">
                       {category}
                     </option>
                   ))}
@@ -2196,75 +2228,73 @@ function AdminDeskPage() {
                   type="date"
                   value={complaintDateFilter}
                   onChange={(event) => setComplaintDateFilter(event.target.value)}
-                  className="rounded-[24px] border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none"
+                  className={`rounded-[24px] border px-4 py-3 text-sm outline-none ${isDark ? "border-white/10 bg-white/[0.06] text-white" : "border-slate-200 bg-white text-slate-900"}`}
                 />
                 <button
                   type="button"
                   onClick={clearComplaintFilters}
-                  className="rounded-[24px] border border-white/10 bg-white/[0.05] px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/65 transition hover:text-white"
+                  className={`rounded-[24px] border px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] transition ${isDark ? "border-white/10 bg-white/[0.05] text-white/65 hover:text-white" : "border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200"}`}
                 >
                   Clear
                 </button>
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/35">
-                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-                  Search by student name
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-                  Filter by category
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-                  Filter by submitted date
-                </span>
-              </div>
             </div>
-            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/10">
-              <div className="grid grid-cols-[1.4fr_0.9fr_0.8fr_0.9fr_0.7fr] gap-4 border-b border-white/10 px-5 py-4 text-[10px] uppercase tracking-[0.28em] text-white/35">
-                <div>Student</div>
-                <div>Complaint</div>
-                <div>Status</div>
-                <div>Submitted</div>
-                <div>Actions</div>
-              </div>
-              <div className="max-h-[720px] overflow-y-auto">
+
+            <div className={`overflow-hidden rounded-[24px] border ${isDark ? "border-white/10 bg-black/10" : "border-slate-200 bg-white"}`}>
+              <div className="max-h-[440px] overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
                 {filteredComplaints.map((complaint) => {
                   const selected = selectedComplaint?.id === complaint.id;
                   return (
                     <div
                       key={complaint.id}
-                      className={`grid grid-cols-[1.4fr_0.9fr_0.8fr_0.9fr_0.7fr] gap-4 border-b border-white/5 px-5 py-4 text-sm text-white/80 last:border-b-0 ${
-                        selected ? "bg-white/[0.045]" : ""
+                      className={`flex flex-row items-start justify-between gap-4 p-4 cursor-pointer transition-colors ${
+                        isDark
+                          ? `${selected ? "bg-white/[0.06]" : "hover:bg-white/[0.025]"}`
+                          : `${selected ? "bg-indigo-50/80" : "hover:bg-slate-50/80"}`
                       }`}
+                      onClick={() => setSelectedComplaintId(complaint.id)}
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-3">
-                          <AvatarBadge value={avatarFromName(complaint.studentName)} imageUrl={complaint.avatarUrl} />
+                      <div className="min-w-0 flex-1">
+                        {/* Student profile info */}
+                        <div className="flex items-center gap-2.5">
+                          <AvatarBadge value={avatarFromName(complaint.studentName)} imageUrl={complaint.avatarUrl} small />
                           <div className="min-w-0">
-                            <div className="truncate font-semibold text-white">{complaint.studentName}</div>
-                            <div className="truncate text-white/45">
+                            <div className={`truncate text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>{complaint.studentName}</div>
+                            <div className={`truncate text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>
                               {complaint.studentCode || complaint.studentEmail}
                             </div>
                           </div>
                         </div>
+
+                        {/* Complaint details */}
+                        <div className="mt-2.5 space-y-0.5">
+                          <div className={`text-sm font-semibold ${isDark ? "text-white/90" : "text-slate-800"}`}>{complaint.complaintCode}</div>
+                          <div className={`text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>{complaint.category}</div>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="truncate font-medium text-white">{complaint.complaintCode}</div>
-                        <div className="truncate text-white/45">{complaint.category}</div>
-                      </div>
-                      <div>
-                        <ComplaintStatusPill status={complaint.status} />
-                      </div>
-                      <div className="text-white/55">{formatDateTime(complaint.submittedAt)}</div>
-                      <div className="flex justify-start">
-                        <ListActionButton onClick={() => setSelectedComplaintId(complaint.id)} icon={Eye}>
-                          View
-                        </ListActionButton>
+
+                      {/* Status and Action controls */}
+                      <div className="flex flex-col items-end gap-3 shrink-0">
+                        <div>
+                          <ComplaintStatusPill status={complaint.status} />
+                        </div>
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <span className={`text-[10px] ${isDark ? "text-white/35" : "text-slate-400 font-medium"}`}>
+                            {formatDateTime(complaint.submittedAt)}
+                          </span>
+                          <CompactActionButton
+                            onClick={() => setSelectedComplaintId(complaint.id)}
+                            icon={Eye}
+                            title="View details"
+                            isDark={isDark}
+                          />
+                        </div>
                       </div>
                     </div>
                   );
                 })}
                 {filteredComplaints.length === 0 && (
-                  <div className="px-5 py-12 text-center text-sm text-white/45">
+                  <div className={`px-5 py-12 text-center text-sm ${isDark ? "text-white/45" : "text-slate-400"}`}>
                     No student complaints match this search yet.
                   </div>
                 )}
@@ -2281,41 +2311,41 @@ function AdminDeskPage() {
             status={selectedComplaint ? <ComplaintStatusPill status={selectedComplaint.status} /> : null}
           >
             {selectedComplaint ? (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 <DetailGrid>
-                  <DetailCard label="Complaint code" value={selectedComplaint.complaintCode} />
-                  <DetailCard label="Category" value={selectedComplaint.category} />
-                  <DetailCard label="Student" value={selectedComplaint.studentName} />
-                  <DetailCard label="Roll" value={selectedComplaint.studentCode || "Not assigned"} />
-                  <DetailCard label="Department" value={selectedComplaint.department || "N/A"} />
-                  <DetailCard label="Semester" value={selectedComplaint.semester ? `Sem ${selectedComplaint.semester}` : "N/A"} />
-                  <DetailCard label="Submitted" value={formatDateTime(selectedComplaint.submittedAt)} />
-                  <DetailCard label="Last updated" value={formatDateTime(selectedComplaint.updatedAt)} />
+                  <DetailCard label="Complaint code" value={selectedComplaint.complaintCode} compact />
+                  <DetailCard label="Category" value={selectedComplaint.category} compact />
+                  <DetailCard label="Student" value={selectedComplaint.studentName} compact />
+                  <DetailCard label="Roll" value={selectedComplaint.studentCode || "Not assigned"} compact />
+                  <DetailCard label="Department" value={selectedComplaint.department || "N/A"} compact />
+                  <DetailCard label="Semester" value={selectedComplaint.semester ? `Sem ${selectedComplaint.semester}` : "N/A"} compact />
+                  <DetailCard label="Submitted" value={formatDateTime(selectedComplaint.submittedAt)} compact />
+                  <DetailCard label="Last updated" value={formatDateTime(selectedComplaint.updatedAt)} compact />
                 </DetailGrid>
 
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/35">Complaint details</div>
-                  <div className="mt-3 text-sm leading-7 text-white/75">{selectedComplaint.description}</div>
+                <div className={`rounded-[24px] border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+                  <div className={`text-[10px] uppercase tracking-[0.28em] ${isDark ? "text-white/35" : "text-slate-400"}`}>Complaint details</div>
+                  <div className={`mt-3 text-sm leading-6 ${isDark ? "text-white/75" : "text-slate-650"}`}>{selectedComplaint.description}</div>
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/35">Status timeline</div>
-                  <div className="mt-5">
+                <div className={`rounded-[24px] border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+                  <div className={`text-[10px] uppercase tracking-[0.28em] ${isDark ? "text-white/35" : "text-slate-400"}`}>Status timeline</div>
+                  <div className="mt-4">
                     <ComplaintStageStrip complaint={selectedComplaint} compact />
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/35">Proof files</div>
-                  <div className="mt-4 flex flex-wrap gap-2">
+                <div className={`rounded-[24px] border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+                  <div className={`text-[10px] uppercase tracking-[0.28em] ${isDark ? "text-white/35" : "text-slate-400"}`}>Proof files</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
                     {selectedComplaint.attachments.length ? (
                       selectedComplaint.attachments.map((attachment) => (
                         <div
                           key={attachment.id}
-                          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-white/70"
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${isDark ? "border-white/10 bg-white/[0.05] text-white/70" : "border-slate-200 bg-white text-slate-700 shadow-2xs"}`}
                         >
-                          <Paperclip className="size-3.5 text-cyan-200" />
-                          <span className="max-w-[220px] truncate">{attachment.filename}</span>
+                          <Paperclip className={`size-3.5 ${isDark ? "text-cyan-200" : "text-indigo-500"}`} />
+                          <span className="max-w-[180px] truncate">{attachment.filename}</span>
                           <button
                             type="button"
                             onClick={() =>
@@ -2325,7 +2355,7 @@ function AdminDeskPage() {
                                 showStatusToast(fileError instanceof Error ? fileError.message : "Could not open proof file", "error"),
                               )
                             }
-                            className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 uppercase tracking-[0.16em] text-[10px] text-white/70 transition hover:text-white"
+                            className={`rounded-full border px-2 py-1 uppercase tracking-[0.16em] text-[10px] transition ${isDark ? "border-white/10 bg-white/[0.05] text-white/70 hover:text-white" : "border-slate-200 bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
                           >
                             Open
                           </button>
@@ -2339,20 +2369,20 @@ function AdminDeskPage() {
                                 showStatusToast(fileError instanceof Error ? fileError.message : "Could not save proof file", "error"),
                               )
                             }
-                            className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 uppercase tracking-[0.16em] text-[10px] text-white/70 transition hover:text-white"
+                            className={`rounded-full border px-2 py-1 uppercase tracking-[0.16em] text-[10px] transition ${isDark ? "border-white/10 bg-white/[0.05] text-white/70 hover:text-white" : "border-slate-200 bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
                           >
                             Save
                           </button>
                         </div>
                       ))
                     ) : (
-                      <EmptyState text="No proof files were attached with this complaint." />
+                      <EmptyState text="No proof files were attached." />
                     )}
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-white/35">Admin action</div>
+                <div className={`rounded-[24px] border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+                  <div className={`text-[10px] uppercase tracking-[0.28em] ${isDark ? "text-white/35" : "text-slate-400"}`}>Admin action</div>
                   <div className="mt-4 flex flex-wrap gap-3">
                     <ComplaintStatusAction
                       label="Acknowledge"
@@ -2443,7 +2473,7 @@ function Panel({
   const { theme } = useTheme();
   const isDark = theme === "dark";
   return (
-    <div className={`rounded-[30px] border p-5 shadow-2xl backdrop-blur-2xl transition ${
+    <div className={`rounded-[30px] border p-5 shadow-2xl backdrop-blur-2xl transition min-w-0 ${
       isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white/95 shadow-slate-200/50 text-slate-900"
     }`}>
       <div className="flex items-start gap-4">
@@ -2482,7 +2512,7 @@ function DetailPanel({
   const { theme } = useTheme();
   const isDark = theme === "dark";
   return (
-    <div className={`rounded-[30px] border p-5 shadow-2xl backdrop-blur-2xl transition ${
+    <div className={`rounded-[30px] border p-5 shadow-2xl backdrop-blur-2xl transition min-w-0 ${
       isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white/95 shadow-slate-200/50 text-slate-900"
     }`}>
       <div className="flex items-start gap-4">
@@ -2493,16 +2523,16 @@ function DetailPanel({
         </div>
         <div className="min-w-0 flex-1">
           <div className={`text-[10px] uppercase tracking-[0.35em] font-bold ${isDark ? "text-white/40" : "text-slate-400"}`}>{eyebrow}</div>
-          <div className="mt-2 flex items-start gap-3">
+          <div className="mt-2 flex items-start gap-3 min-w-0">
             {avatar ? <AvatarBadge value={avatar} imageUrl={avatarUrl} large /> : null}
             <div className="min-w-0 flex-1">
-              <h2 className={`truncate font-display text-[2rem] leading-none font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{title}</h2>
+              <h2 className={`truncate font-display text-[2rem] leading-none font-bold ${isDark ? "text-white" : "text-slate-900"}`} title={title}>{title}</h2>
             </div>
-            {status}
+            {status && <div className="shrink-0">{status}</div>}
           </div>
         </div>
       </div>
-      <div className="mt-6">{children}</div>
+      <div className="mt-6 max-h-[580px] overflow-y-auto pr-2">{children}</div>
     </div>
   );
 }
@@ -2511,12 +2541,12 @@ function MetricCard({ label, value, hint }: { label: string; value: string; hint
   const { theme } = useTheme();
   const isDark = theme === "dark";
   return (
-    <div className={`rounded-[24px] border p-5 backdrop-blur-xl transition ${
+    <div className={`rounded-[24px] border p-4 backdrop-blur-xl transition min-w-0 ${
       isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white/95 shadow-sm"
     }`}>
-      <div className={`text-[10px] uppercase tracking-[0.28em] font-bold ${isDark ? "text-white/40" : "text-slate-400"}`}>{label}</div>
-      <div className={`mt-4 font-display text-3xl font-bold break-words ${isDark ? "text-white" : "text-slate-900"}`}>{value}</div>
-      <div className={`mt-2 text-sm font-medium ${isDark ? "text-white/45" : "text-slate-500"}`}>{hint}</div>
+      <div className={`text-[10px] uppercase tracking-[0.2em] font-bold truncate ${isDark ? "text-white/40" : "text-slate-400"}`} title={label}>{label}</div>
+      <div className={`mt-3 font-display text-2xl font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>{value}</div>
+      <div className={`mt-1.5 text-xs font-medium truncate ${isDark ? "text-white/45" : "text-slate-500"}`} title={hint}>{hint}</div>
     </div>
   );
 }
@@ -2624,14 +2654,56 @@ function avatarFromName(name: string) {
   );
 }
 
-function AvatarBadge({ value, imageUrl, large = false }: { value: string; imageUrl?: string | null; large?: boolean }) {
+function AvatarBadge({ value, imageUrl, large = false, small = false }: { value: string; imageUrl?: string | null; large?: boolean; small?: boolean }) {
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-2xl font-semibold text-white ${large ? "size-14 text-base" : "size-11 text-sm"}`}
+      className={`flex shrink-0 items-center justify-center rounded-2xl font-semibold text-white ${large ? "size-14 text-base" : small ? "size-8 text-xs" : "size-11 text-sm"}`}
       style={{ background: "var(--grad-aurora)" }}
     >
       {imageUrl ? <img src={imageUrl} alt={value} className="size-full rounded-2xl object-cover" /> : value}
     </div>
+  );
+}
+
+function CompactActionButton({
+  onClick,
+  icon: Icon,
+  tone = "neutral",
+  title,
+  disabled,
+  busy = false,
+  isDark,
+}: {
+  onClick: () => void;
+  icon: LucideIcon;
+  tone?: "neutral" | "rose" | "emerald";
+  title?: string;
+  disabled?: boolean;
+  busy?: boolean;
+  isDark: boolean;
+}) {
+  const className =
+    tone === "rose"
+      ? isDark
+        ? "border-rose-300/15 bg-rose-500/8 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200"
+        : "border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-700"
+      : tone === "emerald"
+        ? isDark
+          ? "border-emerald-300/15 bg-emerald-400/8 text-emerald-300 hover:bg-emerald-400/20 hover:text-emerald-200"
+          : "border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700"
+        : isDark
+          ? "border-white/10 bg-white/[0.04] text-white/50 hover:text-white hover:bg-white/[0.08]"
+          : "border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-700";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`inline-flex items-center justify-center rounded-xl border p-1.5 transition disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+    >
+      {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Icon className="size-3.5" />}
+    </button>
   );
 }
 
@@ -2841,15 +2913,24 @@ function ComplaintStatusAction({
   active: boolean;
   disabled: boolean;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
+  const activeClass = isDark
+    ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100 disabled:opacity-60"
+    : "border-emerald-400 bg-emerald-100 text-emerald-950 font-bold disabled:opacity-100";
+
+  const inactiveClass = isDark
+    ? "border-white/10 bg-white/[0.05] text-white/70 hover:text-white disabled:opacity-40"
+    : "border-slate-300 bg-slate-50 text-slate-500 disabled:opacity-50";
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs uppercase tracking-[0.18em] transition disabled:cursor-wait disabled:opacity-45 ${
-        active
-          ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-          : "border-white/10 bg-white/[0.05] text-white/70 hover:text-white"
+      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs uppercase tracking-[0.18em] transition disabled:cursor-wait ${
+        active ? activeClass : inactiveClass
       }`}
     >
       <CheckCircle2 className="size-4" />

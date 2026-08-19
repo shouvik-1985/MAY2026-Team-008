@@ -364,33 +364,33 @@
 }
 
 /* Student light-mode control contrast */
-:root.light .cv-app-content button[class*="bg-gradient"],
-:root.light .cv-app-content a[class*="bg-gradient"],
-:root.light .cv-app-content [role="button"][class*="bg-gradient"],
-:root.light .cv-app-content button[class*="bg-[var(--grad"],
-:root.light .cv-app-content a[class*="bg-[var(--grad"],
-:root.light .cv-app-content [role="button"][class*="bg-[var(--grad"],
-:root.light .cv-app-content button[style*="var(--grad"],
-:root.light .cv-app-content button[style*="gradient"],
-:root.light .cv-app-content button[style*="grad"] {
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-gradient"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-gradient"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) [role="button"][class*="bg-gradient"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-[var(--grad"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-[var(--grad"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) [role="button"][class*="bg-[var(--grad"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[style*="var(--grad"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[style*="gradient"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[style*="grad"] {
   color: #ffffff !important;
 }
 
-:root.light .cv-app-content button[class*="bg-gradient"] *,
-:root.light .cv-app-content a[class*="bg-gradient"] *,
-:root.light .cv-app-content [role="button"][class*="bg-gradient"] *,
-:root.light .cv-app-content button[class*="bg-[var(--grad"] *,
-:root.light .cv-app-content a[class*="bg-[var(--grad"] *,
-:root.light .cv-app-content [role="button"][class*="bg-[var(--grad"] *,
-:root.light .cv-app-content button[style*="var(--grad"] *,
-:root.light .cv-app-content button[style*="gradient"] *,
-:root.light .cv-app-content button[style*="grad"] * {
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-gradient"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-gradient"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) [role="button"][class*="bg-gradient"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-[var(--grad"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-[var(--grad"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) [role="button"][class*="bg-[var(--grad"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[style*="var(--grad"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[style*="gradient"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[style*="grad"] * {
   color: #ffffff !important;
 }
 
-:root.light .cv-app-content button[class*="bg-gradient"]:disabled,
-:root.light .cv-app-content button[class*="bg-[var(--grad"]:disabled,
-:root.light .cv-app-content button[style*="var(--grad"]:disabled {
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-gradient"]:disabled,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-[var(--grad"]:disabled,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[style*="var(--grad"]:disabled {
   color: rgba(255, 255, 255, 0.86) !important;
 }
 
@@ -479,31 +479,31 @@
 }
 :root.light .cv-admin-content .text-amber-300,
 :root.light .cv-admin-content [class*="text-amber-300"] {
-  color: #92400e !important;
+  color: #854d0e !important;
 }
 :root.light .cv-admin-content .text-amber-200,
 :root.light .cv-admin-content [class*="text-amber-200"] {
-  color: #b45309 !important;
+  color: #a16207 !important;
 }
 :root.light .cv-admin-content .text-amber-100,
 :root.light .cv-admin-content [class*="text-amber-100"] {
-  color: #92400e !important;
+  color: #713f12 !important;
 }
 :root.light .cv-admin-content .bg-amber-400\/10,
 :root.light .cv-admin-content [class*="bg-amber-400/10"] {
-  background: rgba(217, 115, 14, 0.20) !important;
+  background: #fef3c7 !important;
 }
 :root.light .cv-admin-content .border-amber-300\/20,
 :root.light .cv-admin-content [class*="border-amber-300/20"] {
-  border-color: rgba(202, 138, 4, 0.35) !important;
+  border-color: #fde68a !important;
 }
 :root.light .cv-admin-content .bg-amber-500\/10,
 :root.light .cv-admin-content [class*="bg-amber-500/10"] {
-  background: rgba(245, 158, 11, 0.18) !important;
+  background: #fef3c7 !important;
 }
 :root.light .cv-admin-content .border-amber-500\/30,
 :root.light .cv-admin-content [class*="border-amber-500/30"] {
-  border-color: rgba(245, 158, 11, 0.45) !important;
+  border-color: #fcd34d !important;
 }
 :root.light .cv-admin-content .text-emerald-100,
 :root.light .cv-admin-content [class*="text-emerald-100"] {
@@ -549,7 +549,7 @@
 .cv-admin-content {
   min-width: 100%;
   box-sizing: border-box;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 :root.light .cv-admin-content [class*="bg-white/08"],
 :root.light .cv-admin-content [class*="bg-white/09"],
@@ -625,54 +625,54 @@
 }
 
 /* Student light-mode primary action buttons */
-:root.light .cv-app-content button[class*="bg-indigo-600"],
-:root.light .cv-app-content button[class*="bg-purple-600"],
-:root.light .cv-app-content button[class*="bg-fuchsia-600"],
-:root.light .cv-app-content button[class*="bg-blue-600"],
-:root.light .cv-app-content button[class*="bg-cyan-600"],
-:root.light .cv-app-content button[class*="bg-emerald-600"],
-:root.light .cv-app-content button[class*="bg-rose-600"],
-:root.light .cv-app-content a[class*="bg-indigo-600"],
-:root.light .cv-app-content a[class*="bg-purple-600"],
-:root.light .cv-app-content a[class*="bg-fuchsia-600"],
-:root.light .cv-app-content a[class*="bg-blue-600"],
-:root.light .cv-app-content a[class*="bg-cyan-600"],
-:root.light .cv-app-content a[class*="bg-emerald-600"],
-:root.light .cv-app-content a[class*="bg-rose-600"],
-:root.light .cv-app-content button:has(> span[style*="var(--grad"]),
-:root.light .cv-app-content button:has(> span[style*="gradient"]),
-:root.light .cv-app-content button:has(> span[class*="bg-gradient"]) {
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-indigo-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-purple-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-fuchsia-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-blue-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-cyan-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-emerald-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-rose-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-indigo-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-purple-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-fuchsia-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-blue-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-cyan-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-emerald-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-rose-600"],
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button:has(> span[style*="var(--grad"]),
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button:has(> span[style*="gradient"]),
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button:has(> span[class*="bg-gradient"]) {
   color: #ffffff !important;
   text-shadow: 0 1px 1px rgba(15, 23, 42, 0.2);
 }
 
-:root.light .cv-app-content button[class*="bg-indigo-600"] *,
-:root.light .cv-app-content button[class*="bg-purple-600"] *,
-:root.light .cv-app-content button[class*="bg-fuchsia-600"] *,
-:root.light .cv-app-content button[class*="bg-blue-600"] *,
-:root.light .cv-app-content button[class*="bg-cyan-600"] *,
-:root.light .cv-app-content button[class*="bg-emerald-600"] *,
-:root.light .cv-app-content button[class*="bg-rose-600"] *,
-:root.light .cv-app-content a[class*="bg-indigo-600"] *,
-:root.light .cv-app-content a[class*="bg-purple-600"] *,
-:root.light .cv-app-content a[class*="bg-fuchsia-600"] *,
-:root.light .cv-app-content a[class*="bg-blue-600"] *,
-:root.light .cv-app-content a[class*="bg-cyan-600"] *,
-:root.light .cv-app-content a[class*="bg-emerald-600"] *,
-:root.light .cv-app-content a[class*="bg-rose-600"] *,
-:root.light .cv-app-content button:has(> span[style*="var(--grad"]) *,
-:root.light .cv-app-content button:has(> span[style*="gradient"]) *,
-:root.light .cv-app-content button:has(> span[class*="bg-gradient"]) * {
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-indigo-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-purple-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-fuchsia-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-blue-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-cyan-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-emerald-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-rose-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-indigo-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-purple-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-fuchsia-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-blue-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-cyan-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-emerald-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) a[class*="bg-rose-600"] *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button:has(> span[style*="var(--grad"]) *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button:has(> span[style*="gradient"]) *,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button:has(> span[class*="bg-gradient"]) * {
   color: #ffffff !important;
 }
 
-:root.light .cv-app-content button[class*="bg-indigo-600"]:disabled,
-:root.light .cv-app-content button[class*="bg-purple-600"]:disabled,
-:root.light .cv-app-content button[class*="bg-fuchsia-600"]:disabled,
-:root.light .cv-app-content button[class*="bg-blue-600"]:disabled,
-:root.light .cv-app-content button[class*="bg-cyan-600"]:disabled,
-:root.light .cv-app-content button[class*="bg-emerald-600"]:disabled,
-:root.light .cv-app-content button[class*="bg-rose-600"]:disabled {
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-indigo-600"]:disabled,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-purple-600"]:disabled,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-fuchsia-600"]:disabled,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-blue-600"]:disabled,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-cyan-600"]:disabled,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-emerald-600"]:disabled,
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="bg-rose-600"]:disabled {
   opacity: 0.72 !important;
 }
 
@@ -756,6 +756,7 @@
     color: var(--page-text);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
     overscroll-behavior: none;
     transition: background 0.35s ease, color 0.35s ease;
   }

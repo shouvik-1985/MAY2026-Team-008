@@ -94,7 +94,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={`relative min-h-screen overflow-x-auto ${isDark ? "text-white bg-[#050505]" : "text-slate-900 bg-slate-50"}`}>
+    <div className={`relative min-h-screen overflow-x-hidden ${isDark ? "text-white bg-[#050505]" : "text-slate-900 bg-slate-50"}`}>
       {/* Sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 80 : 268 }}
