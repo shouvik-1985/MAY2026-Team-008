@@ -764,7 +764,8 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
-    overscroll-behavior: none;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: auto;
     transition: background 0.35s ease, color 0.35s ease;
   }
   ::selection {
