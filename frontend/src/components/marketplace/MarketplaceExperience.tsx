@@ -151,8 +151,8 @@ function getInputClass(isDark: boolean) {
   return [
     "w-full rounded-[22px] border px-4 py-3 text-sm outline-none transition",
     isDark
-      ? "border-white/10 bg-white/[0.04] text-white placeholder:text-white/28 focus:border-cyan-200/40"
-      : "border-slate-300 bg-slate-100 text-slate-900 placeholder:text-slate-500 focus:border-indigo-500",
+      ? "border-white/10 bg-white/[0.04] text-white placeholder:text-white/28 focus:border-emerald-200/40"
+      : "border-slate-300 bg-slate-100 text-slate-900 placeholder:text-slate-500 focus:border-emerald-500",
   ].join(" ");
 }
 
@@ -409,7 +409,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
           email: user?.email,
         },
         theme: {
-          color: "#a855f7",
+          color: "#4caf50",
         },
         modal: {
           ondismiss: () => {
@@ -510,7 +510,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
               type="button"
               onClick={() => setIsComposerOpen(true)}
               className={`inline-flex items-center gap-2 rounded-full px-5 py-3 text-xs font-extrabold uppercase tracking-[0.2em] text-white shadow-md transition hover:opacity-90 ${
-                isDark ? "border border-fuchsia-300/20 bg-[var(--grad-aurora)] shadow-2xl" : "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600"
+                isDark ? "border border-emerald-300/20 bg-[var(--grad-aurora)] shadow-2xl" : "bg-gradient-to-r from-green-600 via-emerald-500 to-lime-400"
               }`}
             >
               <Plus className="size-4" />
@@ -541,7 +541,7 @@ export function MarketplaceExperience({ mode, embedded = false }: Props) {
                 onClick={() => setActiveCategory(category)}
                 className={`rounded-full px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] transition ${
                   activeCategory === category
-                    ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white shadow-md"
+                    ? "bg-gradient-to-r from-green-600 via-emerald-500 to-lime-400 text-slate-950 shadow-md"
                     : isDark
                       ? "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"
                       : "border border-slate-300 bg-white text-slate-700 hover:text-slate-950 shadow-2xs"
@@ -690,7 +690,7 @@ function CardImage({ item }: { item: MarketplaceItem }) {
     return (
       <div
         className="h-full w-full flex flex-col items-center justify-center p-4 text-center"
-        style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed, #06b6d4)" }}
+        style={{ background: "linear-gradient(135deg, #4caf50, #68c56d, #d8efbc)" }}
       >
         <ImageIcon className="size-10 text-white/80 mb-2" />
         <span className="font-display font-bold text-white text-base line-clamp-1">{item.name}</span>
@@ -771,7 +771,7 @@ function MarketplaceCard({
         <button
           type="button"
           onClick={onView}
-          className="flex-1 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 px-4 py-3 text-xs font-extrabold uppercase tracking-[0.18em] text-white shadow-md hover:opacity-90 transition"
+          className="flex-1 rounded-full bg-gradient-to-r from-green-600 via-emerald-500 to-lime-400 px-4 py-3 text-xs font-extrabold uppercase tracking-[0.18em] text-slate-950 shadow-md hover:opacity-90 transition"
         >
           View Details
         </button>
@@ -1486,8 +1486,8 @@ function Badge({ text, tone }: { text: string; tone: "emerald" | "neutral" | "sk
         : "border-emerald-300/20 bg-emerald-100/60 text-emerald-700"
       : tone === "sky"
         ? isDark
-          ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
-          : "border-cyan-300/20 bg-cyan-100/60 text-cyan-700"
+          ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+          : "border-emerald-300/20 bg-green-100/60 text-emerald-700"
         : tone === "rose"
           ? isDark
             ? "border-rose-300/20 bg-rose-500/10 text-rose-100"

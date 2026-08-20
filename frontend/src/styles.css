@@ -41,89 +41,96 @@
 
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.04 0 0);
-  --foreground: oklch(0.98 0.005 280);
-  --card: oklch(0.08 0.01 280);
-  --card-foreground: oklch(0.98 0.005 280);
-  --popover: oklch(0.08 0.01 280);
-  --popover-foreground: oklch(0.98 0.005 280);
-  --primary: oklch(0.7 0.25 310);
-  --primary-foreground: oklch(0.04 0 0);
-  --secondary: oklch(0.15 0.02 280);
-  --secondary-foreground: oklch(0.98 0.005 280);
-  --muted: oklch(0.12 0.015 280);
-  --muted-foreground: oklch(0.65 0.02 280);
-  --accent: oklch(0.7 0.22 200);
-  --accent-foreground: oklch(0.04 0 0);
+  --cv-ink: #0d0f12;
+  --cv-ink-soft: #121417;
+  --cv-green-primary: #4caf50;
+  --cv-green-bright: #68c56d;
+  --cv-green-soft: #d8efbc;
+  --cv-green-muted: #8fba7c;
+  --cv-green-deep: #142016;
+  --cv-gold: #ffc84b;
+  --background: #0d0f12;
+  --foreground: #f7fbf4;
+  --card: #121417;
+  --card-foreground: #f7fbf4;
+  --popover: #121417;
+  --popover-foreground: #f7fbf4;
+  --primary: #68c56d;
+  --primary-foreground: #101417;
+  --secondary: #172119;
+  --secondary-foreground: #f7fbf4;
+  --muted: #151a17;
+  --muted-foreground: #99a69a;
+  --accent: #d8efbc;
+  --accent-foreground: #101417;
   --destructive: oklch(0.65 0.25 25);
-  --destructive-foreground: oklch(0.98 0.005 280);
-  --border: oklch(0.2 0.02 280 / 50%);
-  --input: oklch(0.18 0.02 280);
-  --ring: oklch(0.7 0.25 310);
+  --destructive-foreground: #f7fbf4;
+  --border: rgba(216, 239, 188, 0.14);
+  --input: rgba(255, 255, 255, 0.07);
+  --ring: #68c56d;
 
-  --neon-purple: oklch(0.65 0.28 305);
-  --neon-pink: oklch(0.72 0.27 350);
-  --neon-magenta: oklch(0.68 0.30 330);
-  --neon-blue: oklch(0.65 0.25 260);
-  --neon-cyan: oklch(0.82 0.18 200);
-  --soft-orange: oklch(0.78 0.18 50);
-  --soft-peach: oklch(0.85 0.12 60);
+  --neon-purple: #4caf50;
+  --neon-pink: #68c56d;
+  --neon-magenta: #8ed680;
+  --neon-blue: #a6dea0;
+  --neon-cyan: #d8efbc;
+  --soft-orange: #ffc84b;
+  --soft-peach: #e9f6d4;
 
   --grad-aurora: linear-gradient(135deg,
-    oklch(0.65 0.28 305) 0%,
-    oklch(0.72 0.27 350) 30%,
-    oklch(0.68 0.30 330) 50%,
-    oklch(0.65 0.25 260) 75%,
-    oklch(0.82 0.18 200) 100%);
+    #4caf50 0%,
+    #68c56d 46%,
+    #d8efbc 100%);
   --grad-warm: linear-gradient(135deg,
-    oklch(0.72 0.27 350) 0%,
-    oklch(0.78 0.18 50) 60%,
-    oklch(0.85 0.12 60) 100%);
+    #ffc84b 0%,
+    #8fba7c 58%,
+    #d8efbc 100%);
   --grad-text: linear-gradient(180deg,
-    oklch(0.98 0.01 280) 0%,
-    oklch(0.85 0.05 320) 50%,
-    oklch(0.65 0.15 300) 100%);
+    #ffffff 0%,
+    #d8efbc 56%,
+    #68c56d 100%);
 
-  --shadow-glow: 0 0 60px oklch(0.65 0.28 305 / 0.4),
-                 0 0 120px oklch(0.65 0.25 260 / 0.25);
-  --shadow-glow-pink: 0 0 80px oklch(0.72 0.27 350 / 0.45);
+  --shadow-glow: 0 0 60px rgba(76, 175, 80, 0.35),
+                 0 0 120px rgba(216, 239, 188, 0.18);
+  --shadow-glow-pink: 0 0 80px rgba(104, 197, 109, 0.35);
   --page-bg:
-    radial-gradient(circle at top left, oklch(0.22 0.05 280 / 0.2), transparent 24%),
-    radial-gradient(circle at top right, oklch(0.2 0.07 220 / 0.18), transparent 18%),
-    linear-gradient(180deg, #08080c 0%, #050505 100%);
-  --page-text: oklch(0.98 0.005 280);
-  --glass-bg: linear-gradient(135deg, oklch(1 0 0 / 0.06), oklch(1 0 0 / 0.02));
-  --glass-strong-bg: linear-gradient(135deg, oklch(1 0 0 / 0.1), oklch(1 0 0 / 0.03));
-  --glass-border: oklch(1 0 0 / 0.1);
-  --glass-nav-bg: linear-gradient(135deg, rgba(20, 20, 20, 0.85), rgba(10, 10, 10, 0.75));
+    radial-gradient(circle at 50% 38%, rgba(76, 175, 80, 0.18), transparent 58%),
+    radial-gradient(circle at 20% 18%, rgba(255, 200, 75, 0.08), transparent 28%),
+    radial-gradient(circle at 86% 76%, rgba(76, 175, 80, 0.08), transparent 30%),
+    linear-gradient(180deg, #121417 0%, #0d0f12 100%);
+  --page-text: #f7fbf4;
+  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(216, 239, 188, 0.025));
+  --glass-strong-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(76, 175, 80, 0.035));
+  --glass-border: rgba(216, 239, 188, 0.12);
+  --glass-nav-bg: linear-gradient(135deg, rgba(18, 20, 23, 0.88), rgba(13, 15, 18, 0.78));
 }
 
 :root.light {
-  --background: oklch(0.985 0.006 255);
+  --background: #f6fbf2;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --primary: oklch(0.55 0.24 270);
+  --primary: #2f8f46;
   --primary-foreground: #ffffff;
-  --secondary: oklch(0.94 0.018 255);
+  --secondary: #eaf6df;
   --secondary-foreground: #0f172a;
-  --muted: oklch(0.94 0.015 255);
+  --muted: #eef7e8;
   --muted-foreground: #334155;
-  --accent: oklch(0.72 0.16 220);
+  --accent: #4caf50;
   --accent-foreground: #0f172a;
   --destructive: oklch(0.62 0.21 24);
   --destructive-foreground: #ffffff;
-  --border: rgba(148, 163, 184, 0.32);
+  --border: rgba(76, 175, 80, 0.22);
   --input: #ffffff;
-  --ring: oklch(0.58 0.2 265);
+  --ring: #4caf50;
   --page-bg:
-    radial-gradient(circle at top left, rgba(165, 200, 255, 0.38), transparent 32%),
-    radial-gradient(circle at top right, rgba(215, 195, 255, 0.35), transparent 28%),
-    linear-gradient(180deg, #f1f5fe 0%, #e6eeff 50%, #f4f7ff 100%);
+    radial-gradient(circle at top left, rgba(216, 239, 188, 0.48), transparent 32%),
+    radial-gradient(circle at top right, rgba(76, 175, 80, 0.16), transparent 28%),
+    linear-gradient(180deg, #f6fbf2 0%, #edf7e8 50%, #f8fbf5 100%);
   --page-text: #0f172a;
-  --grad-text: linear-gradient(180deg, #0f172a 0%, #334155 50%, #4338ca 100%);
+  --grad-text: linear-gradient(180deg, #0f172a 0%, #2f5635 50%, #2f8f46 100%);
 }
 
 /* ── Light-mode: override hardcoded dark-only Tailwind opacity-white classes ── */
@@ -284,11 +291,11 @@
 :root.light .text-cyan-300,
 :root.light .text-cyan-200,
 :root.light .text-cyan-100 {
-  color: #0284c7 !important;
+  color: #2f8f46 !important;
 }
 :root.light .text-fuchsia-300,
 :root.light .text-fuchsia-200 {
-  color: #c026d3 !important;
+  color: #3f9c44 !important;
 }
 :root.light .text-amber-200,
 :root.light .text-amber-300 {
@@ -296,7 +303,7 @@
 }
 :root.light .text-purple-300,
 :root.light .text-purple-200 {
-  color: #7c3aed !important;
+  color: #2f8f46 !important;
 }
 :root.light .text-rose-300,
 :root.light .text-rose-200,
@@ -356,11 +363,11 @@
 }
 
 :root.light .cv-profile-card .text-indigo-200 {
-  color: #c7d2fe !important;
+  color: #d8efbc !important;
 }
 
 :root.light .cv-profile-card .text-indigo-100 {
-  color: #e0e7ff !important;
+  color: #edf8e5 !important;
 }
 
 /* Student light-mode control contrast */
@@ -395,9 +402,9 @@
 }
 
 :root.light .cv-app-content [role="switch"][data-state="checked"] {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 56%, #0891b2 100%) !important;
+  background: linear-gradient(135deg, #4caf50 0%, #68c56d 56%, #d8efbc 100%) !important;
   border-color: transparent !important;
-  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.28) !important;
+  box-shadow: 0 6px 16px rgba(76, 175, 80, 0.28) !important;
 }
 
 :root.light .cv-app-content [role="switch"][data-state="unchecked"] {
@@ -412,14 +419,14 @@
 
 :root.light .cv-app-content button[data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]),
 :root.light .cv-app-content [role="button"][data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]) {
-  background: #e0e7ff !important;
-  border-color: #a5b4fc !important;
-  color: #312e81 !important;
+  background: #ecf8e6 !important;
+  border-color: #a5d6a7 !important;
+  color: #1f7a32 !important;
 }
 
 :root.light .cv-app-content button[data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]) *,
 :root.light .cv-app-content [role="button"][data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]) * {
-  color: #312e81 !important;
+  color: #1f7a32 !important;
 }
 
 :root.light .cv-app-content [role="tab"][data-state="active"] {
@@ -713,19 +720,19 @@
 
 :root.light .cv-placement-page [class*="bg-cyan-400"],
 :root.light .cv-placement-page [class*="bg-cyan-500"] {
-  background-color: rgba(14, 165, 233, 0.13) !important;
+  background-color: rgba(76, 175, 80, 0.13) !important;
 }
 
 :root.light .cv-placement-page [class*="border-cyan-300"],
 :root.light .cv-placement-page [class*="border-cyan-400"],
 :root.light .cv-placement-page [class*="border-cyan-500"] {
-  border-color: rgba(14, 165, 233, 0.34) !important;
+  border-color: rgba(76, 175, 80, 0.34) !important;
 }
 
 :root.light .cv-placement-page [class*="text-cyan-50"],
 :root.light .cv-placement-page [class*="text-cyan-100"],
 :root.light .cv-placement-page [class*="text-cyan-200"] {
-  color: #0369a1 !important;
+  color: #2f8f46 !important;
 }
 
 :root.light .cv-placement-page [class*="bg-rose-400"],
@@ -761,8 +768,8 @@
     transition: background 0.35s ease, color 0.35s ease;
   }
   ::selection {
-    background: oklch(0.65 0.28 305 / 0.4);
-    color: white;
+    background: rgba(76, 175, 80, 0.42);
+    color: #ffffff;
   }
   body.cv-cursor-enabled,
   body.cv-cursor-enabled a,
@@ -853,18 +860,18 @@
 }
 
 .form-input:focus {
-  border-color: oklch(0.82 0.18 200 / 0.35);
+  border-color: rgba(216, 239, 188, 0.42);
   background: oklch(1 0 0 / 0.075);
 }
 
 @utility glow-purple {
-  box-shadow: 0 0 40px oklch(0.65 0.28 305 / 0.45),
-              0 0 80px oklch(0.65 0.28 305 / 0.2);
+  box-shadow: 0 0 40px rgba(76, 175, 80, 0.42),
+              0 0 80px rgba(216, 239, 188, 0.18);
 }
 
 @utility glow-cyan {
-  box-shadow: 0 0 40px oklch(0.82 0.18 200 / 0.45),
-              0 0 80px oklch(0.82 0.18 200 / 0.2);
+  box-shadow: 0 0 40px rgba(104, 197, 109, 0.42),
+              0 0 80px rgba(216, 239, 188, 0.18);
 }
 
 @utility noise {
@@ -934,18 +941,18 @@
   top: 0; left: 0;
   width: 44px; height: 44px;
   border-radius: 9999px;
-  border: 1px solid oklch(0.7 0.25 310 / 0.7);
+  border: 1px solid rgba(104, 197, 109, 0.7);
   pointer-events: none;
   z-index: 9998;
   transform: translate(-50%, -50%);
   transition: transform 0.18s ease, width 0.25s ease, height 0.25s ease, border-color 0.25s ease;
-  box-shadow: 0 0 30px oklch(0.65 0.28 305 / 0.35);
+  box-shadow: 0 0 30px rgba(76, 175, 80, 0.35);
 }
 .cv-cursor.hover { width: 6px; height: 6px; }
 .cv-cursor-ring.hover {
   width: 72px; height: 72px;
-  border-color: oklch(0.82 0.18 200 / 0.9);
-  box-shadow: 0 0 60px oklch(0.82 0.18 200 / 0.5);
+  border-color: rgba(216, 239, 188, 0.9);
+  box-shadow: 0 0 60px rgba(76, 175, 80, 0.5);
 }
 @media (max-width: 768px) {
   .cv-cursor, .cv-cursor-ring { display: none; }
@@ -978,7 +985,7 @@ body.cv-low-performance.cv-cursor-enabled * {
 
 .cv-low-performance .glow-purple,
 .cv-low-performance .glow-cyan {
-  box-shadow: 0 0 24px oklch(0.65 0.28 305 / 0.25) !important;
+  box-shadow: 0 0 24px rgba(76, 175, 80, 0.25) !important;
 }
 
 .cv-low-performance .float-slow,
@@ -1008,9 +1015,9 @@ html.lenis, html.lenis body { height: auto; }
 /* Complete Protection for Faculty Profile Hero Card in Light & Dark Mode */
 .cv-profile-card,
 :root.light .cv-profile-card {
-  background: linear-gradient(135deg, #0c0a20 0%, #161238 50%, #0a1628 100%) !important;
-  border: 1px solid rgba(99, 102, 241, 0.4) !important;
-  box-shadow: 0 20px 40px -15px rgba(12, 10, 32, 0.6) !important;
+  background: linear-gradient(135deg, #0d0f12 0%, #142016 52%, #101417 100%) !important;
+  border: 1px solid rgba(76, 175, 80, 0.38) !important;
+  box-shadow: 0 20px 40px -15px rgba(76, 175, 80, 0.34) !important;
   color: #ffffff !important;
 }
 
@@ -1029,7 +1036,7 @@ html.lenis, html.lenis body { height: auto; }
 :root.light .cv-profile-card .text-indigo-200,
 .cv-profile-card .text-indigo-100,
 :root.light .cv-profile-card .text-indigo-100 {
-  color: #c7d2fe !important;
+  color: #d8efbc !important;
 }
 
 .cv-profile-card [class*="bg-white/"],
@@ -1049,4 +1056,421 @@ html.lenis, html.lenis body { height: auto; }
 .cv-profile-card button span,
 :root.light .cv-profile-card button span {
   color: #ffffff !important;
+}
+
+/* Student green theme pass: remap legacy neon classes without touching behavior. */
+.cv-student-shell {
+  --cv-action-gradient: linear-gradient(135deg, #4caf50 0%, #68c56d 48%, #d8efbc 100%);
+  --cv-action-gradient-strong: linear-gradient(135deg, #3f9c44 0%, #63be68 52%, #ccebb0 100%);
+  --cv-action-text: #101417;
+  --cv-accent-ring: rgba(216, 239, 188, 0.42);
+}
+
+.cv-student-shell :is(
+  [class*="from-indigo-"],
+  [class*="from-purple-"],
+  [class*="from-fuchsia-"],
+  [class*="from-violet-"],
+  [class*="from-pink-"],
+  [class*="from-blue-"],
+  [class*="from-cyan-"]
+) {
+  --tw-gradient-from: #4caf50 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(76, 175, 80, 0) var(--tw-gradient-to-position) !important;
+}
+
+.cv-student-shell :is(
+  [class*="via-indigo-"],
+  [class*="via-purple-"],
+  [class*="via-fuchsia-"],
+  [class*="via-violet-"],
+  [class*="via-pink-"],
+  [class*="via-blue-"],
+  [class*="via-cyan-"]
+) {
+  --tw-gradient-via: #68c56d var(--tw-gradient-via-position) !important;
+}
+
+.cv-student-shell :is(
+  [class*="to-indigo-"],
+  [class*="to-purple-"],
+  [class*="to-fuchsia-"],
+  [class*="to-violet-"],
+  [class*="to-pink-"],
+  [class*="to-blue-"],
+  [class*="to-cyan-"]
+) {
+  --tw-gradient-to: #d8efbc var(--tw-gradient-to-position) !important;
+}
+
+.cv-student-shell :is(
+  [class*="from-indigo-500/"],
+  [class*="from-purple-500/"],
+  [class*="from-fuchsia-500/"],
+  [class*="from-cyan-500/"],
+  [class*="from-blue-500/"]
+) {
+  --tw-gradient-from: rgba(76, 175, 80, 0.2) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(76, 175, 80, 0) var(--tw-gradient-to-position) !important;
+}
+
+.cv-student-shell :is(
+  [class*="via-indigo-500/"],
+  [class*="via-purple-500/"],
+  [class*="via-fuchsia-500/"],
+  [class*="via-cyan-500/"],
+  [class*="via-blue-500/"]
+) {
+  --tw-gradient-via: rgba(104, 197, 109, 0.12) var(--tw-gradient-via-position) !important;
+}
+
+.cv-student-shell :is(
+  [class*="to-indigo-500/"],
+  [class*="to-purple-500/"],
+  [class*="to-fuchsia-500/"],
+  [class*="to-cyan-500/"],
+  [class*="to-blue-500/"]
+) {
+  --tw-gradient-to: rgba(216, 239, 188, 0.18) var(--tw-gradient-to-position) !important;
+}
+
+:root.dark .cv-student-shell :is(
+  [class*="text-indigo-"],
+  [class*="text-purple-"],
+  [class*="text-fuchsia-"],
+  [class*="text-violet-"],
+  [class*="text-pink-"],
+  [class*="text-blue-"],
+  [class*="text-cyan-"],
+  [class*="text-sky-"]
+) {
+  color: #d8efbc !important;
+}
+
+:root.light .cv-student-shell :is(
+  [class*="text-indigo-"],
+  [class*="text-purple-"],
+  [class*="text-fuchsia-"],
+  [class*="text-violet-"],
+  [class*="text-pink-"],
+  [class*="text-blue-"],
+  [class*="text-cyan-"],
+  [class*="text-sky-"]
+) {
+  color: #2f8f46 !important;
+}
+
+:root.dark .cv-student-shell :is(
+  [class~="bg-indigo-50"],
+  [class~="bg-indigo-100"],
+  [class~="bg-indigo-500/10"],
+  [class~="bg-indigo-500/20"],
+  [class~="bg-indigo-600"],
+  [class~="bg-indigo-700"],
+  [class~="bg-purple-50"],
+  [class~="bg-purple-100"],
+  [class~="bg-purple-300/10"],
+  [class~="bg-purple-400/10"],
+  [class~="bg-purple-500/10"],
+  [class~="bg-purple-500/20"],
+  [class~="bg-purple-600"],
+  [class~="bg-fuchsia-400/10"],
+  [class~="bg-fuchsia-400/20"],
+  [class~="bg-fuchsia-500/10"],
+  [class~="bg-blue-50"],
+  [class~="bg-blue-600"],
+  [class~="bg-cyan-300/10"],
+  [class~="bg-cyan-300/5"],
+  [class~="bg-cyan-200/80"],
+  [class~="bg-cyan-400/10"],
+  [class~="bg-cyan-400/18"],
+  [class~="bg-cyan-500/10"],
+  [class~="bg-cyan-500/15"],
+  [class~="bg-cyan-500/20"],
+  [class~="bg-cyan-600"],
+  [class~="bg-sky-50"],
+  [class~="bg-sky-500/10"]
+) {
+  background-color: rgba(76, 175, 80, 0.14) !important;
+}
+
+:root.light .cv-student-shell :is(
+  [class~="bg-indigo-50"],
+  [class~="bg-indigo-100"],
+  [class~="bg-purple-50"],
+  [class~="bg-purple-100"],
+  [class~="bg-blue-50"],
+  [class~="bg-cyan-50"],
+  [class~="bg-sky-50"]
+) {
+  background-color: #ecf8e6 !important;
+}
+
+.cv-student-shell :is(
+  [class~="bg-indigo-600"],
+  [class~="bg-indigo-700"],
+  [class~="bg-purple-600"],
+  [class~="bg-fuchsia-600"],
+  [class~="bg-blue-600"],
+  [class~="bg-cyan-600"]
+) {
+  background-color: #4caf50 !important;
+  color: #101417 !important;
+}
+
+.cv-student-shell :is(
+  [class*="border-indigo-"],
+  [class*="border-purple-"],
+  [class*="border-fuchsia-"],
+  [class*="border-violet-"],
+  [class*="border-pink-"],
+  [class*="border-blue-"],
+  [class*="border-cyan-"],
+  [class*="border-sky-"]
+) {
+  border-color: rgba(216, 239, 188, 0.34) !important;
+}
+
+.cv-student-shell :is(
+  [class*="shadow-indigo-"],
+  [class*="shadow-purple-"],
+  [class*="shadow-fuchsia-"],
+  [class*="shadow-violet-"],
+  [class*="shadow-pink-"],
+  [class*="shadow-blue-"],
+  [class*="shadow-cyan-"],
+  [class*="shadow-sky-"]
+) {
+  --tw-shadow-color: rgba(76, 175, 80, 0.3) !important;
+}
+
+.cv-student-shell :is(input, textarea, select):focus,
+.cv-student-shell :is(input, textarea, select):focus-visible,
+.cv-student-shell button:focus-visible,
+.cv-student-shell a:focus-visible {
+  border-color: rgba(216, 239, 188, 0.56) !important;
+  outline-color: rgba(216, 239, 188, 0.72) !important;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.16) !important;
+}
+
+.cv-student-shell [role="switch"][data-state="checked"],
+:root.light .cv-student-shell [role="switch"][data-state="checked"] {
+  background: var(--cv-action-gradient) !important;
+  border-color: transparent !important;
+  box-shadow: 0 6px 16px rgba(76, 175, 80, 0.28) !important;
+}
+
+.cv-student-shell button[data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]),
+.cv-student-shell [role="button"][data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]),
+.cv-student-shell [role="tab"][data-state="active"] {
+  background: rgba(76, 175, 80, 0.16) !important;
+  border-color: rgba(216, 239, 188, 0.42) !important;
+  color: #d8efbc !important;
+}
+
+:root.light .cv-student-shell button[data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]),
+:root.light .cv-student-shell [role="button"][data-state="on"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]),
+:root.light .cv-student-shell [role="tab"][data-state="active"] {
+  background: #ecf8e6 !important;
+  border-color: #a5d6a7 !important;
+  color: #1f7a32 !important;
+}
+
+.cv-student-shell .glow-purple,
+.cv-student-shell .glow-cyan {
+  box-shadow: 0 0 40px rgba(76, 175, 80, 0.34),
+              0 0 80px rgba(216, 239, 188, 0.16) !important;
+}
+
+/* Admin, professor, and placement consoles share the same green ambient theme. */
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) {
+  --cv-console-action: #d8efbc;
+  --cv-console-action-hover: #c8e9a8;
+  --cv-console-action-text: #101417;
+  --cv-console-green: #4caf50;
+  --cv-console-green-bright: #68c56d;
+  --cv-console-border: rgba(216, 239, 188, 0.34);
+  --cv-console-glow: rgba(76, 175, 80, 0.28);
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="from-indigo-"],
+  [class*="from-purple-"],
+  [class*="from-fuchsia-"],
+  [class*="from-violet-"],
+  [class*="from-pink-"],
+  [class*="from-blue-"],
+  [class*="from-cyan-"],
+  [class*="from-sky-"]
+) {
+  --tw-gradient-from: #4caf50 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(76, 175, 80, 0) var(--tw-gradient-to-position) !important;
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="via-indigo-"],
+  [class*="via-purple-"],
+  [class*="via-fuchsia-"],
+  [class*="via-violet-"],
+  [class*="via-pink-"],
+  [class*="via-blue-"],
+  [class*="via-cyan-"],
+  [class*="via-sky-"]
+) {
+  --tw-gradient-via: #68c56d var(--tw-gradient-via-position) !important;
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="to-indigo-"],
+  [class*="to-purple-"],
+  [class*="to-fuchsia-"],
+  [class*="to-violet-"],
+  [class*="to-pink-"],
+  [class*="to-blue-"],
+  [class*="to-cyan-"],
+  [class*="to-sky-"]
+) {
+  --tw-gradient-to: #d8efbc var(--tw-gradient-to-position) !important;
+}
+
+:root.dark :is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="text-indigo-"],
+  [class*="text-purple-"],
+  [class*="text-fuchsia-"],
+  [class*="text-violet-"],
+  [class*="text-pink-"],
+  [class*="text-blue-"],
+  [class*="text-cyan-"],
+  [class*="text-sky-"]
+) {
+  color: #d8efbc !important;
+}
+
+:root.light :is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="text-indigo-"],
+  [class*="text-purple-"],
+  [class*="text-fuchsia-"],
+  [class*="text-violet-"],
+  [class*="text-pink-"],
+  [class*="text-blue-"],
+  [class*="text-cyan-"],
+  [class*="text-sky-"]
+) {
+  color: #2f8f46 !important;
+}
+
+:root.dark :is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="bg-indigo-"],
+  [class*="bg-purple-"],
+  [class*="bg-fuchsia-"],
+  [class*="bg-violet-"],
+  [class*="bg-pink-"],
+  [class*="bg-blue-"],
+  [class*="bg-cyan-"],
+  [class*="bg-sky-"]
+) {
+  background-color: rgba(76, 175, 80, 0.14) !important;
+}
+
+:root.light :is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="bg-indigo-"],
+  [class*="bg-purple-"],
+  [class*="bg-fuchsia-"],
+  [class*="bg-violet-"],
+  [class*="bg-pink-"],
+  [class*="bg-blue-"],
+  [class*="bg-cyan-"],
+  [class*="bg-sky-"]
+) {
+  background-color: #ecf8e6 !important;
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class~="bg-indigo-600"],
+  [class~="bg-indigo-700"],
+  [class~="bg-purple-600"],
+  [class~="bg-fuchsia-600"],
+  [class~="bg-violet-600"],
+  [class~="bg-blue-600"],
+  [class~="bg-cyan-600"],
+  [class~="bg-sky-600"],
+  button[class*="bg-gradient"],
+  a[class*="bg-gradient"],
+  [role="button"][class*="bg-gradient"]
+) {
+  background-color: #d8efbc !important;
+  color: #101417 !important;
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class~="bg-indigo-600"],
+  [class~="bg-indigo-700"],
+  [class~="bg-purple-600"],
+  [class~="bg-fuchsia-600"],
+  [class~="bg-violet-600"],
+  [class~="bg-blue-600"],
+  [class~="bg-cyan-600"],
+  [class~="bg-sky-600"],
+  button[class*="bg-gradient"],
+  a[class*="bg-gradient"],
+  [role="button"][class*="bg-gradient"]
+) * {
+  color: #101417 !important;
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="border-indigo-"],
+  [class*="border-purple-"],
+  [class*="border-fuchsia-"],
+  [class*="border-violet-"],
+  [class*="border-pink-"],
+  [class*="border-blue-"],
+  [class*="border-cyan-"],
+  [class*="border-sky-"]
+) {
+  border-color: rgba(216, 239, 188, 0.34) !important;
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="shadow-indigo-"],
+  [class*="shadow-purple-"],
+  [class*="shadow-fuchsia-"],
+  [class*="shadow-violet-"],
+  [class*="shadow-pink-"],
+  [class*="shadow-blue-"],
+  [class*="shadow-cyan-"],
+  [class*="shadow-sky-"]
+) {
+  --tw-shadow-color: rgba(76, 175, 80, 0.3) !important;
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(input, textarea, select):focus,
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(input, textarea, select):focus-visible,
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) button:focus-visible,
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) a:focus-visible {
+  border-color: rgba(216, 239, 188, 0.56) !important;
+  outline-color: rgba(216, 239, 188, 0.72) !important;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.16) !important;
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="34,211,238"],
+  [class*="6,182,212"],
+  [class*="124,58,237"],
+  [class*="139,92,246"],
+  [class*="168,85,247"],
+  [class*="217,70,239"],
+  [class*="236,72,153"]
+) {
+  box-shadow: 0 10px 30px rgba(76, 175, 80, 0.18) !important;
+}
+
+:is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
+  [class*="bg-[linear-gradient"][class*="34,211,238"],
+  [class*="bg-[linear-gradient"][class*="6,182,212"],
+  [class*="bg-[linear-gradient"][class*="124,58,237"],
+  [class*="bg-[linear-gradient"][class*="168,85,247"],
+  [class*="bg-[linear-gradient"][class*="217,70,239"]
+) {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(216, 239, 188, 0.06)) !important;
 }

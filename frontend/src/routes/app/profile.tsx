@@ -405,7 +405,7 @@ function ProfilePage() {
         style={
           !isDark
             ? {
-                background: "linear-gradient(135deg, #FFFFFF 0%, #FAF8FF 30%, #F2F5FF 65%, #EAF2FF 100%)",
+                background: "linear-gradient(135deg, #FFFFFF 0%, #F8FFF3 30%, #F1FAEA 65%, #EAF7E6 100%)",
                 border: "1px solid rgba(100,116,139,0.10)",
                 boxShadow: "0 20px 60px rgba(15,23,42,0.08), 0 6px 18px rgba(15,23,42,0.05)",
               }
@@ -415,22 +415,22 @@ function ProfilePage() {
         <div
           className={`absolute inset-0 ${
             isDark
-              ? "bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.23),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(6,182,212,0.24),transparent_32%),linear-gradient(135deg,rgba(125,31,98,0.72),rgba(7,16,37,0.9))]"
+              ? "bg-[radial-gradient(circle_at_top_left,rgba(76,175,80,0.26),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(216,239,188,0.18),transparent_32%),linear-gradient(135deg,rgba(20,32,22,0.86),rgba(7,16,10,0.94))]"
               : ""
           }`}
           style={
             !isDark
               ? {
                   backgroundImage:
-                    "radial-gradient(circle at 15% 20%, rgba(109,93,246,0.10), transparent 35%)",
+                    "radial-gradient(circle at 15% 20%, rgba(76,175,80,0.12), transparent 35%)",
                 }
               : undefined
           }
         />
         {!isDark && (
           <>
-            <div className="absolute top-[-40px] right-[10%] size-72 rounded-full bg-[#6D5DF6]/5 blur-3xl pointer-events-none" />
-            <div className="absolute inset-0 opacity-[0.04] pointer-events-none [background-image:linear-gradient(rgba(109,93,246,0.15)_1px,transparent_1px),linear-gradient(90deg,rgba(109,93,246,0.15)_1px,transparent_1px)] [background-size:24px_24px]" />
+            <div className="absolute top-[-40px] right-[10%] size-72 rounded-full bg-[#4caf50]/5 blur-3xl pointer-events-none" />
+            <div className="absolute inset-0 opacity-[0.04] pointer-events-none [background-image:linear-gradient(rgba(76,175,80,0.18)_1px,transparent_1px),linear-gradient(90deg,rgba(76,175,80,0.18)_1px,transparent_1px)] [background-size:24px_24px]" />
           </>
         )}
         <div className="relative grid gap-8 p-6 md:p-8 xl:grid-cols-[1.35fr_0.95fr]">
@@ -443,8 +443,8 @@ function ProfilePage() {
               >
                 <span className={`absolute inset-0 ${
                   isDark
-                    ? "bg-[linear-gradient(135deg,#ff41c4_0%,#f11ab9_35%,#6c6cff_72%,#00d4ff_100%)]"
-                    : "bg-gradient-to-br from-[#6D5DF6] to-[#3BA9F4]"
+                    ? "bg-[linear-gradient(135deg,#4caf50_0%,#68c56d_48%,#d8efbc_100%)]"
+                    : "bg-gradient-to-br from-[#4caf50] to-[#d8efbc]"
                 }`} />
                 {avatarUrl || view.avatarUrl ? (
                   <img src={avatarUrl || view.avatarUrl || ""} alt={view.name} className="relative size-full object-cover" />
@@ -499,7 +499,7 @@ function ProfilePage() {
                 className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs uppercase tracking-[0.22em] font-extrabold transition-all duration-200 ${
                   isDark
                     ? "border border-white/20 bg-white/15 text-white hover:bg-white/25"
-                    : "border border-[#D7DDF3] bg-white text-[#6D5DF6] hover:bg-[#6D5DF6] hover:text-white shadow-2xs"
+                    : "border border-[#a5d6a7] bg-white text-[#2f8f46] hover:bg-[#4caf50] hover:text-white shadow-2xs"
                 }`}
               >
                 <Edit3 className="size-3.5" />
@@ -515,7 +515,7 @@ function ProfilePage() {
                 !isDark
                   ? {
                       background: "linear-gradient(180deg, #FCFCFF, #F5F8FF)",
-                      border: "1px solid rgba(109,93,246,0.12)",
+                      border: "1px solid rgba(76,175,80,0.14)",
                       boxShadow: "0 8px 30px rgba(15,23,42,0.05)",
                     }
                   : undefined
@@ -531,7 +531,7 @@ function ProfilePage() {
                 <div className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.25em] font-bold ${
                   isDark
                     ? "border-white/20 bg-white/10 text-white/80"
-                    : "border-[#D7DDF3] bg-white text-[#6D5DF6] shadow-2xs"
+                    : "border-[#a5d6a7] bg-white text-[#2f8f46] shadow-2xs"
                 }`}>
                   {view.profileCompletion >= 85 ? "Verified-ready" : "Improve details"}
                 </div>
@@ -540,8 +540,8 @@ function ProfilePage() {
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
                     isDark
-                      ? "bg-[linear-gradient(90deg,#d946ef_0%,#f472b6_30%,#818cf8_62%,#22d3ee_100%)]"
-                      : "bg-gradient-to-r from-[#6D5DF6] to-[#3BA9F4]"
+                      ? "bg-[linear-gradient(90deg,#4caf50_0%,#68c56d_48%,#d8efbc_100%)]"
+                      : "bg-gradient-to-r from-[#4caf50] to-[#d8efbc]"
                   }`}
                   style={{ width: `${view.profileCompletion}%` }}
                 />
@@ -575,9 +575,9 @@ function ProfilePage() {
                     <div className={`mt-2 text-sm font-medium ${isDark ? "text-white/48" : "text-slate-600"}`}>{item.detail}</div>
                   </div>
                   <div className={`flex size-12 items-center justify-center rounded-2xl ${
-                    isDark ? "bg-[linear-gradient(135deg,rgba(217,70,239,0.22),rgba(34,211,238,0.18))]" : "bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-2xs"
+                    isDark ? "bg-[linear-gradient(135deg,rgba(76,175,80,0.22),rgba(216,239,188,0.12))]" : "bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-2xs"
                   }`}>
-                    <Icon className={`size-5 ${isDark ? "text-white/80" : "text-indigo-600"}`} />
+                    <Icon className={`size-5 ${isDark ? "text-white/80" : "text-emerald-700"}`} />
                   </div>
                 </div>
               </GlassCard>
@@ -626,7 +626,7 @@ function ProfilePage() {
                     view.skills.length
                       ? isDark
                         ? "glass-strong text-white/90"
-                        : "bg-indigo-50 border border-indigo-200 text-indigo-950 shadow-2xs"
+                        : "bg-emerald-50 border border-emerald-200 text-emerald-950 shadow-2xs"
                       : isDark
                         ? "border border-dashed border-white/10 text-white/42"
                         : "border border-dashed border-slate-300 text-slate-500"
@@ -667,8 +667,8 @@ function ProfilePage() {
                     className="absolute inset-x-0 top-0 h-1"
                     style={{
                       opacity: badge.earned ? 1 : 0.35,
-                      background: `linear-gradient(90deg,#d946ef,${
-                        index % 2 === 0 ? "#22d3ee" : "#fdba74"
+                      background: `linear-gradient(90deg,#4caf50,${
+                        index % 2 === 0 ? "#d8efbc" : "#ffc84b"
                       })`,
                     }}
                   />
@@ -710,7 +710,7 @@ function ProfilePage() {
                 transition={{ delay: index * 0.05 }}
                 className="relative pb-6"
               >
-                <span className="absolute -left-[18px] top-1.5 size-2.5 rounded-full bg-[linear-gradient(135deg,#f0abfc,#22d3ee)] shadow-xs" />
+                <span className="absolute -left-[18px] top-1.5 size-2.5 rounded-full bg-[linear-gradient(135deg,#4caf50,#d8efbc)] shadow-xs" />
                 <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>{entry.t}</div>
                 <div className={`mt-1 text-sm font-semibold ${isDark ? "text-white/84" : "text-slate-900"}`}>{entry.l}</div>
               </motion.div>
@@ -732,7 +732,7 @@ function ProfilePage() {
                   isDark ? "border-white/8 bg-white/[0.02]" : "border-slate-200 bg-slate-50 shadow-2xs"
                 }`}
               >
-                <Award className={`size-4 ${isDark ? "text-white/60" : "text-indigo-600"}`} />
+                <Award className={`size-4 ${isDark ? "text-white/60" : "text-emerald-700"}`} />
                 <div className={`mt-3 text-lg font-bold ${isDark ? "text-white/90" : "text-slate-950"}`}>{item.name}</div>
                 <div className={`text-sm font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>{item.year}</div>
               </motion.div>
@@ -780,7 +780,7 @@ function ProfilePage() {
                       ? "border-white/15 bg-white/10 text-white hover:bg-white/20"
                       : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100 shadow-2xs"
                   }`}>
-                    <Camera className="size-3.5 text-[#6D5DF6]" /> Upload Photo
+                    <Camera className="size-3.5 text-[#2f8f46]" /> Upload Photo
                     <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                   </label>
                   {(avatarUrl || view.avatarUrl) && (
@@ -900,8 +900,8 @@ function ProfilePage() {
                 disabled={saving || Object.keys(fieldErrors).length > 0}
                 className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 transition ${
                   isDark
-                    ? "bg-[linear-gradient(90deg,#d946ef,#22d3ee)] hover:opacity-95"
-                    : "bg-[#6D5DF6] hover:bg-[#5b4be3]"
+                    ? "bg-[linear-gradient(90deg,#4caf50,#d8efbc)] hover:opacity-95"
+                    : "bg-[#2f8f46] hover:bg-[#267a38]"
                 }`}
               >
                 {saving ? (
@@ -1075,11 +1075,11 @@ function HeroStat({ label, value }: { label: string; value: string }) {
   
   const accentColor =
     label === "CGPA"
-      ? "#6D5DF6"
+      ? "#4caf50"
       : label === "Attendance"
-        ? "#06B6D4"
+        ? "#68c56d"
         : label === "Credits"
-          ? "#3B82F6"
+          ? "#8fba7c"
           : "#10B981";
 
   return (
@@ -1122,7 +1122,7 @@ function InfoChip({
           : muted ? "border-dashed border-slate-300 text-slate-400 bg-white" : "border-[#D7DDF3] bg-white text-[#475569] shadow-2xs"
       }`}
     >
-      <Icon className={`size-4 ${isDark ? "" : "text-[#6D5DF6]"}`} />
+      <Icon className={`size-4 ${isDark ? "" : "text-[#2f8f46]"}`} />
       {value || "Not added yet"}
     </span>
   );
@@ -1168,7 +1168,7 @@ function LinkRow({
       isDark ? "border-white/8 bg-white/[0.02]" : "border-slate-200 bg-slate-50 shadow-2xs"
     }`}>
       <div className={`inline-flex items-center gap-2 text-sm font-bold ${isDark ? "text-white/72" : "text-slate-950"}`}>
-        <Icon className={`size-4 ${isDark ? "text-white/55" : "text-indigo-600"}`} />
+        <Icon className={`size-4 ${isDark ? "text-white/55" : "text-emerald-700"}`} />
         {label}
       </div>
       <div className={`max-w-[65%] truncate text-sm font-medium ${isDark ? "text-white/50" : "text-slate-600"}`}>{value || "Not added yet"}</div>
@@ -1218,7 +1218,7 @@ function Field({
         className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${
           isDark
             ? "bg-white/[0.03] text-white placeholder:text-white/25 focus:border-white/25 " + (error ? "border-rose-500/50 focus:border-rose-400/60" : "border-white/10")
-            : "bg-slate-50 text-slate-900 border-slate-300 placeholder:text-slate-400 focus:border-[#6D5DF6] focus:bg-white " + (error ? "border-rose-500/50" : "")
+            : "bg-slate-50 text-slate-900 border-slate-300 placeholder:text-slate-400 focus:border-[#4caf50] focus:bg-white " + (error ? "border-rose-500/50" : "")
         }`}
       />
       {error && (
@@ -1281,7 +1281,7 @@ function TextArea({
         className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${
           isDark
             ? "bg-white/[0.03] text-white placeholder:text-white/25 focus:border-white/25 " + (error ? "border-rose-500/50 focus:border-rose-400/60" : "border-white/10")
-            : "bg-slate-50 text-slate-900 border-slate-300 placeholder:text-slate-400 focus:border-[#6D5DF6] focus:bg-white " + (error ? "border-rose-500/50" : "")
+            : "bg-slate-50 text-slate-900 border-slate-300 placeholder:text-slate-400 focus:border-[#4caf50] focus:bg-white " + (error ? "border-rose-500/50" : "")
         }`}
       />
       {error && (

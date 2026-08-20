@@ -500,8 +500,8 @@ function PeoplePanel({
             className={`group relative w-full overflow-hidden rounded-2xl border p-3 text-left transition ${
               person.id === selectedId
                 ? isDark
-                  ? "border-fuchsia-300/40 bg-fuchsia-400/10"
-                  : "border-indigo-500 bg-indigo-50/90 shadow-2xs"
+                  ? "border-emerald-300/40 bg-emerald-400/10"
+                  : "border-emerald-500 bg-green-50/90 shadow-2xs"
                 : isDark
                   ? "border-white/8 bg-white/[0.03] hover:border-white/18"
                   : "border-slate-200 bg-slate-50/80 hover:bg-slate-100/90"
@@ -555,8 +555,8 @@ function ProfilePanel({
   return (
     <div className={`flex min-h-0 flex-col overflow-hidden rounded-3xl ${isDark ? "glass-strong" : "bg-white/95 border border-slate-200 shadow-sm"}`}>
       <div className={`relative shrink-0 overflow-hidden border-b p-6 ${isDark ? "border-white/10" : "border-slate-200 bg-slate-50/50"}`}>
-        <span className="absolute -right-12 -top-20 size-56 rounded-full bg-fuchsia-400/20 blur-3xl" />
-        <span className="absolute -bottom-24 left-10 size-60 rounded-full bg-cyan-400/10 blur-3xl" />
+        <span className="absolute -right-12 -top-20 size-56 rounded-full bg-emerald-400/18 blur-3xl" />
+        <span className="absolute -bottom-24 left-10 size-60 rounded-full bg-lime-200/10 blur-3xl" />
 
         <div className="relative flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-5">
@@ -1036,8 +1036,8 @@ function ActionButton({
             ? "border-white/10 bg-white/[0.05] text-white/60 hover:text-white"
             : "border-slate-300 bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 shadow-2xs"
           : isDark
-            ? "border-fuchsia-300/25 bg-fuchsia-400/10 text-white hover:bg-fuchsia-400/20"
-            : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-extrabold shadow-md hover:opacity-90";
+            ? "border-emerald-300/25 bg-emerald-400/10 text-white hover:bg-emerald-400/20"
+            : "bg-gradient-to-r from-green-600 to-lime-500 text-white font-extrabold shadow-md hover:opacity-90";
   return (
     <button
       type="button"

@@ -44,18 +44,18 @@ const getCategoryColors = (category: string, isDark: boolean) => {
   if (isDark) {
     const darkMap: Record<string, { bg: string; text: string; border: string }> = {
       Exam: { bg: "rgba(239, 68, 68, 0.15)", text: "#f87171", border: "rgba(239, 68, 68, 0.3)" },
-      Placement: { bg: "rgba(56, 189, 248, 0.15)", text: "#38bdf8", border: "rgba(56, 189, 248, 0.3)" },
+      Placement: { bg: "rgba(76, 175, 80, 0.15)", text: "#d8efbc", border: "rgba(216, 239, 188, 0.3)" },
       Events: { bg: "rgba(251, 191, 36, 0.15)", text: "#fbbf24", border: "rgba(251, 191, 36, 0.3)" },
-      Academic: { bg: "rgba(168, 85, 247, 0.15)", text: "#c084fc", border: "rgba(168, 85, 247, 0.3)" },
+      Academic: { bg: "rgba(143, 186, 124, 0.15)", text: "#bfe6a8", border: "rgba(216, 239, 188, 0.28)" },
       Default: { bg: "rgba(52, 211, 153, 0.15)", text: "#34d399", border: "rgba(52, 211, 153, 0.3)" },
     };
     return darkMap[category] || darkMap.Default;
   } else {
     const lightMap: Record<string, { bg: string; text: string; border: string }> = {
       Exam: { bg: "#fee2e2", text: "#991b1b", border: "#fca5a5" },
-      Placement: { bg: "#e0f2fe", text: "#0369a1", border: "#7dd3fc" },
+      Placement: { bg: "#ecf8e6", text: "#1f7a32", border: "#a5d6a7" },
       Events: { bg: "#fef3c7", text: "#92400e", border: "#fde68a" },
-      Academic: { bg: "#f3e8ff", text: "#6b21a8", border: "#d8b4fe" },
+      Academic: { bg: "#f0f8e9", text: "#2f8f46", border: "#bde0aa" },
       Default: { bg: "#dcfce7", text: "#166534", border: "#86efac" },
     };
     return lightMap[category] || lightMap.Default;
@@ -236,14 +236,14 @@ function AnnouncementsPage() {
               onClick={() => setCat(c)}
               className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition whitespace-nowrap flex items-center gap-1.5 ${
                 cat === c
-                  ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 font-bold text-white shadow-md"
+                  ? "border border-[#d8efbc]/70 bg-[#d8efbc] font-extrabold text-[#101417] shadow-[0_0_18px_rgba(76,175,80,0.28)]"
                   : isDark
-                    ? "border border-white/10 bg-white/[0.04] text-white/60 hover:text-white"
-                    : "border border-slate-300 bg-white text-slate-700 hover:text-slate-950 font-bold shadow-sm"
+                    ? "border border-white/10 bg-white/[0.04] text-white/70 hover:border-[#d8efbc]/40 hover:bg-white/[0.08] hover:text-[#d8efbc]"
+                    : "border border-[#a5d6a7] bg-white text-slate-700 hover:bg-[#ecf8e6] hover:text-[#1f7a32] font-bold shadow-sm"
               }`}
             >
               <span>{c}</span>
-              <span className={`text-[10px] font-extrabold ${cat === c ? "text-white/90" : isDark ? "text-white/50" : "text-slate-600"}`}>({categoryCounts[c] || 0})</span>
+              <span className={`text-[10px] font-extrabold ${cat === c ? "text-[#101417]/85" : isDark ? "text-white/50" : "text-slate-600"}`}>({categoryCounts[c] || 0})</span>
             </button>
           ))}
 
@@ -485,8 +485,8 @@ function AnnouncementCard({
                 <span
                   className="text-[10px] px-2 py-0.5 rounded-full font-extrabold shadow-sm animate-pulse"
                   style={{
-                    background: isDark ? "oklch(0.72 0.27 350 / 0.25)" : "#fce7f3",
-                    color: isDark ? "oklch(0.85 0.18 350)" : "#be185d",
+                    background: isDark ? "rgba(76, 175, 80, 0.22)" : "#ecf8e6",
+                    color: isDark ? "#d8efbc" : "#1f7a32",
                   }}
                 >
                   NEW

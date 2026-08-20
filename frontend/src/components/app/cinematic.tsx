@@ -16,10 +16,10 @@ export function CinematicBackdrop({ intensity = 1 }: { intensity?: number }) {
         left: `${10 + Math.random() * 80}%`,
         size: lowPerformance ? 220 + Math.random() * 180 : 260 + Math.random() * 300,
         hue: [
-          "oklch(0.65 0.28 305 / 0.35)",
-          "oklch(0.72 0.27 350 / 0.30)",
-          "oklch(0.82 0.18 200 / 0.25)",
-          "oklch(0.85 0.12 60 / 0.25)",
+          "rgba(76, 175, 80, 0.34)",
+          "rgba(216, 239, 188, 0.24)",
+          "rgba(104, 197, 109, 0.24)",
+          "rgba(255, 200, 75, 0.18)",
         ][i % 4],
         delay: Math.random() * 6,
       })),
@@ -27,7 +27,7 @@ export function CinematicBackdrop({ intensity = 1 }: { intensity?: number }) {
   );
 
   return (
-    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[#050505]">
+    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[#0d0f12]">
       <div className={`absolute inset-0 grid-bg ${lowPerformance ? "opacity-20" : "opacity-30"}`} />
       {orbs.map((o) => (
         <motion.div
@@ -52,7 +52,7 @@ export function CinematicBackdrop({ intensity = 1 }: { intensity?: number }) {
         />
       ))}
       <Particles count={particleCount} staticMode={lowPerformance} />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#050505]" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0d0f12]" />
     </div>
   );
 }
@@ -141,7 +141,7 @@ export function SectionHeading({
       <h1 className={`bg-clip-text pb-1 font-display text-4xl font-bold tracking-tight text-transparent drop-shadow-sm md:text-5xl ${
         isDark
           ? "bg-gradient-to-br from-white via-white to-white/40"
-          : "bg-gradient-to-br from-slate-900 via-indigo-700 to-fuchsia-500"
+          : "bg-gradient-to-br from-slate-900 via-emerald-700 to-[#4caf50]"
       }`}>{title}</h1>
       {sub && <p className={`mt-3 max-w-2xl ${isDark ? "text-white/55" : "text-slate-600"}`}>{sub}</p>}
     </div>

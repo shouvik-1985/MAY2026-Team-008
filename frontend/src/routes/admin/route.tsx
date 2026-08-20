@@ -156,8 +156,8 @@ function AdminShell({ children }: { children: ReactNode }) {
                       className="absolute inset-0 rounded-2xl"
                       style={{
                         background:
-                          "linear-gradient(135deg, oklch(0.65 0.28 305 / 0.25), oklch(0.82 0.18 200 / 0.1))",
-                        border: "1px solid oklch(0.7 0.25 310 / 0.4)",
+                          "linear-gradient(135deg, rgba(76, 175, 80, 0.24), rgba(216, 239, 188, 0.1))",
+                        border: "1px solid rgba(216, 239, 188, 0.38)",
                       }}
                     />
                   )}
@@ -191,7 +191,7 @@ function AdminShell({ children }: { children: ReactNode }) {
         }`}>
           <div className="flex items-center gap-3">
             <div className={`flex size-11 items-center justify-center rounded-2xl ${isDark ? "border border-white/10 bg-white/[0.04]" : "border border-slate-200 bg-slate-100"}`}>
-              <Shield className={`size-5 ${isDark ? "text-cyan-200" : "text-slate-700"}`} />
+              <Shield className={`size-5 ${isDark ? "text-[#d8efbc]" : "text-[#2f8f46]"}`} />
             </div>
             <div>
               <div className={`${isDark ? "text-white/40" : "text-slate-500"} text-xs uppercase tracking-[0.3em]`}>Admin desk</div>
@@ -202,7 +202,7 @@ function AdminShell({ children }: { children: ReactNode }) {
               animate={{ opacity: [0.7, 1, 0.7] }}
               transition={{ duration: 3, repeat: Infinity }}
             >
-              <MapPin className="size-3.5 text-cyan-200" />
+              <MapPin className="size-3.5 text-[#d8efbc]" />
               Attendance radius control
             </motion.div>
             <button
@@ -210,10 +210,10 @@ function AdminShell({ children }: { children: ReactNode }) {
               className={`ml-3 hidden items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] transition-all md:inline-flex ${
                 isDark
                   ? "border border-white/10 bg-white/[0.08] text-white hover:bg-white/15"
-                  : "border border-slate-200 bg-slate-100 text-slate-900 hover:bg-slate-200"
+                  : "border border-[#a5d6a7] bg-[#ecf8e6] text-[#1f7a32] hover:bg-[#d8efbc]"
               }`}
             >
-              {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              {isDark ? <Sun className="size-4 text-amber-300" /> : <Moon className="size-4 text-[#2f8f46]" />}
               {isDark ? "Light Mode" : "Dark Mode"}
             </button>
           </div>

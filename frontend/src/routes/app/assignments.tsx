@@ -335,10 +335,10 @@ function AssignmentsPage() {
               onClick={() => setFilterCat(cat)}
               className={`px-4 py-2 rounded-full text-xs uppercase tracking-[0.15em] transition whitespace-nowrap ${
                 filterCat === cat
-                  ? "bg-indigo-600 text-white font-bold shadow-md"
+                  ? "border border-[#d8efbc]/70 bg-[#d8efbc] text-[#101417] font-extrabold shadow-[0_0_18px_rgba(76,175,80,0.28)]"
                   : isDark
-                    ? "glass text-white/60 hover:text-white"
-                    : "border border-slate-300 bg-white/90 text-slate-800 hover:text-slate-950 font-bold shadow-sm"
+                    ? "border border-white/10 bg-white/[0.04] text-white/70 hover:border-[#d8efbc]/40 hover:bg-white/[0.08] hover:text-[#d8efbc]"
+                    : "border border-[#a5d6a7] bg-white/90 text-slate-800 hover:bg-[#ecf8e6] hover:text-[#1f7a32] font-bold shadow-sm"
               }`}
             >
               {cat}
@@ -401,7 +401,7 @@ function AssignmentsPage() {
                     animate={{ width: `${a.progress}%` }}
                     transition={{ duration: 1 }}
                     className="h-full"
-                    style={{ background: isDark ? "var(--grad-aurora)" : "#4f46e5" }}
+                    style={{ background: isDark ? "var(--grad-aurora)" : "#4caf50" }}
                   />
                 </div>
               </div>
@@ -423,7 +423,7 @@ function AssignmentsPage() {
                 ) : (
                   <button
                     onClick={() => openAssignment(a)}
-                    className="text-xs uppercase tracking-wider font-bold text-white bg-indigo-600 hover:bg-indigo-700 inline-flex items-center gap-2 rounded-full px-5 py-2.5 shadow-md transition"
+                    className="text-xs uppercase tracking-wider font-extrabold text-[#101417] bg-[#d8efbc] hover:bg-[#c8e9a8] inline-flex items-center gap-2 rounded-full px-5 py-2.5 shadow-[0_10px_26px_rgba(76,175,80,0.24)] transition hover:brightness-105"
                   >
                     <Upload className="size-3.5" /> {assignmentType(a) === "file" ? "Upload Assignment" : "Start Assignment"}
                   </button>
@@ -1091,9 +1091,9 @@ function StatusPill({
   return (
     <span
       className={`text-[10px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] border ${
-        isDark ? "border-purple-500/30" : "border-purple-300 shadow-sm"
+        isDark ? "border-emerald-300/30" : "border-emerald-300 shadow-sm"
       }`}
-      style={{ background: isDark ? "oklch(0.72 0.27 350 / 0.2)" : "#f3e8ff", color: isDark ? "oklch(0.85 0.18 350)" : "#7e22ce" }}
+      style={{ background: isDark ? "rgba(76, 175, 80, 0.18)" : "#ecf8e6", color: isDark ? "#d8efbc" : "#1f7a32" }}
     >
       In Progress
     </span>

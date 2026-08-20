@@ -12,7 +12,7 @@ const STATUS_META: Record<
   { color: string; label: string; icon: React.ComponentType<{ className?: string }> }
 > = {
   approved: { color: "oklch(0.72 0.22 150)", label: "Approved", icon: CheckCircle2 },
-  applied: { color: "oklch(0.82 0.18 200)", label: "Applied", icon: Clock },
+  applied: { color: "oklch(0.82 0.18 150)", label: "Applied", icon: Clock },
   eligible: { color: "oklch(0.85 0.12 60)", label: "Eligible", icon: Sparkles },
   rejected: { color: "oklch(0.65 0.25 25)", label: "Rejected", icon: XCircle },
 };
@@ -111,7 +111,7 @@ function ScholarshipsPage() {
                     transition={{ duration: 1.2 }}
                     className="h-full"
                     style={{
-                      background: `linear-gradient(90deg, ${meta.color}, oklch(0.7 0.25 310))`,
+                      background: `linear-gradient(90deg, ${meta.color}, oklch(0.82 0.18 150))`,
                     }}
                   />
                 </div>

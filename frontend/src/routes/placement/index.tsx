@@ -601,7 +601,7 @@ function PlacementManagerPage() {
                     stroke="none"
                   >
                     {topSkillsData.map((entry, index) => {
-                      const colors = ["#10b981", "#0d9488", "#06b6d4", "#6366f1", "#8b5cf6"];
+                      const colors = ["#4caf50", "#68c56d", "#8fba7c", "#d8efbc", "#ffc84b"];
                       return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} stroke={isDark ? "rgba(255,255,255,0.1)" : "#ffffff"} strokeWidth={2} />;
                     })}
                   </Pie>
@@ -625,7 +625,7 @@ function PlacementManagerPage() {
             {/* Skill Legend Badges */}
             <div className="mt-2 flex flex-wrap justify-center gap-2">
               {topSkillsData.map((entry, index) => {
-                const colors = ["#10b981", "#0d9488", "#06b6d4", "#6366f1", "#8b5cf6"];
+                const colors = ["#4caf50", "#68c56d", "#8fba7c", "#d8efbc", "#ffc84b"];
                 return (
                   <div
                     key={entry.name}
@@ -669,8 +669,8 @@ function PlacementManagerPage() {
                 <AreaChart data={cgpaData} margin={{ top: 15, right: 15, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCgpa" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={isDark ? 0.6 : 0.4} />
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                      <stop offset="5%" stopColor="#4caf50" stopOpacity={isDark ? 0.6 : 0.4} />
+                      <stop offset="95%" stopColor="#d8efbc" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
                   <XAxis
@@ -699,12 +699,12 @@ function PlacementManagerPage() {
                       fontSize: "12px",
                       fontWeight: 600,
                     }}
-                    itemStyle={{ color: "#0891b2", fontWeight: 700 }}
+                    itemStyle={{ color: "#2f8f46", fontWeight: 700 }}
                   />
                   <Area
                     type="monotone"
                     dataKey="count"
-                    stroke="#06b6d4"
+                    stroke="#4caf50"
                     strokeWidth={3}
                     fillOpacity={1}
                     fill="url(#colorCgpa)"
@@ -881,7 +881,7 @@ function PlacementManagerPage() {
             <button
               type="submit"
               disabled={roleSaving}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-300/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.52),rgba(6,182,212,0.32))] px-5 py-3 text-xs font-semibold uppercase tracking-[0.22em] text-white shadow-[0_10px_30px_rgba(34,211,238,0.15)] transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#d8efbc]/70 bg-[#d8efbc] px-5 py-3 text-xs font-extrabold uppercase tracking-[0.22em] text-[#101417] shadow-[0_10px_30px_rgba(76,175,80,0.22)] transition hover:bg-[#c8e9a8] disabled:cursor-wait disabled:opacity-60"
             >
               {roleSaving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
               Create role
@@ -1203,7 +1203,7 @@ function PlacementManagerPage() {
                     onClick={() => setSelectedId(application.id)}
                     className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
                       isSelected
-                        ? "border-cyan-300/30 bg-[linear-gradient(135deg,rgba(34,211,238,0.12),rgba(34,211,238,0.02))] shadow-[0_10px_30px_rgba(34,211,238,0.08)]"
+                        ? "border-[#d8efbc]/40 bg-[linear-gradient(135deg,rgba(76,175,80,0.16),rgba(216,239,188,0.04))] shadow-[0_10px_30px_rgba(76,175,80,0.1)]"
                         : "border-white/8 bg-white/[0.02] hover:border-white/16 hover:bg-white/[0.045]"
                     }`}
                   >
@@ -1465,12 +1465,12 @@ function PlacementManagerPage() {
                   disabled={saving}
                   className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border px-5 py-3 text-xs font-extrabold uppercase tracking-[0.22em] transition disabled:cursor-wait disabled:opacity-60 ${
                     isDark
-                      ? "border-cyan-300/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.55),rgba(6,182,212,0.35))] text-white shadow-[0_10px_30px_rgba(34,211,238,0.15)] hover:brightness-110"
-                      : "border-cyan-500 bg-cyan-600 text-white hover:bg-cyan-700 shadow-md shadow-cyan-200/60"
+                      ? "border-[#d8efbc]/70 bg-[#d8efbc] text-[#101417] shadow-[0_10px_30px_rgba(76,175,80,0.22)] hover:bg-[#c8e9a8]"
+                      : "border-[#4caf50] bg-[#d8efbc] text-[#101417] hover:bg-[#c8e9a8] shadow-md shadow-green-200/60"
                   }`}
                 >
-                  {saving ? <Loader2 className="size-4 animate-spin text-white" /> : <Send className="size-4 text-white" />}
-                  <span className="text-white font-extrabold">
+                  {saving ? <Loader2 className="size-4 animate-spin text-[#101417]" /> : <Send className="size-4 text-[#101417]" />}
+                  <span className="text-[#101417] font-extrabold">
                     {selected.status === "selected" ? "Resend selection" : "Notify candidate"}
                   </span>
                 </button>

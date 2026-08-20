@@ -90,6 +90,8 @@ type AdminActionToastState = {
 const ACCOUNT_TOAST_TIMEOUT_MS = 5_000;
 const CERTIFICATE_TOAST_TIMEOUT_MS = 5_000;
 const ADMIN_STATUS_TOAST_TIMEOUT_MS = 5_000;
+const ADMIN_PRIMARY_ACTION_CLASS =
+  "inline-flex items-center justify-center gap-2 rounded-2xl border border-[#d8efbc]/80 bg-[#d8efbc] px-5 py-3 text-xs font-extrabold uppercase tracking-[0.2em] text-[#101417] shadow-[0_10px_24px_rgba(76,175,80,0.22)] transition hover:bg-[#c8e9a8] hover:shadow-[0_14px_30px_rgba(76,175,80,0.28)] disabled:cursor-wait disabled:opacity-60";
 
 function normalizeAdminSection(hash: string): AdminSection {
   const raw = hash.replace("#", "");
@@ -958,8 +960,12 @@ function AdminDeskPage() {
                   <button
                     type="button"
                     onClick={() => setManagementView("tracker")}
-                    className={`rounded-full px-4 py-2 transition ${
-                      managementView === "tracker" ? "bg-white/12 text-white" : "text-white/45 hover:text-white"
+                    className={`rounded-full border px-4 py-2 font-bold transition ${
+                      managementView === "tracker"
+                        ? "border-[#d8efbc]/70 bg-[#d8efbc] text-[#101417] shadow-[0_8px_18px_rgba(76,175,80,0.22)]"
+                        : isDark
+                          ? "border-transparent text-white/60 hover:text-[#d8efbc]"
+                          : "border-transparent text-slate-600 hover:text-[#1f7a32]"
                     }`}
                   >
                     Tracker
@@ -967,8 +973,12 @@ function AdminDeskPage() {
                   <button
                     type="button"
                     onClick={() => setManagementView("slots")}
-                    className={`rounded-full px-4 py-2 transition ${
-                      managementView === "slots" ? "bg-white/12 text-white" : "text-white/45 hover:text-white"
+                    className={`rounded-full border px-4 py-2 font-bold transition ${
+                      managementView === "slots"
+                        ? "border-[#d8efbc]/70 bg-[#d8efbc] text-[#101417] shadow-[0_8px_18px_rgba(76,175,80,0.22)]"
+                        : isDark
+                          ? "border-transparent text-white/60 hover:text-[#d8efbc]"
+                          : "border-transparent text-slate-600 hover:text-[#1f7a32]"
                     }`}
                   >
                     Slots
@@ -1423,12 +1433,12 @@ function AdminDeskPage() {
               <button
                 type="submit"
                 disabled={annPosting}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-600 px-7 py-3.5 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-[0_0_25px_rgba(217,70,239,0.35)] transition-all duration-200 hover:shadow-[0_0_35px_rgba(6,182,212,0.45)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 cursor-pointer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-2xl border border-[#d8efbc]/70 bg-[#d8efbc] px-7 py-3.5 text-xs font-extrabold uppercase tracking-[0.2em] text-[#101417] shadow-[0_0_25px_rgba(76,175,80,0.25)] transition-all duration-200 hover:bg-[#c8e9a8] hover:shadow-[0_0_35px_rgba(216,239,188,0.28)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 cursor-pointer"
               >
                 {annPosting ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <Sparkles className="size-4 text-cyan-200" />
+                  <Sparkles className="size-4 text-[#101417]" />
                 )}
                 {annPosting ? "Broadcasting Announcement..." : "Broadcast Announcement & Generate Notifications"}
               </button>
@@ -1597,8 +1607,7 @@ function AdminDeskPage() {
                     </div>
                     <button
                       disabled={saving || loading}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition disabled:cursor-wait disabled:opacity-60"
-                      style={{ background: "var(--grad-aurora)" }}
+                      className={ADMIN_PRIMARY_ACTION_CLASS}
                     >
                       <Save className="size-4" />
                       {saving ? "Saving" : "Save radius"}
@@ -1643,14 +1652,20 @@ function AdminDeskPage() {
                       </div>
                     </div>
                     <div className="grid gap-4">
-                      <div className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] p-1 text-xs uppercase tracking-[0.18em] text-white/45">
+                      <div className={`inline-flex w-fit rounded-full border p-1 text-xs uppercase tracking-[0.18em] ${
+                        isDark ? "border-white/10 bg-white/[0.04] text-white/55" : "border-slate-200 bg-white text-slate-600 shadow-sm"
+                      }`}>
                         {(["months", "days"] as const).map((unit) => (
                           <button
                             key={unit}
                             type="button"
                             onClick={() => setSemesterDurationUnit(unit)}
-                            className={`rounded-full px-4 py-2 transition ${
-                              semesterDurationUnit === unit ? "bg-white/12 text-white" : "hover:text-white"
+                            className={`rounded-full border px-4 py-2 font-bold transition ${
+                              semesterDurationUnit === unit
+                                ? "border-[#d8efbc]/70 bg-[#d8efbc] text-[#101417] shadow-[0_8px_18px_rgba(76,175,80,0.18)]"
+                                : isDark
+                                  ? "border-transparent text-white/60 hover:text-[#d8efbc]"
+                                  : "border-transparent text-slate-600 hover:text-[#1f7a32]"
                             }`}
                           >
                             {unit}
@@ -1682,8 +1697,7 @@ function AdminDeskPage() {
                       </label>
                       <button
                         disabled={saving || loading}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition disabled:cursor-wait disabled:opacity-60"
-                        style={{ background: "var(--grad-aurora)" }}
+                        className={ADMIN_PRIMARY_ACTION_CLASS}
                       >
                         <Save className="size-4" />
                         Save duration
@@ -1726,8 +1740,7 @@ function AdminDeskPage() {
                     </div>
                     <button
                       disabled={saving || loading}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition disabled:cursor-wait disabled:opacity-60"
-                      style={{ background: "var(--grad-aurora)" }}
+                      className={`${ADMIN_PRIMARY_ACTION_CLASS} w-full`}
                     >
                       <Save className="size-4" />
                       Release slots
@@ -1853,8 +1866,7 @@ function AdminDeskPage() {
                       type="button"
                       disabled={saving || loading}
                       onClick={() => saveSemesterFee(setting.semester)}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition disabled:cursor-wait disabled:opacity-60"
-                      style={{ background: "var(--grad-aurora)" }}
+                      className={ADMIN_PRIMARY_ACTION_CLASS}
                     >
                       {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                       Save fee
@@ -2146,8 +2158,7 @@ function AdminDeskPage() {
                     type="button"
                     disabled={Boolean(selectedCertificateAction)}
                     onClick={approveCertificateRequest}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition disabled:cursor-wait disabled:opacity-60"
-                    style={{ background: "var(--grad-aurora)" }}
+                    className={ADMIN_PRIMARY_ACTION_CLASS}
                   >
                     {selectedCertificateAction === "approve" ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -2566,8 +2577,8 @@ function RatioRow({
   const isDark = theme === "dark";
   const gradient =
     tone === "cyan"
-      ? "linear-gradient(90deg, #16d5ff 0%, #00b9ff 100%)"
-      : "linear-gradient(90deg, #ff5ec7 0%, #f139a7 100%)";
+      ? "linear-gradient(90deg, #4caf50 0%, #68c56d 62%, #d8efbc 100%)"
+      : "linear-gradient(90deg, #8fba7c 0%, #4caf50 100%)";
   return (
     <div>
       <div className={`flex items-center justify-between gap-3 text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
@@ -2582,25 +2593,43 @@ function RatioRow({
 }
 
 function AttendanceOverviewChart({ data }: { data: AdminDashboard["attendance_overview"] }) {
-  const peak = Math.max(1, ...data.map((item) => Math.max(item.present, item.absent)));
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <div className="grid min-h-[320px] grid-cols-5 items-end gap-4">
-      {data.map((item) => (
-        <div key={item.date} className="flex h-full flex-col justify-end">
-          <div className="mb-3 flex h-[220px] items-end justify-center gap-2">
-            <div
-              className="w-10 rounded-t-[18px] bg-gradient-to-t from-cyan-500/25 via-cyan-400/70 to-emerald-300"
-              style={{ height: `${Math.max(10, (item.present / peak) * 100)}%` }}
-            />
-            <div
-              className="w-10 rounded-t-[18px] bg-gradient-to-t from-rose-500/30 via-rose-400/80 to-orange-300"
-              style={{ height: `${Math.max(10, (item.absent / peak) * 100)}%` }}
-            />
+      {data.map((item) => {
+        const attendancePercent = Math.max(0, Math.min(100, Number.isFinite(item.attendance) ? item.attendance : 0));
+        const absentPercent = Math.max(0, 100 - attendancePercent);
+        const presentHeight = attendancePercent > 0 ? Math.max(16, attendancePercent) : 0;
+        const absentHeight = absentPercent > 0 ? Math.max(16, absentPercent) : 0;
+
+        return (
+          <div key={item.date} className="flex h-full flex-col justify-end">
+            <div className={`mb-3 flex h-[220px] items-end justify-center gap-2 rounded-b-2xl border-b ${
+              isDark ? "border-white/10" : "border-slate-200"
+            }`}>
+              <div
+                className="w-10 rounded-t-[18px] bg-gradient-to-t from-[#4caf50]/50 via-[#68c56d]/85 to-[#d8efbc] shadow-[0_10px_30px_rgba(76,175,80,0.22)]"
+                style={{ height: `${presentHeight}%` }}
+              />
+              <div
+                className="w-10 rounded-t-[18px] bg-gradient-to-t from-amber-500/30 via-amber-300/65 to-[#f3e7ae]"
+                style={{ height: `${absentHeight}%` }}
+              />
+            </div>
+            <div className={`text-center text-[11px] uppercase tracking-[0.18em] ${
+              isDark ? "text-white/35" : "text-slate-500"
+            }`}>
+              {item.label}
+            </div>
+            <div className={`mt-1 text-center text-xs font-semibold ${
+              isDark ? "text-white/60" : "text-slate-700"
+            }`}>
+              {attendancePercent.toFixed(0)}%
+            </div>
           </div>
-          <div className="text-center text-[11px] uppercase tracking-[0.18em] text-white/35">{item.label}</div>
-          <div className="mt-1 text-center text-xs text-white/55">{item.attendance.toFixed(0)}%</div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

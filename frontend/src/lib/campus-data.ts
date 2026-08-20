@@ -6,19 +6,19 @@ export const ROLES: { id: RoleId; title: string; tagline: string; accent: string
     id: "student",
     title: "Student",
     tagline: "Your university in one place.",
-    accent: "oklch(0.7 0.25 310)",
+    accent: "#4caf50",
   },
   {
     id: "faculty",
     title: "Professor",
     tagline: "Teach, mentor, and orchestrate.",
-    accent: "oklch(0.82 0.18 200)",
+    accent: "#68c56d",
   },
   {
     id: "admin",
     title: "Administrator",
     tagline: "Run the entire campus.",
-    accent: "oklch(0.72 0.27 350)",
+    accent: "#8fba7c",
   },
   {
     id: "scholarship",
@@ -30,7 +30,7 @@ export const ROLES: { id: RoleId; title: string; tagline: string; accent: string
     id: "placement",
     title: "Placement Partner",
     tagline: "Connect students with internships and jobs.",
-    accent: "oklch(0.82 0.18 200)",
+    accent: "#d8efbc",
   },
 ];
 
@@ -49,15 +49,15 @@ export const SCHEDULE_TODAY = [
     time: "09:00",
     title: "Advanced Machine Learning",
     room: "Hall · A-201",
-    color: "oklch(0.7 0.25 310)",
+    color: "#4caf50",
   },
   {
     time: "11:00",
     title: "Distributed Systems Lab",
     room: "Lab · C-3",
-    color: "oklch(0.82 0.18 200)",
+    color: "#68c56d",
   },
-  { time: "14:00", title: "HCI Studio", room: "Studio · D-12", color: "oklch(0.72 0.27 350)" },
+  { time: "14:00", title: "HCI Studio", room: "Studio · D-12", color: "#8fba7c" },
   { time: "16:30", title: "Robotics Seminar", room: "Auditorium 2", color: "oklch(0.85 0.12 60)" },
 ];
 
@@ -120,11 +120,11 @@ export const ANNOUNCEMENTS = [
 ];
 
 export const ATTENDANCE_SUBJECTS = [
-  { name: "Advanced ML", pct: 96, color: "oklch(0.7 0.25 310)" },
-  { name: "Distributed Systems", pct: 88, color: "oklch(0.82 0.18 200)" },
-  { name: "HCI Studio", pct: 94, color: "oklch(0.72 0.27 350)" },
+  { name: "Advanced ML", pct: 96, color: "#4caf50" },
+  { name: "Distributed Systems", pct: 88, color: "#68c56d" },
+  { name: "HCI Studio", pct: 94, color: "#8fba7c" },
   { name: "Robotics", pct: 81, color: "oklch(0.85 0.12 60)" },
-  { name: "Mathematics", pct: 90, color: "oklch(0.65 0.25 260)" },
+  { name: "Mathematics", pct: 90, color: "#d8efbc" },
   { name: "Ethics in AI", pct: 100, color: "oklch(0.78 0.18 50)" },
 ];
 
@@ -238,7 +238,7 @@ export const EVENTS = [
     date: "Apr 18",
     venue: "Main Auditorium",
     spots: 312,
-    accent: "oklch(0.72 0.27 350)",
+    accent: "#8fba7c",
   },
   {
     id: 2,
@@ -246,7 +246,7 @@ export const EVENTS = [
     date: "Apr 22",
     venue: "Innovation Hub",
     spots: 84,
-    accent: "oklch(0.7 0.25 310)",
+    accent: "#4caf50",
   },
   {
     id: 3,
@@ -254,7 +254,7 @@ export const EVENTS = [
     date: "May 04",
     venue: "Hall A-201",
     spots: 220,
-    accent: "oklch(0.82 0.18 200)",
+    accent: "#68c56d",
   },
   {
     id: 4,

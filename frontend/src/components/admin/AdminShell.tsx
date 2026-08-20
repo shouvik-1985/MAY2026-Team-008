@@ -33,11 +33,11 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
-  { href: "#dashboard", label: "Dashboard", icon: LayoutDashboard, pill: "bg-violet-500/30 text-violet-300" },
-  { href: "#students", label: "Students", icon: Users, pill: "bg-cyan-500/30 text-cyan-300" },
-  { href: "#professors", label: "Professors", icon: University, pill: "bg-purple-500/30 text-purple-300" },
+  { href: "#dashboard", label: "Dashboard", icon: LayoutDashboard, pill: "bg-green-500/20 text-lime-100" },
+  { href: "#students", label: "Students", icon: Users, pill: "bg-green-500/20 text-lime-100" },
+  { href: "#professors", label: "Professors", icon: University, pill: "bg-green-500/20 text-lime-100" },
   { href: "#announcements", label: "Announcements", icon: Megaphone, pill: "bg-orange-500/30 text-orange-300" },
-  { href: "#management", label: "Management", icon: Gauge, pill: "bg-blue-500/30 text-blue-300" },
+  { href: "#management", label: "Management", icon: Gauge, pill: "bg-green-500/20 text-lime-100" },
   { href: "#complaints", label: "Complaints", icon: AlertCircle, pill: "bg-rose-500/30 text-rose-300" },
   { href: "#fees", label: "Fee Payment", icon: Wallet, pill: "bg-lime-500/30 text-lime-300" },
   { href: "#certificates", label: "Certificates", icon: Award, pill: "bg-amber-500/30 text-amber-300" },
@@ -94,7 +94,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={`relative min-h-screen overflow-x-hidden ${isDark ? "text-white bg-[#050505]" : "text-slate-900 bg-slate-50"}`}>
+    <div className={`cv-admin-content relative min-h-screen overflow-x-hidden bg-[var(--page-bg)] ${isDark ? "text-white" : "text-slate-900"}`}>
       {/* Sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 80 : 268 }}
@@ -103,12 +103,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
       >
         <div
           className="relative h-full rounded-3xl flex flex-col overflow-hidden shadow-2xl shadow-black/30"
-          style={{ background: "linear-gradient(160deg, #13112b 0%, #1a1744 30%, #111d3e 65%, #0a1628 100%)" }}
+          style={{ background: "linear-gradient(160deg, #121417 0%, #142016 42%, #0d0f12 100%)" }}
         >
           {/* Radial Top Glow */}
           <div
             className="pointer-events-none absolute top-0 left-0 w-full h-52 rounded-t-3xl"
-            style={{ background: "radial-gradient(ellipse at 50% -10%, rgba(139,92,246,0.45), transparent 65%)" }}
+            style={{ background: "radial-gradient(ellipse at 50% -10%, rgba(76,175,80,0.42), transparent 65%)" }}
           />
 
           {/* Logo / Header */}
@@ -135,12 +135,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 style={{
                   background: isDark
                     ? "rgba(251,191,36,0.18)"
-                    : "rgba(99,102,241,0.22)",
+                    : "rgba(76,175,80,0.2)",
                 }}
               >
                 {isDark
                   ? <Sun className="size-3.5 text-amber-300" />
-                  : <Moon className="size-3.5 text-indigo-300" />
+                  : <Moon className="size-3.5 text-[#2f8f46]" />
                 }
               </button>
               {/* Collapse toggle */}
@@ -180,7 +180,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 >
                   {/* Active Left Indicator Bar */}
                   {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-full bg-gradient-to-b from-violet-400 to-blue-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-full bg-gradient-to-b from-[#d8efbc] to-[#4caf50] shadow-[0_0_8px_rgba(76,175,80,0.65)]" />
                   )}
 
                   {/* Icon Pill */}
@@ -210,7 +210,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/60 hover:text-white hover:bg-white/[0.08] transition-all"
             >
               <div className={`size-7 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 ${
-                isDark ? "bg-amber-500/20 text-amber-300" : "bg-indigo-400/20 text-indigo-300"
+                isDark ? "bg-amber-500/20 text-amber-300" : "bg-green-500/20 text-[#2f8f46]"
               }`}>
                 {isDark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
               </div>
@@ -267,12 +267,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
               className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.12em] border transition-all shadow-xs ${
                 isDark
                   ? "bg-white/10 border-white/20 text-white hover:bg-white/15"
-                  : "bg-indigo-50 border-indigo-200 text-indigo-950 hover:bg-indigo-100 hover:border-indigo-300"
+                  : "bg-[#ecf8e6] border-[#a5d6a7] text-[#1f7a32] hover:bg-[#d8efbc] hover:border-[#8fba7c]"
               }`}
             >
               {isDark
                 ? <><Sun className="size-3.5 text-amber-300 fill-amber-300/20" /><span className="text-white">Light Mode</span></>
-                : <><Moon className="size-3.5 text-indigo-600 fill-indigo-600/20" /><span className="text-indigo-950 font-bold">Dark Mode</span></>
+                : <><Moon className="size-3.5 text-[#2f8f46] fill-green-600/20" /><span className="text-[#1f7a32] font-bold">Dark Mode</span></>
               }
             </button>
             <button className={`relative flex size-10 items-center justify-center rounded-full border transition ${

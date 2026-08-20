@@ -196,7 +196,7 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
           >
             <Link to="/professor" className="flex items-center gap-2.5 min-w-0">
               <span
-                className="size-7.5 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/20"
+                className="size-7.5 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-green-500/20"
                 style={{ background: "var(--grad-aurora)" }}
               >
                 <Sparkles className="size-4 text-white" />
@@ -209,7 +209,7 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
             </Link>
             <button
               onClick={() => setCollapsed((value) => !value)}
-              className={isDark ? "text-slate-400 hover:text-white p-1 rounded-lg transition" : "text-slate-400 hover:text-slate-900 hover:bg-[#EEF2FF] p-1 rounded-lg transition"}
+              className={isDark ? "text-slate-400 hover:text-white p-1 rounded-lg transition" : "text-slate-400 hover:text-slate-900 hover:bg-[#ecf8e6] p-1 rounded-lg transition"}
               aria-label="Collapse sidebar"
             >
               <motion.span animate={{ rotate: collapsed ? 180 : 0 }}>
@@ -236,23 +236,23 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
                   className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
                     isActive
                       ? isDark
-                        ? "text-white font-bold bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
-                        : "text-[#3730A3] font-extrabold shadow-2xs"
+                        ? "text-[#101417] font-bold bg-[#d8efbc] shadow-lg shadow-green-600/25 border border-[#d8efbc]/70"
+                        : "text-[#1f7a32] font-extrabold shadow-2xs"
                       : isDark
                         ? "text-slate-300/80 font-medium hover:text-white hover:bg-white/10"
-                        : "text-slate-700 font-semibold hover:text-[#3730A3]"
+                        : "text-slate-700 font-semibold hover:text-[#1f7a32]"
                   }`}
                   style={
                     !isDark
                       ? {
-                          backgroundColor: isActive ? "#EEF2FF" : undefined,
-                          borderLeft: isActive ? "4px solid #6D5DF6" : "4px solid transparent",
+                          backgroundColor: isActive ? "#ecf8e6" : undefined,
+                          borderLeft: isActive ? "4px solid #4caf50" : "4px solid transparent",
                         }
                       : undefined
                   }
                   onMouseEnter={(e) => {
                     if (!isDark && !isActive) {
-                      e.currentTarget.style.backgroundColor = "#EEF2FF";
+                      e.currentTarget.style.backgroundColor = "#ecf8e6";
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -263,8 +263,8 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
                 >
                   <Icon className={`size-4 shrink-0 transition-colors ${
                     isActive
-                      ? isDark ? "text-white" : "text-[#6D5DF6]"
-                      : isDark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-[#6D5DF6]"
+                      ? isDark ? "text-[#101417]" : "text-[#2f8f46]"
+                      : isDark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-[#2f8f46]"
                   }`} />
                   {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
                 </a>
@@ -330,12 +330,12 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
               className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.12em] border transition-all shadow-xs ${
                 isDark
                   ? "bg-white/10 border-white/20 text-white hover:bg-white/15"
-                  : "bg-indigo-50 border-indigo-200 text-indigo-950 hover:bg-indigo-100 hover:border-indigo-300"
+                  : "bg-[#ecf8e6] border-[#a5d6a7] text-[#1f7a32] hover:bg-[#d8efbc] hover:border-[#8fba7c]"
               }`}
             >
               {isDark
                 ? <><Sun className="size-3.5 text-amber-300 fill-amber-300/20" /><span className="text-white">Light Mode</span></>
-                : <><Moon className="size-3.5 text-indigo-600 fill-indigo-600/20" /><span className="text-indigo-950 font-bold">Dark Mode</span></>
+                : <><Moon className="size-3.5 text-[#2f8f46] fill-green-600/20" /><span className="text-[#1f7a32] font-bold">Dark Mode</span></>
               }
             </button>
             <button

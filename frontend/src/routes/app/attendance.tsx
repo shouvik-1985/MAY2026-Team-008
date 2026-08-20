@@ -73,7 +73,7 @@ function AttendancePage() {
                 style={{
                   background: marked
                     ? isPresent
-                      ? "linear-gradient(180deg, oklch(0.7 0.25 310), oklch(0.65 0.25 260 / 0.3))"
+                      ? "linear-gradient(180deg, #d8efbc, rgba(76, 175, 80, 0.28))"
                       : "linear-gradient(180deg, oklch(0.68 0.22 20), oklch(0.48 0.18 20 / 0.28))"
                     : isDark
                       ? "linear-gradient(180deg, oklch(1 0 0 / 0.20), oklch(1 0 0 / 0.04))"
@@ -120,8 +120,8 @@ function AttendancePage() {
         <svg viewBox="0 0 600 160" className="w-full h-40">
           <defs>
             <linearGradient id="a-fill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor={isDark ? "oklch(0.7 0.25 310)" : "#4f46e5"} stopOpacity="0.45" />
-              <stop offset="100%" stopColor={isDark ? "oklch(0.7 0.25 310)" : "#4f46e5"} stopOpacity="0" />
+              <stop offset="0%" stopColor={isDark ? "#4caf50" : "#2f8f46"} stopOpacity="0.45" />
+              <stop offset="100%" stopColor={isDark ? "#4caf50" : "#2f8f46"} stopOpacity="0" />
             </linearGradient>
           </defs>
           <motion.path
@@ -130,7 +130,7 @@ function AttendancePage() {
             transition={{ duration: 2 }}
             d={`M ${monthly.map((item, i) => `${(i / Math.max(monthly.length - 1, 1)) * 580 + 10},${150 - item.attendance * 1.2}`).join(" L ")}`}
             fill="none"
-            stroke={isDark ? "oklch(0.82 0.18 200)" : "#2563eb"}
+            stroke={isDark ? "#d8efbc" : "#2f8f46"}
             strokeWidth="3.5"
           />
           <path
@@ -164,7 +164,7 @@ function AttendancePage() {
                     transition={{ duration: 1.2 }}
                     className="h-full rounded-full"
                     style={{
-                      background: "linear-gradient(90deg, oklch(0.82 0.18 200), oklch(0.65 0.25 260))",
+                      background: "linear-gradient(90deg, #d8efbc, #4caf50)",
                     }}
                   />
                 </div>
@@ -209,8 +209,8 @@ function Ring({ pct }: { pct: number }) {
         />
         <defs>
           <linearGradient id="ring-grad" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="oklch(0.65 0.28 305)" />
-            <stop offset="100%" stopColor="oklch(0.82 0.18 200)" />
+            <stop offset="0%" stopColor="#4caf50" />
+            <stop offset="100%" stopColor="#d8efbc" />
           </linearGradient>
         </defs>
       </svg>

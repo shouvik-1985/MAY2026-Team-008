@@ -25,12 +25,12 @@ import { startVoiceCommand, type VoiceCommandController } from "@/lib/voice-comm
 export const Route = createFileRoute("/app/ai")({ component: AIPage });
 
 const CAPS = [
-  { icon: GraduationCap,  label: "Academic Advisor",   desc: "CGPA trends, attendance risk & study plans",      from: "#7c3aed", to: "#4f46e5", prompt: "Analyze my academic performance and suggest improvements" },
-  { icon: ClipboardCheck, label: "Assignment Help",    desc: "Deadlines, submission status & grade insights",   from: "#0891b2", to: "#0369a1", prompt: "What assignments are due soon and how can I prioritize them?" },
+  { icon: GraduationCap,  label: "Academic Advisor",   desc: "CGPA trends, attendance risk & study plans",      from: "#4caf50", to: "#d8efbc", prompt: "Analyze my academic performance and suggest improvements" },
+  { icon: ClipboardCheck, label: "Assignment Help",    desc: "Deadlines, submission status & grade insights",   from: "#68c56d", to: "#4caf50", prompt: "What assignments are due soon and how can I prioritize them?" },
   { icon: Wallet,         label: "Fee Assistant",      desc: "Payment schedules, dues & clearance status",      from: "#d97706", to: "#b45309", prompt: "Summarize my current fee status and upcoming payments" },
-  { icon: BookOpen,       label: "Study Resources",    desc: "Notes, papers & curated learning materials",      from: "#059669", to: "#047857", prompt: "Find relevant study resources for my current semester" },
-  { icon: MessageSquare,  label: "Complaint Tracker",  desc: "Live status of grievances & resolutions",         from: "#db2777", to: "#be185d", prompt: "What is the status of my recent complaints?" },
-  { icon: Zap,            label: "Smart Insights",     desc: "Personalised analytics & campus updates",         from: "#6366f1", to: "#4f46e5", prompt: "Give me a personalised summary of my campus life this week" },
+  { icon: BookOpen,       label: "Study Resources",    desc: "Notes, papers & curated learning materials",      from: "#4caf50", to: "#2f8f46", prompt: "Find relevant study resources for my current semester" },
+  { icon: MessageSquare,  label: "Complaint Tracker",  desc: "Live status of grievances & resolutions",         from: "#8fba7c", to: "#4caf50", prompt: "What is the status of my recent complaints?" },
+  { icon: Zap,            label: "Smart Insights",     desc: "Personalised analytics & campus updates",         from: "#d8efbc", to: "#68c56d", prompt: "Give me a personalised summary of my campus life this week" },
 ];
 
 // Inline scrollbar-hiding style injected once
@@ -127,25 +127,25 @@ function AIPage() {
         {/* ══════ HEADER ══════════════════════════════════════════════ */}
         <div style={{ position: "relative", borderRadius: 14, flexShrink: 0 }}>
           {/* Deep bg */}
-          <div style={{ position: "absolute", inset: 0, borderRadius: 14, background: "linear-gradient(115deg,#0c0122 0%,#07070f 45%,#011018 100%)" }} />
+          <div style={{ position: "absolute", inset: 0, borderRadius: 14, background: "linear-gradient(115deg,#101417 0%,#0d0f12 45%,#142016 100%)" }} />
           {/* Aurora orbs */}
-          {[{ cx: "5%",  cy: "50%", c: "#7c3aed", d: 0   },
-            { cx: "42%", cy: "50%", c: "#ec4899", d: 1.2 },
-            { cx: "75%", cy: "50%", c: "#06b6d4", d: 2.4 }].map((o, i) => (
+          {[{ cx: "5%",  cy: "50%", c: "#4caf50", d: 0   },
+            { cx: "42%", cy: "50%", c: "#d8efbc", d: 1.2 },
+            { cx: "75%", cy: "50%", c: "#ffc84b", d: 2.4 }].map((o, i) => (
             <motion.div key={i} style={{ position: "absolute", left: o.cx, top: "50%", transform: "translate(-50%,-50%)", width: 180, height: 120, borderRadius: "50%", background: `radial-gradient(circle,${o.c}99,transparent 65%)`, filter: "blur(36px)", pointerEvents: "none" }}
               animate={{ opacity: [0.5, 0.85, 0.5] }} transition={{ duration: 4 + i, repeat: Infinity, delay: o.d }} />
           ))}
           {/* Grid */}
           <div style={{ position: "absolute", inset: 0, borderRadius: 14, backgroundImage: "linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px)", backgroundSize: "28px 28px", pointerEvents: "none" }} />
           {/* Border */}
-          <div style={{ position: "absolute", inset: 0, borderRadius: 14, boxShadow: "inset 0 0 0 1px rgba(124,58,237,.4)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", inset: 0, borderRadius: 14, boxShadow: "inset 0 0 0 1px rgba(76,175,80,.38)", pointerEvents: "none" }} />
 
           <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", gap: 10, flexWrap: "wrap" }}>
             {/* Branding */}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ position: "relative" }}>
-                <motion.div style={{ width: 42, height: 42, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg,#7c3aed,#ec4899,#06b6d4)", flexShrink: 0 }}
-                  animate={{ boxShadow: ["0 0 12px #7c3aed55","0 0 26px #ec489966","0 0 12px #06b6d455","0 0 12px #7c3aed55"] }}
+                <motion.div style={{ width: 42, height: 42, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--grad-aurora)", flexShrink: 0 }}
+                  animate={{ boxShadow: ["0 0 12px #4caf5055","0 0 26px #d8efbc66","0 0 12px #68c56d55","0 0 12px #4caf5055"] }}
                   transition={{ duration: 4, repeat: Infinity }}>
                   <Brain size={17} color="#fff" />
                 </motion.div>
@@ -155,7 +155,7 @@ function AIPage() {
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, fontWeight: 700, color: "#fff" }}>CampusVerse Intelligence</span>
-                  <span style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 99, fontWeight: 700, background: "rgba(124,58,237,.22)", border: "1px solid rgba(124,58,237,.5)", color: "#c4b5fd" }}>GenAI</span>
+                  <span style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 99, fontWeight: 700, background: "rgba(76,175,80,.2)", border: "1px solid rgba(216,239,188,.42)", color: "#d8efbc" }}>GenAI</span>
                 </div>
                 <p style={{ fontSize: 10, marginTop: 2, fontFamily: "monospace", color: "rgba(255,255,255,.38)" }}>Synced to your profile · Powered by Gemini</p>
               </div>
@@ -181,7 +181,7 @@ function AIPage() {
 
           {/* ── CHAT PANEL ───────────────────────────────────────────── */}
           {/* NOTE: no overflow:hidden on outer — only on the scroll child */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRadius: 14, background: "rgba(7,7,16,.97)", border: "1px solid rgba(255,255,255,.07)" }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRadius: 14, background: "rgba(7,16,10,.97)", border: "1px solid rgba(216,239,188,.08)" }}>
 
             {/* Scrollable messages area */}
             <div ref={scrollRef} className="ai-scroll"
@@ -197,7 +197,7 @@ function AIPage() {
                     style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                     {/* Greeting */}
                     <div style={{ textAlign: "center", marginBottom: 20 }}>
-                      <motion.p style={{ fontSize: 21, fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, background: "linear-gradient(135deg,#c4b5fd,#f9a8d4,#67e8f9)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 5 }}>
+                      <motion.p style={{ fontSize: 21, fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, background: "linear-gradient(135deg,#ffffff,#d8efbc,#68c56d)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 5 }}>
                         Hello, {dashboard?.user.name?.split(" ")[0] ?? "Student"} 👋
                       </motion.p>
                       <p style={{ fontSize: 10, color: "rgba(255,255,255,.33)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.28em" }}>
@@ -238,13 +238,13 @@ function AIPage() {
                     return (
                       <div key={key} className="msg-group" style={{ display: "flex", gap: 10, justifyContent: isUser ? "flex-end" : "flex-start" }}>
                         {!isUser && (
-                          <div style={{ width: 30, height: 30, borderRadius: 9, flexShrink: 0, marginTop: 2, background: "linear-gradient(135deg,#7c3aed,#06b6d4)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <div style={{ width: 30, height: 30, borderRadius: 9, flexShrink: 0, marginTop: 2, background: "var(--grad-aurora)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <Bot size={13} color="#fff" />
                           </div>
                         )}
                         <div style={{ display: "flex", flexDirection: "column", maxWidth: "76%", alignItems: isUser ? "flex-end" : "flex-start" }}>
                           <div style={{ padding: "11px 15px", fontSize: 13.5, lineHeight: 1.75, whiteSpace: "pre-wrap", wordBreak: "break-word", borderRadius: 14, ...(isUser
-                            ? { background: "linear-gradient(135deg,#fff,#e0e7ff)", color: "#0a0a16", fontWeight: 500, borderBottomRightRadius: 3, boxShadow: "0 4px 18px rgba(124,58,237,.18)" }
+                            ? { background: "linear-gradient(135deg,#fff,#d8efbc)", color: "#101417", fontWeight: 500, borderBottomRightRadius: 3, boxShadow: "0 4px 18px rgba(76,175,80,.18)" }
                             : { background: "rgba(255,255,255,.055)", border: "1px solid rgba(255,255,255,.08)", color: "rgba(255,255,255,.88)", borderBottomLeftRadius: 3 }) }}>
                             {m.text}
                           </div>
@@ -273,12 +273,12 @@ function AIPage() {
                     {typing && (
                       <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                         style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 9, background: "linear-gradient(135deg,#7c3aed,#06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 9, background: "var(--grad-aurora)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           <Bot size={13} color="#fff" />
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "11px 15px", borderRadius: 14, borderBottomLeftRadius: 3, background: "rgba(255,255,255,.055)", border: "1px solid rgba(255,255,255,.08)" }}>
                           {[0, 1, 2].map(j => (
-                            <motion.span key={j} style={{ width: 7, height: 7, borderRadius: "50%", background: "linear-gradient(135deg,#7c3aed,#06b6d4)", display: "block" }}
+                            <motion.span key={j} style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--grad-aurora)", display: "block" }}
                               animate={{ y: [0, -6, 0], opacity: [.35, 1, .35] }} transition={{ duration: .75, repeat: Infinity, delay: j * .16 }} />
                           ))}
                         </div>
@@ -296,8 +296,8 @@ function AIPage() {
                   style={{ padding: "0 18px 10px", display: "flex", flexWrap: "wrap", gap: 7 }}>
                   {(chips.length ? chips : backendPrompts).slice(0, 4).map(p => (
                     <button key={p} onClick={() => void send(p, null)}
-                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 13px", borderRadius: 99, fontSize: 11, background: "rgba(124,58,237,.12)", border: "1px solid rgba(124,58,237,.35)", color: "#c4b5fd", cursor: "pointer" }}>
-                      <Sparkles size={10} color="#a78bfa" />{p}
+                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 13px", borderRadius: 99, fontSize: 11, background: "rgba(76,175,80,.12)", border: "1px solid rgba(216,239,188,.32)", color: "#d8efbc", cursor: "pointer" }}>
+                      <Sparkles size={10} color="#d8efbc" />{p}
                     </button>
                   ))}
                 </motion.div>
@@ -309,9 +309,9 @@ function AIPage() {
               <AnimatePresence>
                 {editIdx !== null && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                    style={{ marginBottom: 7, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 13px", borderRadius: 9, fontSize: 11, background: "rgba(6,182,212,.08)", border: "1px solid rgba(6,182,212,.3)", color: "#67e8f9", overflow: "hidden" }}>
+                    style={{ marginBottom: 7, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 13px", borderRadius: 9, fontSize: 11, background: "rgba(76,175,80,.1)", border: "1px solid rgba(216,239,188,.32)", color: "#d8efbc", overflow: "hidden" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 6 }}><PencilLine size={10} /> Editing — update and resend</span>
-                    <button onClick={() => { setEditIdx(null); setInput(""); }} style={{ background: "none", border: "none", color: "#67e8f9", cursor: "pointer" }}><X size={12} /></button>
+                    <button onClick={() => { setEditIdx(null); setInput(""); }} style={{ background: "none", border: "none", color: "#d8efbc", cursor: "pointer" }}><X size={12} /></button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -319,9 +319,9 @@ function AIPage() {
               <form onSubmit={e => { e.preventDefault(); void send(input); }}
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", borderRadius: 11, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.09)" }}>
                 <button type="button" onClick={toggleVoice} disabled={!voiceOk}
-                  style={{ width: 32, height: 32, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer", position: "relative", background: listening ? "rgba(236,72,153,.15)" : "transparent", border: listening ? "1px solid rgba(236,72,153,.5)" : "1px solid transparent" }}>
-                  {listening && <motion.span style={{ position: "absolute", inset: 0, borderRadius: 9, border: "1px solid rgba(236,72,153,.5)" }} animate={{ scale: [1, 1.55, 1], opacity: [.6, 0, .6] }} transition={{ duration: 1.4, repeat: Infinity }} />}
-                  {listening ? <MicOff size={14} color="#f9a8d4" /> : <Mic size={14} color="rgba(255,255,255,.35)" />}
+                  style={{ width: 32, height: 32, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer", position: "relative", background: listening ? "rgba(76,175,80,.15)" : "transparent", border: listening ? "1px solid rgba(216,239,188,.5)" : "1px solid transparent" }}>
+                  {listening && <motion.span style={{ position: "absolute", inset: 0, borderRadius: 9, border: "1px solid rgba(216,239,188,.5)" }} animate={{ scale: [1, 1.55, 1], opacity: [.6, 0, .6] }} transition={{ duration: 1.4, repeat: Infinity }} />}
+                  {listening ? <MicOff size={14} color="#d8efbc" /> : <Mic size={14} color="rgba(255,255,255,.35)" />}
                 </button>
 
                 <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
@@ -332,7 +332,7 @@ function AIPage() {
                   style={{ width: 32, height: 32, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: typing || !input.trim() ? "not-allowed" : "pointer", opacity: typing || !input.trim() ? .35 : 1, position: "relative", overflow: "hidden", border: "none", background: "transparent" }}
                   whileHover={!typing && !!input.trim() ? { scale: 1.1 } : undefined}
                   whileTap={!typing && !!input.trim() ? { scale: .9 } : undefined}>
-                  <span style={{ position: "absolute", inset: 0, borderRadius: 9, background: "linear-gradient(135deg,#7c3aed,#ec4899,#06b6d4)" }} />
+                  <span style={{ position: "absolute", inset: 0, borderRadius: 9, background: "var(--grad-aurora)" }} />
                   {typing
                     ? <motion.span style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", display: "block", position: "relative" }} animate={{ rotate: 360 }} transition={{ duration: .8, repeat: Infinity, ease: "linear" }} />
                     : <Send size={13} color="#fff" style={{ position: "relative" }} />}
@@ -350,14 +350,14 @@ function AIPage() {
           <div className="hidden xl:flex" style={{ width: 200, flexShrink: 0, flexDirection: "column", gap: 8 }}>
 
             {/* ① Gemini AI + Context merged card */}
-            <div style={{ borderRadius: 14, background: "rgba(7,7,16,.97)", border: "1px solid rgba(124,58,237,.28)", padding: "13px 14px", position: "relative" }}>
+            <div style={{ borderRadius: 14, background: "rgba(7,16,10,.97)", border: "1px solid rgba(76,175,80,.28)", padding: "13px 14px", position: "relative" }}>
               {/* subtle top glow — doesn't overflow because no overflow:hidden */}
-              <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 120, height: 40, background: "radial-gradient(circle,rgba(124,58,237,.25),transparent 65%)", filter: "blur(14px)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 120, height: 40, background: "radial-gradient(circle,rgba(76,175,80,.25),transparent 65%)", filter: "blur(14px)", pointerEvents: "none" }} />
 
               {/* AI badge row */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, position: "relative" }}>
-                <motion.div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: "linear-gradient(135deg,#7c3aed,#ec4899,#06b6d4)", display: "flex", alignItems: "center", justifyContent: "center" }}
-                  animate={{ boxShadow: ["0 0 8px #7c3aed44","0 0 18px #ec489944","0 0 8px #06b6d444","0 0 8px #7c3aed44"] }}
+                <motion.div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: "var(--grad-aurora)", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  animate={{ boxShadow: ["0 0 8px #4caf5044","0 0 18px #d8efbc44","0 0 8px #68c56d44","0 0 8px #4caf5044"] }}
                   transition={{ duration: 4, repeat: Infinity }}>
                   <Sparkles size={15} color="#fff" />
                 </motion.div>
@@ -402,7 +402,7 @@ function AIPage() {
             </div>
 
             {/* ② Quick Actions */}
-            <div style={{ borderRadius: 14, background: "rgba(7,7,16,.97)", border: "1px solid rgba(255,255,255,.07)", padding: "13px 14px", flex: 1, minHeight: 0 }}>
+            <div style={{ borderRadius: 14, background: "rgba(7,16,10,.97)", border: "1px solid rgba(216,239,188,.08)", padding: "13px 14px", flex: 1, minHeight: 0 }}>
               <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.28em", fontFamily: "monospace", color: "rgba(255,255,255,.65)", marginBottom: 9 }}>Quick Actions</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 {CAPS.map(c => (
@@ -421,8 +421,8 @@ function AIPage() {
 
             {/* ③ Session counter */}
             {msgs.length > 1 && (
-              <div style={{ borderRadius: 14, background: "rgba(124,58,237,.08)", border: "1px solid rgba(124,58,237,.25)", padding: "10px", textAlign: "center", flexShrink: 0 }}>
-                <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Space Grotesk',sans-serif", color: "#c4b5fd" }}>{msgs.length - 1}</div>
+              <div style={{ borderRadius: 14, background: "rgba(76,175,80,.08)", border: "1px solid rgba(216,239,188,.25)", padding: "10px", textAlign: "center", flexShrink: 0 }}>
+                <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Space Grotesk',sans-serif", color: "#d8efbc" }}>{msgs.length - 1}</div>
                 <div style={{ fontSize: 9, fontFamily: "monospace", color: "rgba(255,255,255,.6)", marginTop: 1 }}>messages this session</div>
               </div>
             )}
@@ -436,7 +436,7 @@ function AIPage() {
 
 function buildStats(dashboard: StudentDashboard | null | undefined) {
   return [
-    { icon: GraduationCap,  label: "CGPA",       value: dashboard?.user.cgpa       != null ? dashboard.user.cgpa.toFixed(1)              : "—", color: "#c4b5fd", bg: "rgba(124,58,237,.13)", border: "rgba(124,58,237,.4)" },
+    { icon: GraduationCap,  label: "CGPA",       value: dashboard?.user.cgpa       != null ? dashboard.user.cgpa.toFixed(1)              : "—", color: "#d8efbc", bg: "rgba(76,175,80,.13)", border: "rgba(216,239,188,.4)" },
     { icon: ClipboardCheck, label: "Attendance",  value: dashboard?.user.attendance != null ? `${Math.round(dashboard.user.attendance)}%` : "—", color: "#6ee7b7", bg: "rgba(5,150,105,.13)",  border: "rgba(5,150,105,.4)"  },
     { icon: Wallet,         label: "Fees",        value: dashboard?.fee_summary?.clearance ?? "—",                                               color: "#fcd34d", bg: "rgba(217,119,6,.13)",  border: "rgba(217,119,6,.4)"  },
   ];

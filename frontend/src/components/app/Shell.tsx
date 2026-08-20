@@ -133,7 +133,7 @@ export function Shell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={`relative min-h-screen ${isDark ? "text-white" : "text-slate-900"}`}>
+    <div className={`cv-student-shell relative min-h-screen ${isDark ? "text-white" : "text-slate-900"}`}>
       {/* Sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 84 : 264 }}
@@ -164,8 +164,8 @@ export function Shell({ children }: { children: ReactNode }) {
           >
             <Link to="/app" className="flex items-center gap-2.5 min-w-0">
               <span
-                className="size-7.5 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/20"
-                style={{ background: "var(--grad-aurora)" }}
+                className="size-7.5 rounded-xl flex items-center justify-center shrink-0 shadow-md"
+                style={{ background: "var(--grad-aurora)", boxShadow: "0 0 18px rgba(76, 175, 80, 0.26)" }}
               >
                 <Sparkles className="size-4 text-white" />
               </span>
@@ -177,7 +177,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </Link>
             <button
               onClick={() => setCollapsed((c) => !c)}
-              className={isDark ? "text-slate-400 hover:text-white p-1 rounded-lg transition" : "text-slate-400 hover:text-slate-900 hover:bg-[#EEF2FF] p-1 rounded-lg transition"}
+              className={isDark ? "text-slate-400 hover:text-white p-1 rounded-lg transition" : "text-slate-400 hover:text-slate-900 hover:bg-[#ecf8e6] p-1 rounded-lg transition"}
             >
               <motion.span animate={{ rotate: collapsed ? 180 : 0 }}>
                 <ChevronLeft className="size-4" />
@@ -196,23 +196,23 @@ export function Shell({ children }: { children: ReactNode }) {
                   className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
                     active
                       ? isDark
-                        ? "text-white font-bold bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
-                        : "text-[#3730A3] font-extrabold shadow-2xs"
+                        ? "text-slate-950 font-bold bg-gradient-to-r from-green-600 via-emerald-500 to-lime-300 shadow-lg shadow-green-600/30 border border-emerald-300/40"
+                        : "text-[#1f7a32] font-extrabold shadow-2xs"
                       : isDark
                         ? "text-slate-300/80 font-medium hover:text-white hover:bg-white/10"
-                        : "text-slate-700 font-semibold hover:text-[#3730A3]"
+                        : "text-slate-700 font-semibold hover:text-[#1f7a32]"
                   }`}
                   style={
                     !isDark
                       ? {
-                          backgroundColor: active ? "#EEF2FF" : undefined,
-                          borderLeft: active ? "4px solid #6D5DF6" : "4px solid transparent",
+                          backgroundColor: active ? "#ecf8e6" : undefined,
+                          borderLeft: active ? "4px solid #4caf50" : "4px solid transparent",
                         }
                       : undefined
                   }
                   onMouseEnter={(e) => {
                     if (!isDark && !active) {
-                      e.currentTarget.style.backgroundColor = "#EEF2FF";
+                      e.currentTarget.style.backgroundColor = "#ecf8e6";
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -223,8 +223,8 @@ export function Shell({ children }: { children: ReactNode }) {
                 >
                   <Icon className={`size-4 shrink-0 transition-colors ${
                     active
-                      ? isDark ? "text-white" : "text-[#6D5DF6]"
-                      : isDark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-[#6D5DF6]"
+                      ? isDark ? "text-white" : "text-[#2f8f46]"
+                      : isDark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-[#2f8f46]"
                   }`} />
                   {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
                 </Link>
@@ -360,7 +360,7 @@ function TopBar({
           onClick={onAssistant}
           className={`group flex shrink-0 items-center gap-2 rounded-full border px-2 py-1.5 pr-2.5 text-left transition ${
             assistantOpen
-              ? "border-cyan-300/35 bg-cyan-300/10 text-white shadow-[0_0_24px_oklch(0.82_0.18_200_/_0.16)]"
+              ? "border-emerald-300/35 bg-emerald-300/10 text-white shadow-[0_0_24px_rgba(76,175,80,0.16)]"
               : isDark
                 ? "glass text-white/80 hover:text-white hover:border-white/20"
                 : "glass text-slate-800 hover:text-slate-950 hover:border-slate-300/80 font-medium"
@@ -390,7 +390,7 @@ function TopBar({
           {isDark ? (
             <Sun className="size-4 text-amber-400 fill-amber-400/20" />
           ) : (
-            <Moon className="size-4 text-indigo-600 fill-indigo-600/20" />
+            <Moon className="size-4 text-emerald-700 fill-emerald-600/20" />
           )}
         </IconBtn>
         <IconBtn 
@@ -401,7 +401,7 @@ function TopBar({
         >
           <Bell className="size-4" />
           {notifUnread > 0 && (
-            <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[oklch(0.72_0.27_350)]" />
+            <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[var(--cv-green-soft)]" />
           )}
         </IconBtn>
         <Link
@@ -612,9 +612,9 @@ function Fab({
             className={`pointer-events-auto w-[min(calc(100vw-32px),430px)] overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-xl ${
               isDark
                 ? "border-white/12 bg-[#080808]/95 shadow-black/50"
-                : "border-[#C6DBFF] shadow-blue-100/80"
+                : "border-[#b9dfad] shadow-green-100/80"
             }`}
-            style={isDark ? {} : { background: "linear-gradient(160deg, #F0F6FF 0%, #E8F0FF 50%, #EEF5FF 100%)" }}
+            style={isDark ? {} : { background: "linear-gradient(160deg, #f4fbef 0%, #ecf8e6 50%, #f7fff2 100%)" }}
           >
             <div className={`flex items-center justify-between border-b px-4 py-4 ${isDark ? "border-white/10" : "border-slate-100"}`}>
               <div className="flex items-center gap-3">
@@ -672,8 +672,8 @@ function Fab({
                   <div
                     className={`max-w-[82%] whitespace-pre-wrap break-words rounded-3xl px-4 py-2.5 text-sm leading-6 ${
                       message.role === "user"
-                        ? isDark ? "bg-white text-black" : "bg-[#2563EB] text-white"
-                        : isDark ? "glass text-white" : "bg-white/90 text-slate-800 border border-[#C6DBFF]"
+                        ? isDark ? "bg-white text-black" : "bg-[#2f8f46] text-white"
+                        : isDark ? "glass text-white" : "bg-white/90 text-slate-800 border border-[#b9dfad]"
                     }`}
                   >
                     {message.text}
@@ -723,7 +723,7 @@ function Fab({
                   key={prompt}
                   type="button"
                   onClick={() => void sendAi(prompt, null)}
-                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs transition ${isDark ? "border-white/10 bg-white/[0.05] text-white/65 hover:text-white" : "border-[#C6DBFF] bg-white/70 text-[#1E40AF] hover:bg-[#DCEBFF] hover:text-[#1E3A8A]"}`}
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs transition ${isDark ? "border-white/10 bg-white/[0.05] text-white/65 hover:text-white" : "border-[#b9dfad] bg-white/70 text-[#2f8f46] hover:bg-[#ecf8e6] hover:text-[#1f7a32]"}`}
                 >
                   {prompt}
                 </button>
@@ -738,7 +738,7 @@ function Fab({
               className={`border-t p-3 ${isDark ? "border-white/10" : "border-slate-100"}`}
             >
               {editingIndex !== null && (
-                <div className="mb-2 flex items-center justify-between rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs text-cyan-50">
+                <div className="mb-2 flex items-center justify-between rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs text-emerald-50">
                   <span>Editing prompt. Update it, then send again.</span>
                   <button
                     type="button"
@@ -749,14 +749,14 @@ function Fab({
                   </button>
                 </div>
               )}
-              <div className={`flex items-center gap-2 rounded-2xl px-3 py-2 ${isDark ? "glass" : "bg-white/80 border border-[#C6DBFF]"}`}>
+              <div className={`flex items-center gap-2 rounded-2xl px-3 py-2 ${isDark ? "glass" : "bg-white/80 border border-[#b9dfad]"}`}>
                 <button
                   type="button"
                   onClick={toggleVoice}
                   disabled={!voiceSupported}
                   className={`size-9 rounded-xl transition ${
                     listening
-                      ? "bg-cyan-400/15 text-cyan-600"
+                      ? "bg-emerald-400/15 text-emerald-700"
                       : isDark ? "text-white/55 hover:text-white" : "text-slate-400 hover:text-slate-700"
                   }`}
                   aria-label={listening ? "Stop voice input" : "Start voice input"}
@@ -842,8 +842,8 @@ function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
             className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[420px] p-4"
           >
             <div
-              className={`h-full rounded-3xl flex flex-col overflow-hidden ${isDark ? "glass-strong" : "border border-[#C6DBFF] shadow-2xl shadow-blue-100/60"}`}
-              style={isDark ? {} : { background: "linear-gradient(160deg, #F0F6FF 0%, #E8F0FF 50%, #EEF5FF 100%)" }}
+              className={`h-full rounded-3xl flex flex-col overflow-hidden ${isDark ? "glass-strong" : "border border-[#b9dfad] shadow-2xl shadow-green-100/60"}`}
+              style={isDark ? {} : { background: "linear-gradient(160deg, #f4fbef 0%, #ecf8e6 50%, #f7fff2 100%)" }}
             >
               <div className={`flex items-center justify-between p-5 border-b ${isDark ? "border-white/10" : "border-slate-100"}`}>
                 <div>
@@ -869,7 +869,7 @@ function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                           key={n.id}
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className={`rounded-2xl p-4 transition cursor-pointer ${isDark ? "glass hover:border-white/20" : "bg-white/80 border border-[#C6DBFF] hover:border-[#93C5FD] hover:bg-[#EEF5FF]"}`}
+                          className={`rounded-2xl p-4 transition cursor-pointer ${isDark ? "glass hover:border-white/20" : "bg-white/80 border border-[#b9dfad] hover:border-[#8fca83] hover:bg-[#ecf8e6]"}`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className={`font-medium text-sm ${isDark ? "text-white" : "text-slate-900"}`}>{n.title}</div>
@@ -960,14 +960,14 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
                   className={`flex items-center justify-between px-5 py-3 transition ${
                     isDark
                       ? "hover:bg-white/5 text-white/80 hover:text-white"
-                      : "hover:bg-indigo-50 text-slate-800 hover:text-slate-950"
+                      : "hover:bg-green-50 text-slate-800 hover:text-slate-950"
                   }`}
                 >
                   <span className="text-sm font-medium">{r.label}</span>
                   <span className={`text-[10px] uppercase tracking-[0.2em] font-bold px-2 py-0.5 rounded-full ${
                     isDark
                       ? "text-white/40 bg-white/5"
-                      : "text-indigo-600 bg-indigo-50 border border-indigo-200"
+                      : "text-[#2f8f46] bg-green-50 border border-green-200"
                   }`}>
                     {r.kind}
                   </span>

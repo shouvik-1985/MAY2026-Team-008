@@ -142,18 +142,18 @@ export function NotificationCenter({
   function getCategoryIcon(category: string) {
     switch (category.toLowerCase()) {
       case "academic":
-        return <BookOpen className="size-4 text-purple-300" />;
+        return <BookOpen className="size-4 text-emerald-200" />;
       case "exam":
         return <ShieldAlert className="size-4 text-amber-300" />;
       case "placement":
-        return <Briefcase className="size-4 text-cyan-300" />;
+        return <Briefcase className="size-4 text-lime-200" />;
       case "events":
         return <Sparkles className="size-4 text-yellow-300" />;
       case "urgent":
         return <ShieldAlert className="size-4 text-rose-400" />;
       case "announcement":
       default:
-        return <Megaphone className="size-4 text-fuchsia-300" />;
+        return <Megaphone className="size-4 text-emerald-300" />;
     }
   }
 
@@ -179,16 +179,16 @@ export function NotificationCenter({
               className={`h-full rounded-3xl flex flex-col overflow-hidden shadow-2xl ${
                 isDark
                   ? "border border-white/12 bg-[#0a0a0f]/95 backdrop-blur-2xl shadow-black/90"
-                  : "border border-[#C6DBFF] shadow-blue-100/60"
+                  : "border border-[#b9dfad] shadow-green-100/60"
               }`}
-              style={isDark ? {} : { background: "linear-gradient(160deg, #F0F6FF 0%, #E8F0FF 50%, #EEF5FF 100%)" }}
+              style={isDark ? {} : { background: "linear-gradient(160deg, #f4fbef 0%, #ecf8e6 50%, #f7fff2 100%)" }}
             >
               {/* Header */}
-              <div className={`p-5 border-b ${isDark ? "border-white/10 bg-white/[0.02]" : "border-[#C6DBFF] bg-white/30"}`}>
+              <div className={`p-5 border-b ${isDark ? "border-white/10 bg-white/[0.02]" : "border-[#b9dfad] bg-white/35"}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="relative size-10 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.15)]">
-                      <Bell className="size-5 text-cyan-200" />
+                    <div className="relative size-10 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 flex items-center justify-center shadow-[0_0_15px_rgba(76,175,80,0.16)]">
+                      <Bell className="size-5 text-emerald-100" />
                       {unreadCount > 0 && (
                         <span className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-md animate-pulse">
                           {unreadCount}
@@ -208,7 +208,7 @@ export function NotificationCenter({
                     {unreadCount > 0 && (
                       <button
                         onClick={markAllAsRead}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/25 transition shadow-[0_0_12px_rgba(6,182,212,0.2)] cursor-pointer"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/25 transition shadow-[0_0_12px_rgba(76,175,80,0.2)] cursor-pointer"
                         title="Mark all notifications as read"
                       >
                         <CheckCheck className="size-3.5" />
@@ -217,7 +217,7 @@ export function NotificationCenter({
                     )}
                     <button
                       onClick={onClose}
-                      className={`size-8 rounded-full border flex items-center justify-center transition ${isDark ? "border-white/10 bg-white/5 hover:bg-white/15 text-white/60 hover:text-white" : "border-[#C6DBFF] bg-white/60 hover:bg-[#DCEBFF] text-slate-500 hover:text-slate-900"}`}
+                      className={`size-8 rounded-full border flex items-center justify-center transition ${isDark ? "border-white/10 bg-white/5 hover:bg-white/15 text-white/60 hover:text-white" : "border-[#b9dfad] bg-white/60 hover:bg-[#ecf8e6] text-slate-500 hover:text-slate-900"}`}
                     >
                       <X className="size-4" />
                     </button>
@@ -240,11 +240,11 @@ export function NotificationCenter({
                         className={`rounded-full px-3 py-1 text-[10px] font-mono uppercase tracking-wider transition shrink-0 ${
                           categoryFilter === tab.key
                             ? isDark
-                              ? "bg-cyan-500/20 border border-cyan-400/50 text-cyan-200 shadow-[0_0_10px_rgba(6,182,212,0.2)] font-bold"
-                              : "bg-[#2563EB] border border-[#2563EB] text-white font-bold shadow-sm"
+                              ? "bg-emerald-500/20 border border-emerald-300/50 text-emerald-100 shadow-[0_0_10px_rgba(76,175,80,0.2)] font-bold"
+                              : "bg-[#4caf50] border border-[#4caf50] text-slate-950 font-bold shadow-sm"
                             : isDark
                               ? "bg-white/[0.03] border border-white/10 text-white/50 hover:text-white hover:border-white/20"
-                              : "bg-white/60 border border-[#C6DBFF] text-[#1E40AF] hover:bg-[#DCEBFF]"
+                              : "bg-white/60 border border-[#b9dfad] text-[#2f8f46] hover:bg-[#ecf8e6]"
                         }`}
                       >
                         {tab.label}
@@ -274,21 +274,21 @@ export function NotificationCenter({
                       n.read
                         ? isDark
                           ? "border-white/8 bg-white/[0.02] text-white/70 hover:border-white/20 hover:bg-white/[0.04]"
-                          : "border-[#C6DBFF] bg-white/70 text-slate-600 hover:border-[#93C5FD] hover:bg-white/90"
+                          : "border-[#b9dfad] bg-white/70 text-slate-600 hover:border-[#8fca83] hover:bg-white/90"
                         : isDark
-                          ? "border-cyan-400/40 bg-gradient-to-r from-cyan-500/10 via-purple-500/5 to-transparent text-white shadow-lg shadow-cyan-950/30"
-                          : "border-[#2563EB]/40 bg-gradient-to-r from-blue-50 via-indigo-50/50 to-transparent text-slate-900 shadow-md shadow-blue-100"
+                          ? "border-emerald-300/40 bg-gradient-to-r from-emerald-500/10 via-lime-300/5 to-transparent text-white shadow-lg shadow-emerald-950/30"
+                          : "border-[#4caf50]/40 bg-gradient-to-r from-green-50 via-lime-50/50 to-transparent text-slate-900 shadow-md shadow-green-100"
                     }`}
                   >
                     {!n.read && (
-                      <span className="absolute top-4 right-4 size-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+                      <span className="absolute top-4 right-4 size-2 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(76,175,80,0.8)]" />
                     )}
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 size-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center shrink-0">
                         {getCategoryIcon(n.category)}
                       </div>
                       <div className="min-w-0 flex-1 pr-4">
-                        <div className={`font-semibold text-sm transition truncate ${isDark ? "text-white group-hover:text-cyan-200" : "text-slate-900 group-hover:text-[#1E40AF]"}`}>{n.title}</div>
+                        <div className={`font-semibold text-sm transition truncate ${isDark ? "text-white group-hover:text-emerald-100" : "text-slate-900 group-hover:text-[#2f8f46]"}`}>{n.title}</div>
                         <p className={`mt-1 text-xs leading-relaxed line-clamp-2 ${isDark ? "text-white/60" : "text-slate-500"}`}>{n.body}</p>
                         <div className={`mt-2.5 flex items-center justify-between text-[10px] font-mono ${isDark ? "text-white/40" : "text-slate-400"}`}>
                           <span className="inline-flex items-center gap-1">
@@ -296,7 +296,7 @@ export function NotificationCenter({
                             {n.timestamp}
                           </span>
                           {n.actionUrl && (
-                            <span className={`inline-flex items-center gap-0.5 font-sans font-medium group-hover:translate-x-1 transition-transform ${isDark ? "text-cyan-300" : "text-[#2563EB]"}`}>
+                            <span className={`inline-flex items-center gap-0.5 font-sans font-medium group-hover:translate-x-1 transition-transform ${isDark ? "text-emerald-200" : "text-[#2f8f46]"}`}>
                               View details <ChevronRight className="size-3" />
                             </span>
                           )}
@@ -318,8 +318,8 @@ export function NotificationCenter({
 
                 {filteredNotifs.length === 0 && (
                   <div className={`py-20 text-center space-y-3 ${isDark ? "text-white/50" : "text-slate-400"}`}>
-                    <div className={`mx-auto flex size-14 items-center justify-center rounded-2xl border ${isDark ? "border-white/10 bg-white/[0.03]" : "border-[#C6DBFF] bg-white/60"}`}>
-                      <Bell className={`size-6 ${isDark ? "text-white/30" : "text-[#93C5FD]"}`} />
+                    <div className={`mx-auto flex size-14 items-center justify-center rounded-2xl border ${isDark ? "border-white/10 bg-white/[0.03]" : "border-[#b9dfad] bg-white/60"}`}>
+                      <Bell className={`size-6 ${isDark ? "text-white/30" : "text-[#8fca83]"}`} />
                     </div>
                     <div className={`text-sm font-semibold ${isDark ? "text-white/90" : "text-slate-700"}`}>All caught up!</div>
                     <div className={`text-xs max-w-[220px] mx-auto ${isDark ? "text-white/40" : "text-slate-400"}`}>
@@ -330,7 +330,7 @@ export function NotificationCenter({
               </div>
 
               {/* Footer */}
-              <div className={`p-4 border-t flex items-center justify-between text-xs font-mono ${isDark ? "border-white/10 bg-white/[0.02] text-white/40" : "border-[#C6DBFF] bg-white/30 text-slate-400"}`}>
+              <div className={`p-4 border-t flex items-center justify-between text-xs font-mono ${isDark ? "border-white/10 bg-white/[0.02] text-white/40" : "border-[#b9dfad] bg-white/35 text-slate-400"}`}>
                 <span className="flex items-center gap-2">
                   <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
                   Live Sync Active

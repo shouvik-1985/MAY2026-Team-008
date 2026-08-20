@@ -6,10 +6,10 @@ export const COMPLAINT_STAGES: {
   label: string;
   color: string;
 }[] = [
-  { key: "submitted", label: "Submitted", color: "oklch(0.7 0.25 310)" },
-  { key: "acknowledged", label: "Acknowledged", color: "oklch(0.82 0.18 200)" },
-  { key: "in_progress", label: "In Progress", color: "oklch(0.72 0.27 350)" },
-  { key: "resolved", label: "Resolved", color: "oklch(0.7 0.22 150)" },
+  { key: "submitted", label: "Submitted", color: "#8fba7c" },
+  { key: "acknowledged", label: "Acknowledged", color: "#d8efbc" },
+  { key: "in_progress", label: "In Progress", color: "#68c56d" },
+  { key: "resolved", label: "Resolved", color: "#4caf50" },
 ];
 
 export function complaintStageIndex(status: ComplaintStatus) {
@@ -89,4 +89,3 @@ export function ComplaintStageStrip({
     </div>
   );
 }
-

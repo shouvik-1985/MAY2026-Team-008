@@ -228,7 +228,7 @@ function ComplaintsPage() {
             className="relative inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs uppercase tracking-[0.2em] overflow-hidden text-white font-bold shadow-md"
           >
             <span className="absolute inset-0 rounded-full" style={{ background: "var(--grad-aurora)" }} />
-            <span className={`absolute inset-px rounded-full ${isDark ? "bg-[#0a0a0a]/30" : "bg-indigo-950/20"}`} />
+            <span className={`absolute inset-px rounded-full ${isDark ? "bg-[#0a0a0a]/30" : "bg-emerald-950/20"}`} />
             {openForm ? <X className="relative z-10 size-4" /> : <Plus className="relative z-10 size-4" />}
             <span className="relative z-10">{openForm ? "Close form" : "New complaint"}</span>
           </button>

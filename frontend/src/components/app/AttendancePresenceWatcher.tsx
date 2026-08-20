@@ -466,14 +466,14 @@ export function AttendancePresenceWatcher() {
                 </div>
               </div>
 
-              <div className="relative mx-auto mt-7 grid size-56 place-items-center rounded-full border border-cyan-200/20 bg-cyan-300/5">
+              <div className="relative mx-auto mt-7 grid size-56 place-items-center rounded-full border border-emerald-200/20 bg-emerald-300/5">
                 <motion.div
-                  className="absolute inset-4 rounded-full border border-fuchsia-300/30"
+                  className="absolute inset-4 rounded-full border border-lime-200/30"
                   animate={{ rotate: 360 }}
                   transition={{ duration: scanState === "scanning" ? 1.1 : 5, repeat: Infinity, ease: "linear" }}
                 />
                 <motion.div
-                  className="absolute inset-10 rounded-full border border-cyan-200/30"
+                  className="absolute inset-10 rounded-full border border-emerald-200/30"
                   animate={{ scale: scanState === "scanning" ? [1, 1.12, 1] : [1, 1.04, 1] }}
                   transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
                 />
@@ -488,13 +488,13 @@ export function AttendancePresenceWatcher() {
                   {scanState === "verified" ? <CheckCircle2 className="size-14 text-emerald-300" /> : null}
                   {scanState !== "verified" && cameraReady ? (
                     <motion.div
-                      className="pointer-events-none absolute inset-x-4 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-cyan-200/80 shadow-[0_0_24px_rgba(34,211,238,0.7)]"
+                      className="pointer-events-none absolute inset-x-4 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-lime-100/80 shadow-[0_0_24px_rgba(216,239,188,0.65)]"
                       animate={{ y: [-56, 56, -56] }}
                       transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
                     />
                   ) : null}
                   {scanState !== "verified" && !cameraReady ? (
-                    <div className="relative z-[1] grid place-items-center gap-2 text-center text-cyan-100/80">
+                    <div className="relative z-[1] grid place-items-center gap-2 text-center text-emerald-100/80">
                       <Camera className="size-10" />
                       <div className="max-w-[7rem] text-[11px] uppercase tracking-[0.22em] text-white/45">
                         {cameraError ? "Camera blocked" : "Opening camera"}
@@ -507,7 +507,7 @@ export function AttendancePresenceWatcher() {
               <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/55">
                 <div className="flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-2">
-                    <LocateFixed className="size-4 text-cyan-200" />
+                    <LocateFixed className="size-4 text-emerald-200" />
                     Radius distance
                   </span>
                   <span className="text-white/75">
@@ -516,7 +516,7 @@ export function AttendancePresenceWatcher() {
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/8 pt-3">
                   <span className="inline-flex items-center gap-2">
-                    <Eye className="size-4 text-fuchsia-200" />
+                    <Eye className="size-4 text-lime-100" />
                     Face template
                   </span>
                   <span className="text-white/75">{biometricEnrolled ? "Enrolled" : "Enrollment pending"}</span>
@@ -529,7 +529,7 @@ export function AttendancePresenceWatcher() {
                 </div>
               )}
               {notice ? (
-                <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+                <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
                   {notice}
                 </div>
               ) : null}

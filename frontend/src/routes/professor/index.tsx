@@ -108,6 +108,10 @@ const GRADE_CRITERIA = [
   { code: "U", cutoff: 0 },
 ];
 const GRADE_OPTIONS = ["S", "A", "B", "C", "D", "E", "U", "P", "F", "W", "I"];
+const PROFESSOR_PRIMARY_ACTION_CLASS =
+  "relative w-full rounded-full border border-[#d8efbc]/80 bg-[#d8efbc] px-5 py-3.5 text-xs font-extrabold uppercase tracking-[0.2em] text-[#101417] shadow-[0_12px_28px_rgba(76,175,80,0.22)] transition-all duration-200 hover:bg-[#c8e9a8] hover:shadow-[0_16px_34px_rgba(76,175,80,0.28)] disabled:cursor-wait disabled:opacity-60";
+const PROFESSOR_ACTIVE_PILL_CLASS =
+  "border-[#d8efbc]/80 bg-[#d8efbc] text-[#101417] shadow-[0_8px_18px_rgba(76,175,80,0.22)]";
 
 function gradeCodeFromScore(score: number) {
   const normalized = Math.max(0, Math.min(100, score));
@@ -1721,10 +1725,21 @@ function ProfessorDashboardPage() {
           </div>
         </Panel>
 
-        <Panel id="resources" className={visible("resources") ? "p-5" : "hidden"}>
+        <Panel
+          id="resources"
+          className={
+            visible("resources")
+              ? isDark
+                ? "p-5"
+                : "p-6 border border-[#c9e6c0] bg-white/95 shadow-[0_16px_38px_rgba(76,175,80,0.13)]"
+              : "hidden"
+          }
+        >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <SectionTitle icon={BookOpen} eyebrow="Study resources" title="Upload resource" />
-            <div className="glass rounded-full px-4 py-2 text-xs text-white/55">
+            <div className={`rounded-full border px-4 py-2 text-xs font-medium ${
+              isDark ? "glass text-white/55" : "border-[#c9e6c0] bg-white text-slate-700 shadow-sm"
+            }`}>
               {professorResources.length} uploaded
             </div>
           </div>
@@ -1740,7 +1755,11 @@ function ProfessorDashboardPage() {
               required
             />
 
-            <label className="block rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-5 transition hover:border-white/25">
+            <label className={`block rounded-3xl border border-dashed px-4 py-5 transition ${
+              isDark
+                ? "border-white/15 bg-white/[0.03] hover:border-white/25"
+                : "border-[#a5d6a7] bg-white hover:border-[#68c56d]"
+            }`}>
               <input
                 key={resourceFileKey}
                 type="file"
@@ -1748,8 +1767,10 @@ function ProfessorDashboardPage() {
                 onChange={(event) => setResourceFile(event.target.files?.[0] ?? null)}
               />
               <span className="flex items-center gap-3">
-                <span className="size-11 rounded-2xl bg-white/10 flex items-center justify-center">
-                  <Upload className="size-4 text-cyan-200" />
+                <span className={`flex size-11 items-center justify-center rounded-2xl ${
+                  isDark ? "bg-white/10" : "border border-[#c9e6c0] bg-[#ecf8e6]"
+                }`}>
+                  <Upload className={`size-4 ${isDark ? "text-cyan-200" : "text-[#2f8f46]"}`} />
                 </span>
                 <span className="min-w-0">
                   <span className="block font-medium truncate">
@@ -1757,7 +1778,7 @@ function ProfessorDashboardPage() {
                       ? resourceFile.name
                       : "Choose PDF, document, audio, video, CSV, Excel, or any file"}
                   </span>
-                  <span className="mt-1 block text-xs text-white/40">
+                  <span className={`mt-1 block text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>
                     The file name becomes the resource title after upload.
                   </span>
                 </span>
@@ -1769,7 +1790,7 @@ function ProfessorDashboardPage() {
             </ActionButton>
           </form>
 
-          <div className="mt-7 border-t border-white/10 pt-5">
+          <div className={`mt-7 border-t pt-5 ${isDark ? "border-white/10" : "border-[#c9e6c0]"}`}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <SectionTitle icon={FileText} eyebrow="Upload history" title="Published materials" />
               <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[620px]">
@@ -1817,8 +1838,12 @@ function ProfessorDashboardPage() {
         className={visible("reviews") ? "grid gap-6 xl:h-[calc(100vh-7.5rem)] xl:grid-cols-[0.9fr_1.1fr] xl:overflow-hidden" : "hidden"}
       >
         {/* ── LEFT PANEL: Tabbed list ── */}
-        <Panel className="flex min-h-0 flex-col overflow-hidden p-6 xl:max-h-[calc(100vh-7.5rem)] glass-strong border border-white/12 shadow-2xl relative">
-          <div className="absolute top-0 left-0 right-0 h-[3px] rounded-t-2xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-500" />
+        <Panel className={`flex min-h-0 flex-col overflow-hidden p-6 xl:max-h-[calc(100vh-7.5rem)] relative ${
+          isDark
+            ? "glass-strong border border-white/12 shadow-2xl"
+            : "border border-[#c9e6c0] bg-white/95 shadow-[0_16px_38px_rgba(76,175,80,0.13)]"
+        }`}>
+          <div className="absolute top-0 left-0 right-0 h-[3px] rounded-t-2xl bg-gradient-to-r from-green-500 via-emerald-400 to-lime-200" />
 
           {/* Tab bar — theme-aware */}
           <div className={`flex items-center gap-2 rounded-2xl border p-1.5 mb-6 shadow-inner ${
@@ -1833,14 +1858,14 @@ function ProfessorDashboardPage() {
             ).map(({ key, label, count, color }) => {
               const active = reviewLeftTab === key;
               const activeStyles = {
-                fuchsia: "bg-fuchsia-600 border-fuchsia-500/60 !text-white shadow-[0_2px_12px_rgba(217,70,239,0.35)]",
-                cyan:    "bg-cyan-600 border-cyan-500/60 !text-white shadow-[0_2px_12px_rgba(6,182,212,0.35)]",
-                purple:  "bg-purple-600 border-purple-500/60 !text-white shadow-[0_2px_12px_rgba(168,85,247,0.35)]",
+                fuchsia: PROFESSOR_ACTIVE_PILL_CLASS,
+                cyan:    PROFESSOR_ACTIVE_PILL_CLASS,
+                purple:  PROFESSOR_ACTIVE_PILL_CLASS,
               };
               const activeBadgeStyles = {
-                fuchsia: "bg-white !text-fuchsia-700",
-                cyan:    "bg-white !text-cyan-700",
-                purple:  "bg-white !text-purple-700",
+                fuchsia: "bg-[#101417] !text-[#d8efbc]",
+                cyan:    "bg-[#101417] !text-[#d8efbc]",
+                purple:  "bg-[#101417] !text-[#d8efbc]",
               };
               return (
                 <button
@@ -1890,11 +1915,11 @@ function ProfessorDashboardPage() {
                       className={`group relative w-full text-left rounded-2xl p-4 transition-all duration-200 border ${
                         active
                           ? isDark
-                            ? "border-fuchsia-500/60 bg-gradient-to-r from-fuchsia-500/20 via-purple-500/10 to-transparent shadow-[0_0_20px_rgba(217,70,239,0.18)]"
-                            : "border-fuchsia-400 bg-fuchsia-50 shadow-md"
+                            ? "border-[#d8efbc]/70 bg-gradient-to-r from-[#4caf50]/18 via-[#68c56d]/10 to-transparent shadow-[0_0_20px_rgba(76,175,80,0.18)]"
+                            : "border-[#68c56d] bg-[#ecf8e6] shadow-md shadow-green-200/40"
                           : isDark
-                            ? "border-white/10 bg-white/[0.03] hover:border-fuchsia-500/30 hover:bg-white/[0.06] hover:shadow-md"
-                            : "border-slate-200 bg-white hover:border-fuchsia-300 hover:bg-fuchsia-50/50 hover:shadow-sm"
+                            ? "border-white/10 bg-white/[0.03] hover:border-[#d8efbc]/30 hover:bg-white/[0.06] hover:shadow-md"
+                            : "border-slate-200 bg-white hover:border-[#a5d6a7] hover:bg-[#f5fbf1] hover:shadow-sm"
                       }`}
                     >
                       {/* Title + chevron row */}
@@ -1902,8 +1927,8 @@ function ProfessorDashboardPage() {
                         <div className="min-w-0 flex-1">
                           <div className={`truncate text-sm font-semibold transition leading-snug ${
                             active
-                              ? isDark ? "text-fuchsia-100" : "text-fuchsia-800"
-                              : isDark ? "text-white group-hover:text-fuchsia-100" : "text-slate-800 group-hover:text-fuchsia-700"
+                              ? isDark ? "text-[#d8efbc]" : "text-[#1f7a32]"
+                              : isDark ? "text-white group-hover:text-[#d8efbc]" : "text-slate-800 group-hover:text-[#1f7a32]"
                           }`}>
                             {item.title}
                           </div>
@@ -1915,8 +1940,8 @@ function ProfessorDashboardPage() {
                         </div>
                         <ChevronRight className={`size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 ${
                           active
-                            ? isDark ? "text-fuchsia-300" : "text-fuchsia-500"
-                            : isDark ? "text-white/20 group-hover:text-fuchsia-300/70" : "text-slate-300 group-hover:text-fuchsia-400"
+                            ? isDark ? "text-[#d8efbc]" : "text-[#2f8f46]"
+                            : isDark ? "text-white/20 group-hover:text-[#d8efbc]" : "text-slate-300 group-hover:text-[#2f8f46]"
                         }`} />
                       </div>
                       {/* Consolidated status row: type · priority · AI grade */}
@@ -1965,21 +1990,29 @@ function ProfessorDashboardPage() {
           {reviewLeftTab === "assignments" && (
             <div className="flex min-h-0 flex-1 flex-col pt-1">
               <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
-                {(dashboard?.assignments ?? []).map((item) => (
+                {(dashboard?.assignments ?? []).map((item) => {
+                  const active = assignmentDetailView?.kind === "assignment" && assignmentDetailView.item.id === item.id;
+                  return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => setAssignmentDetailView({ kind: "assignment", item })}
                     className={`group w-full rounded-2xl border p-4 text-left transition-all duration-200 ${
-                      isDark
-                        ? "border-white/10 bg-white/[0.03] hover:border-cyan-400/40 hover:bg-white/[0.06] hover:shadow-lg"
-                        : "border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50/50 hover:shadow-sm"
+                      active
+                        ? isDark
+                          ? "border-[#d8efbc]/70 bg-gradient-to-r from-[#4caf50]/18 via-[#68c56d]/10 to-transparent shadow-[0_0_20px_rgba(76,175,80,0.18)]"
+                          : "border-[#68c56d] bg-[#ecf8e6] shadow-md shadow-green-200/40"
+                        : isDark
+                          ? "border-white/10 bg-white/[0.03] hover:border-[#d8efbc]/40 hover:bg-white/[0.06] hover:shadow-lg"
+                          : "border-slate-200 bg-white hover:border-[#a5d6a7] hover:bg-[#f5fbf1] hover:shadow-sm"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className={`truncate text-sm font-semibold transition ${
-                          isDark ? "text-white group-hover:text-cyan-200" : "text-slate-800 group-hover:text-cyan-700"
+                          active
+                            ? isDark ? "text-[#d8efbc]" : "text-[#1f7a32]"
+                            : isDark ? "text-white group-hover:text-[#d8efbc]" : "text-slate-800 group-hover:text-[#1f7a32]"
                         }`}>
                           {item.title}
                         </div>
@@ -1989,14 +2022,15 @@ function ProfessorDashboardPage() {
                       </div>
                       <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] ${
                         isDark
-                          ? "border-cyan-400/30 bg-cyan-500/15 text-cyan-200"
-                          : "border-cyan-300 bg-cyan-50 text-cyan-700"
+                          ? "border-[#d8efbc]/30 bg-[#4caf50]/15 text-[#d8efbc]"
+                          : "border-[#a5d6a7] bg-white text-[#2f8f46]"
                       }`}>
                         {item.assignmentType === "qa" ? "Q&A" : item.assignmentType.toUpperCase()}
                       </span>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
                 {(dashboard?.assignments ?? []).length === 0 && (
                   <div className={`rounded-3xl border border-dashed py-8 text-center text-sm ${
                     isDark ? "border-white/15 text-white/45 bg-white/[0.01]" : "border-slate-200 text-slate-400 bg-slate-50/50"
@@ -2017,6 +2051,7 @@ function ProfessorDashboardPage() {
               assignments={dashboard?.assignments ?? []}
               studentName={selectedStudentName}
               selectedSubmissionId={reviewSubmissionId}
+              selectedAssignmentId={assignmentDetailView?.kind === "assignment" ? assignmentDetailView.item.id : selectedReviewItem?.assignmentId ?? null}
               onOpen={openStudentAssignmentHistory}
             />
           )}
@@ -2036,8 +2071,8 @@ function ProfessorDashboardPage() {
             ).map(({ key, label, icon: Icon, color }) => {
               const active = reviewRightTab === key;
               const activeStyles = {
-                purple:  "bg-purple-600 border-purple-500/60 !text-white shadow-[0_2px_12px_rgba(168,85,247,0.35)]",
-                emerald: "bg-emerald-600 border-emerald-500/60 !text-white shadow-[0_2px_12px_rgba(16,185,129,0.35)]",
+                purple:  PROFESSOR_ACTIVE_PILL_CLASS,
+                emerald: PROFESSOR_ACTIVE_PILL_CLASS,
               };
               return (
                 <button
@@ -2068,12 +2103,20 @@ function ProfessorDashboardPage() {
 
             {/* ── BUILD TAB ── */}
             {reviewRightTab === "build" && (
-              <Panel className="p-5 glass-strong border border-white/12 shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-500 opacity-70" />
+              <Panel className={`p-5 relative overflow-hidden ${
+                isDark
+                  ? "glass-strong border border-white/12 shadow-2xl"
+                  : "border border-[#c9e6c0] bg-white/95 shadow-[0_16px_38px_rgba(76,175,80,0.13)]"
+              }`}>
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#4caf50] via-[#68c56d] to-[#d8efbc] opacity-80" />
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <SectionTitle icon={Sparkles} eyebrow="GenAI Assignment System" title="AI Intelligence Builder" />
-                  <div className="inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/10 px-3.5 py-1.5 text-[11px] font-medium text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
-                    <span className="size-2 rounded-full bg-purple-400 animate-pulse" />
+                  <div className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold ${
+                    isDark
+                      ? "border-[#d8efbc]/30 bg-[#4caf50]/10 text-[#d8efbc] shadow-[0_0_15px_rgba(76,175,80,0.15)]"
+                      : "border-[#a5d6a7] bg-[#ecf8e6] text-[#2f8f46]"
+                  }`}>
+                    <span className="size-2 animate-pulse rounded-full bg-[#4caf50]" />
                     AI Engine Live
                   </div>
                 </div>
@@ -2099,11 +2142,11 @@ function ProfessorDashboardPage() {
                             className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 ${
                               active
                                 ? isDark
-                                  ? "bg-fuchsia-600/80 border border-fuchsia-400/50 text-white shadow-[0_1px_8px_rgba(217,70,239,0.3)]"
-                                  : "bg-white border border-fuchsia-400 text-fuchsia-700 shadow-sm"
+                                  ? "border border-[#d8efbc]/50 bg-[#4caf50]/18 text-[#d8efbc] shadow-[0_1px_8px_rgba(76,175,80,0.24)]"
+                                  : "border border-[#68c56d] bg-white text-[#1f7a32] shadow-sm"
                                 : isDark
-                                  ? "border border-transparent text-white/50 hover:text-white/80 hover:bg-white/5"
-                                  : "border border-transparent text-slate-500 hover:text-slate-800 hover:bg-white/70"
+                                  ? "border border-transparent text-white/50 hover:bg-white/5 hover:text-[#d8efbc]"
+                                  : "border border-transparent text-slate-500 hover:bg-white/70 hover:text-[#1f7a32]"
                             }`}
                           >
                             <Icon className="size-3.5 shrink-0" />
@@ -2160,11 +2203,11 @@ function ProfessorDashboardPage() {
                             className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 ${
                               active
                                 ? isDark
-                                  ? "bg-cyan-600/70 border border-cyan-400/50 text-white shadow-[0_1px_8px_rgba(6,182,212,0.3)]"
-                                  : "bg-white border border-cyan-400 text-cyan-700 shadow-sm"
+                                  ? "border border-[#d8efbc]/50 bg-[#4caf50]/18 text-[#d8efbc] shadow-[0_1px_8px_rgba(76,175,80,0.24)]"
+                                  : "border border-[#68c56d] bg-white text-[#1f7a32] shadow-sm"
                                 : isDark
-                                  ? "border border-transparent text-white/50 hover:text-white/80 hover:bg-white/5"
-                                  : "border border-transparent text-slate-500 hover:text-slate-800 hover:bg-white/70"
+                                  ? "border border-transparent text-white/50 hover:bg-white/5 hover:text-[#d8efbc]"
+                                  : "border border-transparent text-slate-500 hover:bg-white/70 hover:text-[#1f7a32]"
                             }`}
                           >
                             <Icon className="size-3.5 shrink-0" />
@@ -2181,7 +2224,7 @@ function ProfessorDashboardPage() {
                         <span className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/45">
                           Study Material (Max 6)
                         </span>
-                        <span className="text-xs text-cyan-300 font-mono">
+                        <span className={`text-xs font-mono ${isDark ? "text-[#d8efbc]" : "text-[#2f8f46]"}`}>
                           {assignmentResourceIds.length} selected
                         </span>
                       </div>
@@ -2272,9 +2315,9 @@ function ProfessorDashboardPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="w-full py-3.5 px-6 rounded-2xl border border-purple-400/30 bg-purple-500/15 hover:bg-purple-500/25 text-purple-100 font-semibold text-xs tracking-[0.2em] uppercase shadow-[0_0_20px_rgba(168,85,247,0.2)] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
+                    className={`${PROFESSOR_PRIMARY_ACTION_CLASS} flex items-center justify-center gap-2.5 active:scale-[0.99]`}
                   >
-                    <Sparkles className="size-4 text-purple-300" />
+                    <Sparkles className="size-4 text-[#101417]" />
                     <span>{saving ? "Generating Paper via AI..." : "Create AI Assignment Paper"}</span>
                   </button>
                 </form>
@@ -2561,12 +2604,14 @@ function ProfessorDashboardPage() {
       </section>
 
       <section id="profile" className={visible("profile") ? "space-y-5 pt-2" : "hidden"}>
-        <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-white/45 rounded-full border border-white/10 px-4 py-2">
+        <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.35em] ${
+          isDark ? "border-white/10 text-white/45" : "border-[#a5d6a7]/70 bg-white/85 text-slate-600 shadow-sm"
+        }`}>
           <Briefcase className="size-3.5" />
           Faculty identity
         </div>
 
-        <Panel className={isDark ? "relative overflow-hidden p-0" : "cv-profile-card relative overflow-hidden p-0 rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-[#0c0a20] via-[#120e30] to-[#0a1628] shadow-2xl text-white"}>
+        <Panel className={isDark ? "relative overflow-hidden p-0" : "relative overflow-hidden p-0 rounded-3xl border border-[#a5d6a7]/80 bg-gradient-to-br from-white via-[#f3fbef] to-[#e1f5d8] text-slate-900 shadow-[0_18px_45px_rgba(76,175,80,0.18)]"}>
           {isDark ? (
             <>
               <div className="absolute inset-0" style={{ background: "var(--grad-aurora)" }} />
@@ -2574,12 +2619,17 @@ function ProfessorDashboardPage() {
               <div className="absolute inset-px rounded-[calc(1.5rem-1px)] bg-[#07070a]/75" />
             </>
           ) : (
-            <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500 via-purple-500 to-transparent" />
+            <>
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(76,175,80,0.2),_transparent_48%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(135deg,_rgba(255,255,255,0.82),_rgba(216,239,188,0.38))]" />
+            </>
           )}
           <div className="relative grid gap-8 p-6 lg:grid-cols-[1.25fr_0.75fr] lg:p-8">
             <div className="flex flex-col sm:flex-row gap-5">
               <div
-                className="flex size-24 shrink-0 items-center justify-center rounded-3xl text-2xl font-bold overflow-hidden border border-white/20 shadow-lg shadow-indigo-500/30 text-white"
+                className={`flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl border text-2xl font-bold shadow-lg ${
+                  isDark ? "border-white/20 text-white shadow-green-500/30" : "border-[#d8efbc] text-white shadow-green-200"
+                }`}
                 style={{ background: "var(--grad-aurora)" }}
               >
                 {profile.avatarUrl ? (
@@ -2589,20 +2639,20 @@ function ProfessorDashboardPage() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className={isDark ? "text-[10px] uppercase tracking-[0.35em] text-white/45" : "text-[10px] font-bold uppercase tracking-[0.35em] text-indigo-300"}>
+                <div className={isDark ? "text-[10px] uppercase tracking-[0.35em] text-white/45" : "text-[10px] font-bold uppercase tracking-[0.35em] text-[#2f8f46]"}>
                   {professor?.verificationStatus ?? "VERIFIED FACULTY"}
                 </div>
                 <h2 className="mt-1 font-display text-3xl sm:text-4xl font-bold tracking-tight">
                   {profile.name}
                 </h2>
-                <div className={isDark ? "mt-1.5 text-base text-white/68" : "mt-1.5 text-base font-medium text-indigo-200"}>
+                <div className={isDark ? "mt-1.5 text-base text-white/68" : "mt-1.5 text-base font-bold text-[#1f7a32]"}>
                   {profile.designation} / {profile.department}
                 </div>
-                <p className={isDark ? "mt-3 max-w-2xl text-xs sm:text-sm leading-6 text-white/58" : "mt-3 max-w-2xl text-xs sm:text-sm leading-6 text-indigo-100"}>
+                <p className={isDark ? "mt-3 max-w-2xl text-xs sm:text-sm leading-6 text-white/58" : "mt-3 max-w-2xl text-xs sm:text-sm leading-6 font-medium text-slate-600"}>
                   {profile.bio.trim() ||
                     "Add a short faculty bio to introduce teaching style, academic background, and mentoring focus."}
                 </p>
-                <div className={isDark ? "mt-4 flex flex-wrap gap-4 text-xs text-white/50" : "mt-4 flex flex-wrap gap-4 text-xs font-medium text-indigo-200"}>
+                <div className={isDark ? "mt-4 flex flex-wrap gap-4 text-xs text-white/50" : "mt-4 flex flex-wrap gap-4 text-xs font-semibold text-slate-700"}>
                   <InlineProfileValue
                     icon={Mail}
                     value={profile.email}
@@ -2642,32 +2692,36 @@ function ProfessorDashboardPage() {
                 <button
                   type="button"
                   onClick={openProfessorEditor}
-                  className="glass-strong inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-bold uppercase tracking-[0.18em] text-white shadow-md backdrop-blur-md transition-all hover:bg-white/25 hover:scale-105 active:scale-95"
+                  className={`inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-xs font-bold uppercase tracking-[0.18em] shadow-md backdrop-blur-md transition-all hover:scale-105 active:scale-95 ${
+                    isDark
+                      ? "border-white/20 bg-white/10 text-white hover:bg-white/20"
+                      : "border-[#a5d6a7]/80 bg-white/85 text-[#101417] hover:bg-[#ecf8e6]"
+                  }`}
                 >
-                  <Edit3 className="size-3.5 text-amber-300" />
+                  <Edit3 className={`size-3.5 ${isDark ? "text-amber-300" : "text-[#2f8f46]"}`} />
                   <span>Edit Profile</span>
                 </button>
               </div>
-              <div className={isDark ? "rounded-3xl border border-white/10 bg-black/25 p-5" : "rounded-3xl border border-white/20 bg-white/10 backdrop-blur-md p-5 text-white"}>
-                <div className={isDark ? "text-[10px] uppercase tracking-[0.3em] text-white/40" : "text-[10px] font-bold uppercase tracking-[0.3em] text-indigo-200"}>
+              <div className={isDark ? "rounded-3xl border border-white/10 bg-black/25 p-5" : "rounded-3xl border border-[#a5d6a7]/80 bg-white/90 p-5 text-slate-900 shadow-sm"}>
+                <div className={isDark ? "text-[10px] uppercase tracking-[0.3em] text-white/40" : "text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500"}>
                   Faculty Completion
                 </div>
                 <div className="mt-3 flex items-end justify-between gap-3">
                   <div className="font-display text-4xl font-bold">{profileCompletion}%</div>
-                  <div className={isDark ? "max-w-[180px] text-right text-xs text-white/45" : "max-w-[180px] text-right text-xs font-medium text-indigo-200"}>
+                  <div className={isDark ? "max-w-[180px] text-right text-xs text-white/45" : "max-w-[180px] text-right text-xs font-semibold text-[#2f8f46]"}>
                     {profileCompletion >= 80
                       ? "Ready for milestone demo"
                       : "Add more faculty details"}
                   </div>
                 </div>
-                <div className={isDark ? "mt-4 h-2 overflow-hidden rounded-full bg-white/10" : "mt-4 h-2.5 overflow-hidden rounded-full bg-white/20 p-0.5"}>
+                <div className={isDark ? "mt-4 h-2 overflow-hidden rounded-full bg-white/10" : "mt-4 h-2.5 overflow-hidden rounded-full bg-[#e8f5e3] p-0.5"}>
                   <div
                     className="h-full rounded-full shadow-sm"
                     style={{ width: `${profileCompletion}%`, background: "var(--grad-aurora)" }}
                   />
                 </div>
-                <div className={isDark ? "mt-4 inline-flex items-start gap-2 text-xs text-white/50" : "mt-4 inline-flex items-start gap-2 text-xs font-medium text-indigo-100"}>
-                  <Target className="mt-0.5 size-3.5 shrink-0 text-amber-300" />
+                <div className={isDark ? "mt-4 inline-flex items-start gap-2 text-xs text-white/50" : "mt-4 inline-flex items-start gap-2 text-xs font-semibold text-slate-700"}>
+                  <Target className={`mt-0.5 size-3.5 shrink-0 ${isDark ? "text-amber-300" : "text-[#2f8f46]"}`} />
                   <span>
                     {profile.focus.trim() ||
                       "Set your academic focus, mentoring goal, or teaching direction."}
@@ -2682,7 +2736,7 @@ function ProfessorDashboardPage() {
           {professorHighlights.map((item) => {
             const Icon = item.icon;
             return (
-              <Panel key={item.label} className={isDark ? "p-5" : "p-5 border border-slate-200 bg-white shadow-md shadow-slate-200/50 text-slate-900"}>
+              <Panel key={item.label} className={isDark ? "p-5" : "p-5 border border-[#c9e6c0] bg-white/95 shadow-[0_12px_30px_rgba(76,175,80,0.11)] text-slate-900"}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className={`text-[10px] uppercase tracking-[0.3em] ${isDark ? "text-white/35" : "text-slate-500 font-bold"}`}>
@@ -2693,7 +2747,7 @@ function ProfessorDashboardPage() {
                     </div>
                     <div className={`mt-2 text-sm ${isDark ? "text-white/45" : "text-slate-500"}`}>{item.hint}</div>
                   </div>
-                  <div className={isDark ? "rounded-2xl bg-white/[0.06] p-3" : "rounded-2xl bg-indigo-50 p-3 text-indigo-700 border border-indigo-200"}>
+                  <div className={isDark ? "rounded-2xl bg-white/[0.06] p-3" : "rounded-2xl bg-[#ecf8e6] p-3 text-[#2f8f46] border border-[#a5d6a7]/70"}>
                     <Icon className="size-4" />
                   </div>
                 </div>
@@ -2703,10 +2757,12 @@ function ProfessorDashboardPage() {
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-          <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-slate-200 bg-white shadow-md shadow-slate-200/50 text-slate-900"}>
+          <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-[#c9e6c0] bg-white/95 shadow-[0_12px_30px_rgba(76,175,80,0.11)] text-slate-900"}>
             <SectionTitle icon={History} eyebrow="Activity" title="Faculty timeline" />
             <div className="mt-6 relative pl-6">
-              <div className="absolute bottom-0 left-2 top-0 w-px bg-gradient-to-b from-white/30 via-white/10 to-transparent" />
+              <div className={`absolute bottom-0 left-2 top-0 w-px bg-gradient-to-b ${
+                isDark ? "from-white/30 via-white/10 to-transparent" : "from-[#4caf50]/40 via-[#a5d6a7]/50 to-transparent"
+              }`} />
               {profileTimeline.map((entry, index) => (
                 <motion.div
                   key={`${entry.when}-${entry.text}`}
@@ -2734,13 +2790,13 @@ function ProfessorDashboardPage() {
           </Panel>
 
           <div className="space-y-5">
-            <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-slate-200 bg-white shadow-md shadow-slate-200/50 text-slate-900"}>
+            <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-[#c9e6c0] bg-white/95 shadow-[0_12px_30px_rgba(76,175,80,0.11)] text-slate-900"}>
               <SectionTitle icon={Sparkles} eyebrow="Teaching stack" title="Skills & strengths" />
               <div className="mt-4 flex flex-wrap gap-2">
                 {profile.skills.map((skill) => (
                   <span
                     key={skill}
-                    className={isDark ? "glass rounded-full px-3 py-1.5 text-xs text-white/78" : "rounded-full px-3.5 py-1.5 text-xs font-bold bg-indigo-50 text-indigo-900 border border-indigo-200"}
+                    className={isDark ? "glass rounded-full px-3 py-1.5 text-xs text-white/78" : "rounded-full px-3.5 py-1.5 text-xs font-bold bg-[#ecf8e6] text-[#1f7a32] border border-[#a5d6a7]/70"}
                   >
                     {skill}
                   </span>
@@ -2753,7 +2809,7 @@ function ProfessorDashboardPage() {
               </div>
             </Panel>
 
-            <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-slate-200 bg-white shadow-md shadow-slate-200/50 text-slate-900"}>
+            <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-[#c9e6c0] bg-white/95 shadow-[0_12px_30px_rgba(76,175,80,0.11)] text-slate-900"}>
               <SectionTitle
                 icon={ShieldCheck}
                 eyebrow="Milestones"
@@ -2771,8 +2827,8 @@ function ProfessorDashboardPage() {
                     <div
                       className={`absolute inset-x-0 top-0 h-1 ${item.earned ? "opacity-100" : "opacity-35"}`}
                       style={{
-                        background: `linear-gradient(90deg, oklch(0.7 0.25 310), ${
-                          index % 2 === 0 ? "oklch(0.82 0.18 200)" : "oklch(0.85 0.12 60)"
+                        background: `linear-gradient(90deg, #4caf50, ${
+                          index % 2 === 0 ? "#d8efbc" : "#ffc84b"
                         })`,
                       }}
                     />
@@ -2798,7 +2854,7 @@ function ProfessorDashboardPage() {
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-          <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-slate-200 bg-white shadow-md shadow-slate-200/50 text-slate-900"}>
+          <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-[#c9e6c0] bg-white/95 shadow-[0_12px_30px_rgba(76,175,80,0.11)] text-slate-900"}>
             <SectionTitle icon={UserCheck} eyebrow="Faculty card" title="Professional overview" />
             <div className="mt-5 grid gap-3">
               <ProfileField label="Designation" value={profile.designation} />
@@ -2822,7 +2878,7 @@ function ProfessorDashboardPage() {
             </div>
           </Panel>
 
-          <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-slate-200 bg-white shadow-md shadow-slate-200/50 text-slate-900"}>
+          <Panel className={isDark ? "p-5" : "p-6 rounded-3xl border border-[#c9e6c0] bg-white/95 shadow-[0_12px_30px_rgba(76,175,80,0.11)] text-slate-900"}>
             <SectionTitle icon={Briefcase} eyebrow="Milestone-ready" title="Presentation summary" />
             <div className="mt-5 space-y-4">
               <ProfileField
@@ -2841,7 +2897,7 @@ function ProfessorDashboardPage() {
                 label="Resource Contribution"
                 value={`${professorResources.length} study resource(s) uploaded`}
               />
-              <div className={isDark ? "rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/58" : "rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm leading-6 text-indigo-950 font-medium"}>
+              <div className={isDark ? "rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/58" : "rounded-2xl border border-[#c9e6c0] bg-[#ecf8e6]/70 p-4 text-sm leading-6 text-slate-800 font-medium"}>
                 This faculty profile combines verified identity, mentoring focus, classroom
                 oversight, and contribution signals in one polished professor-facing view.
               </div>
@@ -3053,6 +3109,7 @@ function StudentAssignmentHistory({
   assignments,
   studentName,
   selectedSubmissionId,
+  selectedAssignmentId,
   onOpen,
   className = "",
   listClassName = "max-h-56",
@@ -3061,27 +3118,40 @@ function StudentAssignmentHistory({
   assignments?: PublishedAssignment[];
   studentName: string;
   selectedSubmissionId: number | null;
+  selectedAssignmentId?: number | null;
   onOpen: (item: ReviewLikeItem) => void;
   className?: string;
   listClassName?: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className={`flex min-h-0 flex-col rounded-3xl border border-white/12 bg-white/[0.03] p-4.5 backdrop-blur-xl ${className}`}>
+    <div className={`flex min-h-0 flex-col rounded-3xl border p-4.5 backdrop-blur-xl ${
+      isDark ? "border-white/12 bg-white/[0.03]" : "border-[#c9e6c0] bg-white/95 shadow-[0_12px_30px_rgba(76,175,80,0.1)]"
+    } ${className}`}>
       <div className="flex shrink-0 items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.25em] font-semibold text-white/40">
+          <div className={`text-[10px] uppercase tracking-[0.25em] font-semibold ${
+            isDark ? "text-white/40" : "text-slate-500"
+          }`}>
             Selected Student Assignments
           </div>
-          <div className="mt-1 text-sm font-semibold text-white">{studentName}</div>
+          <div className={`mt-1 text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>{studentName}</div>
         </div>
-        <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-200 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
+        <span className={`rounded-full border px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider ${
+          isDark
+            ? "border-[#d8efbc]/30 bg-[#4caf50]/15 text-[#d8efbc] shadow-[0_0_10px_rgba(76,175,80,0.2)]"
+            : "border-[#a5d6a7] bg-[#ecf8e6] text-[#2f8f46]"
+        }`}>
           {items.length} {items.length === 1 ? "Record" : "Records"}
         </span>
       </div>
 
       <div className={`mt-3 min-h-0 space-y-2.5 overflow-y-auto pr-1 ${listClassName}`}>
         {items.map((item) => {
-          const selected = item.submissionId === selectedSubmissionId;
+          const selected = item.submissionId
+            ? item.submissionId === selectedSubmissionId
+            : typeof item.assignmentId === "number" && item.assignmentId === selectedAssignmentId;
           const assignment = assignments?.find((row) => row.id === item.assignmentId);
           const totalPoints = assignment?.totalPoints ?? 100;
           const submitted = Boolean(item.submissionId);
@@ -3108,8 +3178,12 @@ function StudentAssignmentHistory({
               onClick={() => onOpen(item)}
               className={`group w-full rounded-2xl border p-3.5 text-left transition-all duration-200 ${
                 selected
-                  ? "border-emerald-400/60 bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-transparent shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-                  : "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]"
+                  ? isDark
+                    ? "border-[#d8efbc]/70 bg-gradient-to-r from-[#4caf50]/18 via-[#68c56d]/10 to-transparent shadow-[0_0_20px_rgba(76,175,80,0.2)]"
+                    : "border-[#68c56d] bg-[#ecf8e6] shadow-md shadow-green-200/40"
+                  : isDark
+                    ? "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]"
+                    : "border-slate-200 bg-white hover:border-[#a5d6a7] hover:bg-[#f5fbf1]"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -3443,7 +3517,7 @@ function AttendanceRatioChart({
     <div className={compact ? "mt-4" : "mt-6"}>
       <div className="flex items-center gap-4 text-xs font-semibold">
         <span className="inline-flex items-center gap-2">
-          <span className="size-2.5 rounded-full bg-cyan-400" />
+          <span className="size-2.5 rounded-full bg-[#4caf50]" />
           <span className={isDark ? "text-white/60" : "text-slate-700"}>Present</span>
         </span>
         <span className="inline-flex items-center gap-2">
@@ -3479,24 +3553,24 @@ function AttendanceRatioChart({
               }`}
             >
               <div
-                className="w-full max-w-8 origin-bottom transform-gpu rounded-t-xl bg-gradient-to-t from-cyan-600 via-cyan-500 to-emerald-400 transition-transform duration-200 ease-out group-hover/date:scale-y-105 group-focus/date:scale-y-105 shadow-xs"
+                className="w-full max-w-8 origin-bottom transform-gpu rounded-t-xl bg-gradient-to-t from-[#2f8f46] via-[#4caf50] to-[#d8efbc] shadow-[0_8px_18px_rgba(76,175,80,0.22)] transition-transform duration-200 ease-out group-hover/date:scale-y-105 group-focus/date:scale-y-105"
                 style={{
                   height: item.present
-                    ? `${Math.max(8, (item.present / maxStudents) * 100)}%`
+                    ? `${Math.max(18, (item.present / maxStudents) * 100)}%`
                     : "0%",
                 }}
               />
               <div
                 className="w-full max-w-8 origin-bottom transform-gpu rounded-t-xl bg-gradient-to-t from-rose-600 via-rose-500 to-amber-400 transition-transform duration-200 ease-out group-hover/date:scale-y-105 group-focus/date:scale-y-105 shadow-xs"
                 style={{
-                  height: item.absent ? `${Math.max(8, (item.absent / maxStudents) * 100)}%` : "0%",
+                  height: item.absent ? `${Math.max(18, (item.absent / maxStudents) * 100)}%` : "0%",
                 }}
               />
               <div
                 className={`w-full max-w-8 origin-bottom transform-gpu rounded-t-xl transition-transform duration-200 ease-out group-hover/date:scale-y-105 group-focus/date:scale-y-105 ${
-                  isDark ? "bg-white/15" : "bg-slate-200/90 border border-slate-300/40"
+                  isDark ? "bg-white/15" : "bg-slate-300/85 border border-slate-400/30"
                 }`}
-                style={{ height: `${Math.max(10, (item.unmarked / maxStudents) * 100)}%` }}
+                style={{ height: `${item.unmarked ? Math.max(18, (item.unmarked / maxStudents) * 100) : 0}%` }}
               />
             </div>
             <div className={`mt-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] truncate ${
@@ -3537,10 +3611,14 @@ function ResourceHistoryRow({
   disabled?: boolean;
   onDelete: () => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const href = resolveResourceUrl(item.url);
   const downloadHref = href ? `${href}${href.includes("?") ? "&" : "?"}download=true` : "";
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+    <div className={`rounded-3xl border p-4 ${
+      isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-white shadow-sm"
+    }`}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <button
           type="button"
@@ -3549,12 +3627,14 @@ function ResourceHistoryRow({
           className="min-w-0 text-left disabled:cursor-not-allowed"
         >
           <div className="flex items-center gap-3">
-            <span className="size-11 shrink-0 rounded-2xl bg-white/10 flex items-center justify-center">
-              <FileText className="size-4 text-cyan-200" />
+            <span className={`flex size-11 shrink-0 items-center justify-center rounded-2xl ${
+              isDark ? "bg-white/10" : "border border-[#c9e6c0] bg-[#ecf8e6]"
+            }`}>
+              <FileText className={`size-4 ${isDark ? "text-cyan-200" : "text-[#2f8f46]"}`} />
             </span>
             <span className="min-w-0">
-              <span className="block truncate font-medium">{item.title}</span>
-              <span className="mt-1 block text-xs text-white/45">
+              <span className={`block truncate font-medium ${isDark ? "text-white" : "text-slate-900"}`}>{item.title}</span>
+              <span className={`mt-1 block text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>
                 {item.subject} / {item.resourceType} / {item.time}
               </span>
             </span>
@@ -3565,7 +3645,11 @@ function ResourceHistoryRow({
             type="button"
             onClick={onDelete}
             disabled={disabled}
-            className="rounded-full border border-rose-300/25 bg-rose-500/10 px-3 py-2 text-xs text-rose-100 inline-flex items-center gap-1.5 transition hover:border-rose-200/40 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              isDark
+                ? "border-rose-300/25 bg-rose-500/10 text-rose-100 hover:border-rose-200/40 hover:bg-rose-500/20"
+                : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+            }`}
           >
             <Trash2 className="size-3.5" />
             Delete
@@ -3575,8 +3659,10 @@ function ResourceHistoryRow({
             target="_blank"
             rel="noreferrer"
             aria-disabled={!href}
-            className={`glass rounded-full px-3 py-2 text-xs inline-flex items-center gap-1.5 transition hover:border-white/25 ${
-              href ? "text-white/70 hover:text-white" : "pointer-events-none text-white/30"
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs transition ${
+              isDark
+                ? `glass hover:border-white/25 ${href ? "text-white/70 hover:text-white" : "pointer-events-none text-white/30"}`
+                : `border-slate-200 bg-white text-slate-700 shadow-sm hover:border-[#a5d6a7] hover:text-[#1f7a32] ${href ? "" : "pointer-events-none opacity-45"}`
             }`}
           >
             <Eye className="size-3.5" />
@@ -3586,8 +3672,10 @@ function ResourceHistoryRow({
             href={downloadHref || undefined}
             download
             aria-disabled={!href}
-            className={`glass rounded-full px-3 py-2 text-xs inline-flex items-center gap-1.5 transition hover:border-white/25 ${
-              href ? "text-white/70 hover:text-white" : "pointer-events-none text-white/30"
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs transition ${
+              isDark
+                ? `glass hover:border-white/25 ${href ? "text-white/70 hover:text-white" : "pointer-events-none text-white/30"}`
+                : `border-slate-200 bg-white text-slate-700 shadow-sm hover:border-[#a5d6a7] hover:text-[#1f7a32] ${href ? "" : "pointer-events-none opacity-45"}`
             }`}
           >
             <Download className="size-3.5" />
@@ -3733,10 +3821,10 @@ function CgpaYearChart({ data }: { data: ProfessorDashboard["cgpa_years"] }) {
     <div className="mt-4 space-y-3">
       <div className="flex items-center justify-between text-xs font-semibold">
         <div className="flex items-center gap-2">
-          <span className="size-2.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500" />
+          <span className="size-2.5 rounded-full bg-[#4caf50]" />
           <span className={isDark ? "text-white/70" : "text-slate-700"}>Average CGPA per Batch</span>
         </div>
-        <span className={`text-[11px] font-mono font-bold ${isDark ? "text-indigo-300" : "text-indigo-600"}`}>
+        <span className={`text-[11px] font-mono font-bold ${isDark ? "text-[#d8efbc]" : "text-[#2f8f46]"}`}>
           Scale: 10.0 CGPA
         </span>
       </div>
@@ -3758,18 +3846,21 @@ function CgpaYearChart({ data }: { data: ProfessorDashboard["cgpa_years"] }) {
               <div key={item.year} className="group flex flex-col items-center flex-1 max-w-[72px] min-w-0">
                 <div className={`mb-2 rounded-full px-2 py-0.5 text-[10px] font-bold font-mono transition-transform duration-200 group-hover:-translate-y-1 shadow-2xs ${
                   isDark
-                    ? "bg-indigo-500/20 text-indigo-200 border border-indigo-500/30"
-                    : "bg-indigo-100 text-indigo-900 border border-indigo-200"
+                    ? "bg-[#4caf50]/20 text-[#d8efbc] border border-[#d8efbc]/30"
+                    : "bg-[#ecf8e6] text-[#1f7a32] border border-[#a5d6a7]"
                 }`}>
                   {item.averageCgpa.toFixed(2)}
                 </div>
 
                 <div className={`w-full h-36 flex items-end rounded-xl p-1 border ${
-                  isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white/80"
+                  isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
                 }`}>
                   <div
-                    className="w-full origin-bottom transform-gpu rounded-lg bg-gradient-to-t from-indigo-600 via-purple-500 to-pink-500 shadow-md shadow-indigo-500/20 transition-all duration-300 ease-out group-hover:brightness-110 group-hover:scale-y-[1.02]"
-                    style={{ height: `${heightPercent}%` }}
+                    className="w-full origin-bottom transform-gpu rounded-lg shadow-md shadow-green-500/20 transition-all duration-300 ease-out group-hover:brightness-110 group-hover:scale-y-[1.02]"
+                    style={{
+                      height: `${heightPercent}%`,
+                      background: "linear-gradient(180deg, #d8efbc 0%, #68c56d 46%, #4caf50 100%)",
+                    }}
                     title={`${item.year}: ${item.averageCgpa} CGPA`}
                   />
                 </div>
@@ -4074,8 +4165,8 @@ function ProfileField({ label, value }: { label: string; value: string }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   return (
-    <div className={isDark ? "glass rounded-2xl p-4" : "rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs text-slate-900"}>
-      <div className={`text-[10px] uppercase tracking-[0.25em] ${isDark ? "text-white/35" : "text-indigo-600 font-bold"}`}>{label}</div>
+    <div className={isDark ? "glass rounded-2xl p-4" : "rounded-2xl border border-[#c9e6c0] bg-white p-4 shadow-2xs text-slate-900"}>
+      <div className={`text-[10px] uppercase tracking-[0.25em] ${isDark ? "text-white/35" : "text-[#2f8f46] font-bold"}`}>{label}</div>
       <div className={`mt-2 text-sm break-words ${isDark ? "text-white/75" : "text-slate-900 font-semibold"}`}>{value}</div>
     </div>
   );
@@ -4111,19 +4202,35 @@ function InlineProfileValue({
   value: string;
   fallback: string;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <span className="inline-flex items-center gap-2 text-indigo-100 font-medium">
-      <Icon className="size-4 text-indigo-300 shrink-0" />
-      {value.trim() || <span className="text-indigo-200/70 font-normal">{fallback}</span>}
+    <span className={`inline-flex items-center gap-2 font-medium ${
+      isDark ? "text-white/60" : "text-slate-700"
+    }`}>
+      <Icon className={`size-4 shrink-0 ${isDark ? "text-[#d8efbc]" : "text-[#2f8f46]"}`} />
+      {value.trim() || (
+        <span className={isDark ? "text-white/38 font-normal" : "text-slate-500 font-normal"}>
+          {fallback}
+        </span>
+      )}
     </span>
   );
 }
 
 function SnapshotStat({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-md">
-      <div className="text-[9px] font-bold uppercase tracking-[0.25em] text-indigo-200">{label}</div>
-      <div className="mt-0.5 font-display text-sm font-bold text-white truncate">{value}</div>
+    <div className={`rounded-2xl border px-4 py-2.5 backdrop-blur-md ${
+      isDark ? "border-white/20 bg-white/10" : "border-[#a5d6a7]/70 bg-white/82 shadow-sm"
+    }`}>
+      <div className={`text-[9px] font-bold uppercase tracking-[0.25em] ${
+        isDark ? "text-[#d8efbc]" : "text-[#2f8f46]"
+      }`}>{label}</div>
+      <div className={`mt-0.5 truncate font-display text-sm font-bold ${
+        isDark ? "text-white" : "text-slate-900"
+      }`}>{value}</div>
     </div>
   );
 }
@@ -4278,12 +4385,11 @@ function ActionButton({
     <button
       type="submit"
       disabled={disabled}
-      className="relative w-full rounded-full px-5 py-3.5 text-xs uppercase tracking-[0.2em] font-bold text-white overflow-hidden transition-all duration-200 hover:opacity-95 shadow-lg shadow-indigo-500/25 disabled:opacity-60 disabled:cursor-wait"
-      style={{ background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #d946ef 100%)" }}
+      className={PROFESSOR_PRIMARY_ACTION_CLASS}
     >
-      <span className="relative z-10 inline-flex items-center justify-center gap-2 text-white font-bold">
-        <Icon className="size-4 text-white" />
-        <span className="text-white font-bold">{children}</span>
+      <span className="relative z-10 inline-flex items-center justify-center gap-2 text-[#101417] font-bold">
+        <Icon className="size-4 text-[#101417]" />
+        <span className="text-[#101417] font-bold">{children}</span>
       </span>
     </button>
   );

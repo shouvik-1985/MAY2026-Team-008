@@ -123,7 +123,7 @@ function FeesPage() {
           email: dashboard?.user.email,
         },
         theme: {
-          color: "#a855f7",
+          color: "#4caf50",
         },
         modal: {
           ondismiss: () => {
@@ -178,7 +178,7 @@ function FeesPage() {
           className={`lg:col-span-2 relative overflow-hidden transition-all ${
             isDark ? "bg-slate-900 text-white shadow-xl" : "border-[#E2E8F0] shadow-md text-[#1F2937]"
           }`}
-          style={!isDark ? { background: "linear-gradient(135deg, #FFFFFF 0%, #F7F9FF 45%, #EEF4FF 100%)" } : undefined}
+          style={!isDark ? { background: "linear-gradient(135deg, #FFFFFF 0%, #F7FFF3 45%, #EDF8E7 100%)" } : undefined}
         >
           {isDark && (
             <>
@@ -190,7 +190,7 @@ function FeesPage() {
             </>
           )}
           {!isDark && (
-            <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(109,93,246,0.08),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(6,182,212,0.06),transparent_40%)]" />
+            <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(76,175,80,0.09),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(216,239,188,0.14),transparent_40%)]" />
           )}
           <div className="relative">
             <div className={`text-[10px] uppercase tracking-[0.3em] font-extrabold ${isDark ? "text-white/70" : "text-[#64748B]"}`}>
@@ -209,7 +209,7 @@ function FeesPage() {
                 className={`relative inline-flex items-center gap-2 overflow-hidden px-7 py-3 rounded-full text-xs font-extrabold uppercase tracking-[0.25em] shadow-md transition hover:scale-105 disabled:cursor-wait disabled:opacity-55 ${
                   isDark
                     ? "text-black"
-                    : "bg-[#6D5DF6] hover:bg-[#5b4be3] text-white"
+                    : "bg-[#2f8f46] hover:bg-[#267a38] text-white"
                 }`}
               >
                 {isDark ? <span className="absolute inset-0 rounded-full bg-white text-black" /> : null}
@@ -256,8 +256,8 @@ function FeesPage() {
                 className="flex-1 rounded-t-lg shadow-2xs"
                 style={{
                   background: isDark
-                    ? "linear-gradient(180deg, oklch(0.85 0.12 60), oklch(0.72 0.27 350 / 0.3))"
-                    : "linear-gradient(180deg, #6366f1, #818cf8)",
+                    ? "linear-gradient(180deg, #d8efbc, rgba(76, 175, 80, 0.3))"
+                    : "linear-gradient(180deg, #4caf50, #8fba7c)",
                 }}
               />
             ))}

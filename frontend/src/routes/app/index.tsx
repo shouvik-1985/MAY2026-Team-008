@@ -43,11 +43,11 @@ function getChartTheme(isDark: boolean) {
     grid: isDark ? "rgba(255, 255, 255, 0.12)" : "#cbd5e1",
     axis: isDark ? "#cbd5e1" : "#1e293b",
     axisFontWeight: isDark ? 500 : 700,
-    tooltipBackground: isDark ? "oklch(0.08 0.01 280 / 0.95)" : "#ffffff",
+    tooltipBackground: isDark ? "rgba(18, 20, 23, 0.95)" : "#ffffff",
     tooltipBorder: isDark ? "1px solid oklch(1 0 0 / 0.15)" : "1px solid #94a3b8",
     tooltipText: isDark ? "#ffffff" : "#0f172a",
-    cgpaStroke: isDark ? "oklch(0.82 0.18 200)" : "#2563eb",
-    cgpaGradientStart: isDark ? "oklch(0.82 0.18 200)" : "#2563eb",
+    cgpaStroke: isDark ? "#d8efbc" : "#2f8f46",
+    cgpaGradientStart: isDark ? "#4caf50" : "#2f8f46",
     attendanceStroke: isDark ? "#10b981" : "#059669",
     attendanceDot: isDark ? "#10b981" : "#059669",
   };
@@ -153,10 +153,10 @@ const FALLBACK_DASHBOARD: StudentDashboard = {
 
 const TONE: Record<string, { bg: string; border: string; textDark: string; textLight: string }> = {
   cyan: {
-    bg: "rgba(2, 132, 199, 0.15)",
-    border: "rgba(2, 132, 199, 0.35)",
-    textDark: "#38bdf8",
-    textLight: "#0284c7",
+    bg: "rgba(76, 175, 80, 0.15)",
+    border: "rgba(216, 239, 188, 0.35)",
+    textDark: "#d8efbc",
+    textLight: "#2f8f46",
   },
   green: {
     bg: "rgba(16, 185, 129, 0.15)",
@@ -165,10 +165,10 @@ const TONE: Record<string, { bg: string; border: string; textDark: string; textL
     textLight: "#059669",
   },
   pink: {
-    bg: "rgba(244, 114, 182, 0.15)",
-    border: "rgba(244, 114, 182, 0.35)",
-    textDark: "#f472b6",
-    textLight: "#db2777",
+    bg: "rgba(143, 186, 124, 0.15)",
+    border: "rgba(216, 239, 188, 0.34)",
+    textDark: "#bfe6a8",
+    textLight: "#347a3d",
   },
   amber: {
     bg: "rgba(245, 158, 11, 0.15)",
@@ -423,8 +423,8 @@ export function Dashboard() {
                   className={`rounded-full px-3.5 py-1.5 transition ${
                     attendanceGraphMode === mode
                       ? isDark
-                        ? "bg-white/20 text-white shadow-[0_0_20px_oklch(0.72_0.27_350_/_0.25)]"
-                        : "bg-indigo-600 text-white shadow-md font-bold"
+                        ? "bg-emerald-300/15 text-white shadow-[0_0_20px_rgba(76,175,80,0.25)]"
+                        : "bg-emerald-600 text-white shadow-md font-bold"
                       : isDark
                         ? "hover:text-white"
                         : "hover:text-slate-950"
@@ -538,7 +538,7 @@ export function Dashboard() {
           <div className="mt-5 space-y-4">
             {dashboard.request_timeline.map((item, index) => (
               <div key={item.title} className="group relative pl-7 transition-all duration-300 hover:translate-x-1">
-                <span className="absolute left-1 top-1.5 size-3 rounded-full bg-[oklch(0.82_0.18_200)] shadow-[0_0_12px_oklch(0.82_0.18_200_/_0.8)] group-hover:scale-125 transition-transform" />
+                <span className="absolute left-1 top-1.5 size-3 rounded-full bg-[var(--cv-green-soft)] shadow-[0_0_12px_rgba(76,175,80,0.8)] group-hover:scale-125 transition-transform" />
                 {index < dashboard.request_timeline.length - 1 && (
                   <span className={`absolute bottom-[-18px] left-[9px] top-5 w-px ${isDark ? "bg-white/15" : "bg-slate-300"}`} />
                 )}
@@ -609,19 +609,19 @@ function TodoPlannerCard({
           placeholder="Write today's plan or future task..."
           className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition font-medium ${
             isDark
-              ? "border-white/10 bg-white/[0.035] text-white placeholder:text-white/40 focus:border-fuchsia-400/50 focus:bg-white/[0.075]"
-              : "border-slate-300 bg-white/90 text-slate-900 placeholder:text-slate-500 focus:border-fuchsia-500 focus:bg-white shadow-sm"
-          } focus:shadow-[0_0_20px_rgba(232,121,249,0.15)]`}
+              ? "border-white/10 bg-white/[0.035] text-white placeholder:text-white/40 focus:border-emerald-300/50 focus:bg-white/[0.075]"
+              : "border-slate-300 bg-white/90 text-slate-900 placeholder:text-slate-500 focus:border-emerald-600 focus:bg-white shadow-sm"
+          } focus:shadow-[0_0_20px_rgba(76,175,80,0.15)]`}
         />
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <input
             value={dueAt}
             onChange={(event) => onDueAt(event.target.value)}
             type="datetime-local"
-            className={`min-w-0 rounded-2xl border px-4 py-3 text-sm outline-none font-medium transition focus:shadow-[0_0_20px_rgba(232,121,249,0.15)] ${
+            className={`min-w-0 rounded-2xl border px-4 py-3 text-sm outline-none font-medium transition focus:shadow-[0_0_20px_rgba(76,175,80,0.15)] ${
               isDark
-                ? "border-white/10 bg-white/[0.035] text-white [color-scheme:dark] focus:border-fuchsia-400/50 focus:bg-white/[0.075]"
-                : "border-slate-300 bg-white/90 text-slate-900 [color-scheme:light] focus:border-fuchsia-500 focus:bg-white shadow-sm"
+                ? "border-white/10 bg-white/[0.035] text-white [color-scheme:dark] focus:border-emerald-300/50 focus:bg-white/[0.075]"
+                : "border-slate-300 bg-white/90 text-slate-900 [color-scheme:light] focus:border-emerald-600 focus:bg-white shadow-sm"
             }`}
           />
           <button
@@ -629,8 +629,8 @@ function TodoPlannerCard({
             disabled={!title.trim() || busy === "create"}
             className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-xs font-bold uppercase tracking-[0.2em] transition disabled:cursor-not-allowed disabled:opacity-45 ${
               isDark
-                ? "border-fuchsia-300/25 bg-fuchsia-400/10 text-white hover:bg-fuchsia-400/18"
-                : "border-fuchsia-300 bg-fuchsia-600 text-white hover:bg-fuchsia-700 shadow-sm"
+                ? "border-emerald-300/25 bg-emerald-400/10 text-white hover:bg-emerald-400/18"
+                : "border-emerald-300 bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
             }`}
           >
             <Plus className="size-4" />
