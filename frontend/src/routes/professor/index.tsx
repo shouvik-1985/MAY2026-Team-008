@@ -926,7 +926,16 @@ function ProfessorDashboardPage() {
       licenseDocumentName: professor?.licenseDocumentName ?? "",
       skills: baseProfessorSkills,
     }),
-    [baseProfessorSkills, professor],
+    [
+      baseProfessorSkills,
+      professor?.department,
+      professor?.designation,
+      professor?.email,
+      professor?.expertiseField,
+      professor?.highestEducation,
+      professor?.licenseDocumentName,
+      professor?.name,
+    ],
   );
   const [profile, setProfile] = useState<EditableProfessorProfile>(
     () => getStoredProfessorProfile() ?? defaultProfessorProfile,
@@ -939,8 +948,10 @@ function ProfessorDashboardPage() {
     const stored = getStoredProfessorProfile();
     const nextProfile = stored ?? defaultProfessorProfile;
     setProfile(nextProfile);
-    setDraftProfile(nextProfile);
-  }, [defaultProfessorProfile]);
+    if (!isProfileEditOpen) {
+      setDraftProfile(nextProfile);
+    }
+  }, [defaultProfessorProfile, isProfileEditOpen]);
 
   const profileCompletion = useMemo(() => {
     const checks = [
@@ -3249,6 +3260,8 @@ function AssignmentDetailDialog({
   submission: ReviewLikeItem | null;
   onClose: () => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const answers = submission?.answers ?? {};
   const title = assignment?.title ?? submission?.title ?? "Assignment detail";
   const totalPoints = assignment?.totalPoints ?? 100;
@@ -3258,12 +3271,16 @@ function AssignmentDetailDialog({
 
   return (
     <Dialog open={Boolean(view)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[88vh] overflow-y-auto border-white/10 bg-[#0b0b0f] text-white sm:max-w-5xl">
+      <DialogContent
+        className={`max-h-[88vh] overflow-y-auto sm:max-w-5xl ${
+          isDark ? "border-white/10 bg-[#0b0b0f] text-white" : "border-slate-200 bg-white text-slate-950"
+        }`}
+      >
         {view && (
           <>
             <DialogHeader>
               <DialogTitle className="font-display text-2xl">{title}</DialogTitle>
-              <DialogDescription className="text-white/50">
+              <DialogDescription className={isDark ? "text-white/50" : "text-slate-600"}>
                 {view.kind === "submission"
                   ? "Submitted work, AI review, generated questions, and professor grading context."
                   : "Published AI assignment questions, answer keys, requirements, and rubric."}
@@ -3298,23 +3315,54 @@ function AssignmentDetailDialog({
             </div>
 
             {assignment?.instructions && (
-              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-                <div className="text-[10px] uppercase tracking-[0.25em] text-white/40">Instructions</div>
-                <p className="mt-2 text-sm leading-6 text-white/70">{assignment.instructions}</p>
+              <div
+                className={`rounded-3xl border p-4 ${
+                  isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <div className={`text-[10px] uppercase tracking-[0.25em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                  Instructions
+                </div>
+                <p className={`mt-2 text-sm leading-6 ${isDark ? "text-white/70" : "text-slate-700"}`}>
+                  {assignment.instructions}
+                </p>
               </div>
             )}
 
             {submission?.aiFeedback && (
-              <div className="rounded-3xl border border-fuchsia-300/20 bg-fuchsia-400/10 p-4">
-                <div className="text-[10px] uppercase tracking-[0.25em] text-fuchsia-100/70">AI review</div>
-                <p className="mt-2 text-sm leading-6 text-white/70">{submission.aiFeedback}</p>
+              <div
+                className={`rounded-3xl border p-4 ${
+                  isDark ? "border-fuchsia-300/20 bg-fuchsia-400/10" : "border-fuchsia-200 bg-fuchsia-50"
+                }`}
+              >
+                <div
+                  className={`text-[10px] uppercase tracking-[0.25em] ${
+                    isDark ? "text-fuchsia-100/70" : "text-fuchsia-700"
+                  }`}
+                >
+                  AI review
+                </div>
+                <p className={`mt-2 text-sm leading-6 ${isDark ? "text-white/70" : "text-slate-700"}`}>
+                  {submission.aiFeedback}
+                </p>
                 {(submission.aiReview?.criteria ?? []).length > 0 && (
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {(submission.aiReview?.criteria ?? []).map((criterion) => (
-                      <div key={`${criterion.label}-${criterion.detail}`} className="rounded-2xl bg-black/20 p-3">
-                        <div className="text-xs font-medium text-white">{criterion.label}</div>
-                        <div className="mt-1 text-xs capitalize text-white/35">{criterion.status.replace("_", " ")}</div>
-                        <div className="mt-1 text-xs text-white/55">{criterion.detail}</div>
+                      <div
+                        key={`${criterion.label}-${criterion.detail}`}
+                        className={`rounded-2xl p-3 ${isDark ? "bg-black/20" : "bg-white border border-fuchsia-100"}`}
+                      >
+                        <div className={`text-xs font-medium ${isDark ? "text-white" : "text-slate-900"}`}>
+                          {criterion.label}
+                        </div>
+                        <div
+                          className={`mt-1 text-xs capitalize ${isDark ? "text-white/35" : "text-slate-500"}`}
+                        >
+                          {criterion.status.replace("_", " ")}
+                        </div>
+                        <div className={`mt-1 text-xs ${isDark ? "text-white/55" : "text-slate-600"}`}>
+                          {criterion.detail}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -3331,7 +3379,11 @@ function AssignmentDetailDialog({
                     fallbackName: submission.fileName || "assignment-submission",
                   })
                 }
-                className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white/70 transition hover:text-white"
+                className={`inline-flex w-fit items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                  isDark
+                    ? "border-white/10 bg-white/[0.06] text-white/70 hover:text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:text-slate-950"
+                }`}
               >
                 <Download className="size-4" />
                 Open submitted file
@@ -3341,8 +3393,10 @@ function AssignmentDetailDialog({
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.25em] text-white/40">Generated questions</div>
-                  <div className="mt-1 text-sm text-white/55">
+                  <div className={`text-[10px] uppercase tracking-[0.25em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                    Generated questions
+                  </div>
+                  <div className={`mt-1 text-sm ${isDark ? "text-white/55" : "text-slate-600"}`}>
                     {assignment?.questions.length ?? 0} question{assignment?.questions.length === 1 ? "" : "s"}
                   </div>
                 </div>
@@ -3353,12 +3407,25 @@ function AssignmentDetailDialog({
                   const submittedAnswer = answers[question.id] ?? "";
                   const answerKey = question.answerKey ?? "";
                   return (
-                    <div key={question.id} className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
+                    <div
+                      key={question.id}
+                      className={`rounded-3xl border p-4 ${
+                        isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      <div
+                        className={`flex flex-wrap items-center justify-between gap-3 border-b pb-3 ${
+                          isDark ? "border-white/10" : "border-slate-200"
+                        }`}
+                      >
                         <div className="font-display text-lg">Question {index + 1}</div>
-                        <div className="text-xs font-semibold text-white/45">{question.points ?? 0} points</div>
+                        <div className={`text-xs font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                          {question.points ?? 0} points
+                        </div>
                       </div>
-                      <p className="mt-4 text-sm leading-6 text-white/80">{question.prompt}</p>
+                      <p className={`mt-4 text-sm leading-6 ${isDark ? "text-white/80" : "text-slate-800"}`}>
+                        {question.prompt}
+                      </p>
 
                       {(question.options ?? []).length > 0 && (
                         <div className="mt-4 grid gap-2">
@@ -3370,20 +3437,34 @@ function AssignmentDetailDialog({
                                 key={option.id}
                                 className={`rounded-2xl border p-3 text-sm ${
                                   selected
-                                    ? "border-cyan-300/35 bg-cyan-300/10 text-white"
+                                    ? isDark
+                                      ? "border-cyan-300/35 bg-cyan-300/10 text-white"
+                                      : "border-cyan-300 bg-cyan-50 text-slate-900"
                                     : correct
-                                      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50"
-                                      : "border-white/10 bg-black/15 text-white/60"
+                                      ? isDark
+                                        ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50"
+                                        : "border-emerald-300 bg-emerald-50 text-slate-900"
+                                      : isDark
+                                        ? "border-white/10 bg-black/15 text-white/60"
+                                        : "border-slate-200 bg-white text-slate-700"
                                 }`}
                               >
                                 <div className="flex items-start gap-3">
-                                  <span className="grid size-7 shrink-0 place-items-center rounded-full border border-white/15 text-xs">
+                                  <span
+                                    className={`grid size-7 shrink-0 place-items-center rounded-full border text-xs ${
+                                      isDark ? "border-white/15" : "border-slate-300"
+                                    }`}
+                                  >
                                     {option.id}
                                   </span>
                                   <span className="leading-6">{option.text}</span>
                                 </div>
                                 {(selected || correct) && (
-                                  <div className="mt-2 text-xs uppercase tracking-[0.18em] text-white/40">
+                                  <div
+                                    className={`mt-2 text-xs uppercase tracking-[0.18em] ${
+                                      isDark ? "text-white/40" : "text-slate-500"
+                                    }`}
+                                  >
                                     {selected ? "Student selected" : ""}
                                     {selected && correct ? " / " : ""}
                                     {correct ? "Answer key" : ""}
@@ -3396,11 +3477,23 @@ function AssignmentDetailDialog({
                       )}
 
                       {question.kind === "qa" && submission && (
-                        <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-100/70">
+                        <div
+                          className={`mt-4 rounded-2xl border p-3 ${
+                            isDark ? "border-cyan-300/20 bg-cyan-300/10" : "border-cyan-200 bg-cyan-50"
+                          }`}
+                        >
+                          <div
+                            className={`text-[10px] uppercase tracking-[0.2em] ${
+                              isDark ? "text-cyan-100/70" : "text-cyan-700"
+                            }`}
+                          >
                             Student answer
                           </div>
-                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/75">
+                          <p
+                            className={`mt-2 whitespace-pre-wrap text-sm leading-6 ${
+                              isDark ? "text-white/75" : "text-slate-700"
+                            }`}
+                          >
                             {submittedAnswer || "No answer submitted."}
                           </p>
                         </div>
@@ -3409,7 +3502,12 @@ function AssignmentDetailDialog({
                       {(question.requirements ?? []).length > 0 && (
                         <div className="mt-4 grid gap-2">
                           {(question.requirements ?? []).map((requirement) => (
-                            <div key={requirement} className="rounded-2xl bg-black/20 px-3 py-2 text-sm text-white/65">
+                            <div
+                              key={requirement}
+                              className={`rounded-2xl px-3 py-2 text-sm ${
+                                isDark ? "bg-black/20 text-white/65" : "bg-white text-slate-700 border border-slate-200"
+                              }`}
+                            >
                               {requirement}
                             </div>
                           ))}
@@ -3417,32 +3515,55 @@ function AssignmentDetailDialog({
                       )}
 
                       {answerKey && (
-                        <div className="mt-3 text-xs text-emerald-200">Answer key: {answerKey}</div>
+                        <div className={`mt-3 text-xs ${isDark ? "text-emerald-200" : "text-emerald-700"}`}>
+                          Answer key: {answerKey}
+                        </div>
                       )}
                       {question.explanation && (
-                        <div className="mt-2 text-xs leading-5 text-white/45">{question.explanation}</div>
+                        <div className={`mt-2 text-xs leading-5 ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                          {question.explanation}
+                        </div>
                       )}
                     </div>
                   );
                 })
               ) : (
-                <div className="rounded-3xl border border-dashed border-white/15 py-8 text-center text-sm text-white/45">
+                <div
+                  className={`rounded-3xl border border-dashed py-8 text-center text-sm ${
+                    isDark ? "border-white/15 text-white/45" : "border-slate-300 text-slate-500"
+                  }`}
+                >
                   Generated question details were not found for this item.
                 </div>
               )}
             </div>
 
             {(assignment?.rubric ?? []).length > 0 && (
-              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-                <div className="text-[10px] uppercase tracking-[0.25em] text-white/40">Rubric</div>
+              <div
+                className={`rounded-3xl border p-4 ${
+                  isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <div className={`text-[10px] uppercase tracking-[0.25em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                  Rubric
+                </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {(assignment?.rubric ?? []).map((item) => (
-                    <div key={item.label} className="rounded-2xl bg-black/20 p-3">
+                    <div
+                      key={item.label}
+                      className={`rounded-2xl p-3 ${isDark ? "bg-black/20" : "bg-white border border-slate-200"}`}
+                    >
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium text-white">{item.label}</div>
-                        <div className="text-xs text-emerald-200">{item.points ?? 0} pts</div>
+                        <div className={`text-sm font-medium ${isDark ? "text-white" : "text-slate-900"}`}>
+                          {item.label}
+                        </div>
+                        <div className={`text-xs ${isDark ? "text-emerald-200" : "text-emerald-700"}`}>
+                          {item.points ?? 0} pts
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs leading-5 text-white/45">{item.detail}</div>
+                      <div className={`mt-1 text-xs leading-5 ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                        {item.detail}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -3456,10 +3577,20 @@ function AssignmentDetailDialog({
 }
 
 function DetailMetric({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="text-[10px] uppercase tracking-[0.22em] text-white/35">{label}</div>
-      <div className="mt-1 truncate text-sm font-medium text-white">{value}</div>
+    <div
+      className={`rounded-2xl border p-3 ${
+        isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"
+      }`}
+    >
+      <div className={`text-[10px] uppercase tracking-[0.22em] ${isDark ? "text-white/35" : "text-slate-500"}`}>
+        {label}
+      </div>
+      <div className={`mt-1 truncate text-sm font-medium ${isDark ? "text-white" : "text-slate-900"}`}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -3888,6 +4019,8 @@ function AttendanceHistoryOverlay({
   todayDate?: string;
   onClose: () => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState(todayDate ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | AttendanceStatus | "warning">("all");
@@ -3924,7 +4057,9 @@ function AttendanceHistoryOverlay({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-[90] bg-black/75 backdrop-blur-xl px-4 py-5 md:px-8 md:py-8"
+      className={`cv-attendance-history-overlay fixed inset-0 z-[90] px-4 py-5 md:px-8 md:py-8 ${
+        isDark ? "bg-black/75 backdrop-blur-xl" : "bg-slate-950/30 backdrop-blur-sm"
+      }`}
       onMouseDown={onClose}
       role="dialog"
       aria-modal="true"
@@ -3933,18 +4068,38 @@ function AttendanceHistoryOverlay({
         initial={{ opacity: 0, y: 24, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         onMouseDown={(event) => event.stopPropagation()}
-        className="mx-auto flex h-[calc(100vh-40px)] max-w-7xl flex-col overflow-hidden rounded-[28px] border border-white/12 bg-[#070707]/95 shadow-2xl md:h-[calc(100vh-64px)]"
+        className={`mx-auto flex h-[calc(100vh-40px)] max-w-7xl flex-col overflow-hidden rounded-[28px] border shadow-2xl md:h-[calc(100vh-64px)] ${
+          isDark ? "border-white/12 bg-[#070707]/95" : "border-slate-200 bg-white"
+        }`}
       >
-        <div className="border-b border-white/10 p-5 md:p-6">
+        <div className={`p-5 md:p-6 ${isDark ? "border-b border-white/10" : "border-b border-slate-200"}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <SectionTitle
-              icon={History}
-              eyebrow="Attendance history"
-              title="Marked present & absent"
-            />
+            <div className="flex items-center gap-3">
+              <span
+                className={`flex size-10 items-center justify-center rounded-2xl ${
+                  isDark ? "bg-white/10" : "bg-slate-100"
+                }`}
+              >
+                <History className={`size-4 ${isDark ? "text-white/70" : "text-slate-600"}`} />
+              </span>
+              <div>
+                <div
+                  className={`cv-overlay-eyebrow text-[10px] uppercase tracking-[0.3em] ${
+                    isDark ? "text-white/40" : "text-slate-500"
+                  }`}
+                >
+                  Attendance history
+                </div>
+                <h2 className={`cv-overlay-title font-display text-2xl ${isDark ? "text-white" : "text-slate-950"}`}>
+                  Marked present & absent
+                </h2>
+              </div>
+            </div>
             <button
               onClick={onClose}
-              className="glass inline-flex size-11 items-center justify-center rounded-full text-white/65 transition hover:text-white lg:ml-auto"
+              className={`glass inline-flex size-11 items-center justify-center rounded-full transition lg:ml-auto ${
+                isDark ? "text-white/65 hover:text-white" : "text-slate-500 hover:text-slate-950"
+              }`}
               aria-label="Close attendance history"
             >
               <X className="size-5" />
@@ -3953,22 +4108,32 @@ function AttendanceHistoryOverlay({
 
           <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_180px_240px]">
             <label className="glass rounded-2xl px-4 py-3 flex items-center gap-3">
-              <Search className="size-4 text-white/45" />
+              <Search className={`size-4 ${isDark ? "text-white/45" : "text-slate-400"}`} />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search student, roll number, professor"
-                className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder-white/35 focus:outline-none"
+                className={`min-w-0 flex-1 bg-transparent text-sm focus:outline-none ${
+                  isDark ? "text-white placeholder-white/35" : "text-slate-900 placeholder-slate-400"
+                }`}
               />
             </label>
             <input
               type="date"
               value={dateFilter}
               onChange={(event) => setDateFilter(event.target.value)}
-              className="glass rounded-2xl px-4 py-3 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-white/30"
+              className={`glass rounded-2xl px-4 py-3 text-sm focus:outline-none ${
+                isDark
+                  ? "text-white [color-scheme:dark] focus:border-white/30"
+                  : "text-slate-900 [color-scheme:light] focus:border-slate-300"
+              }`}
             />
             <label className="glass rounded-2xl px-4 py-3">
-              <div className="mb-2 text-[10px] uppercase tracking-[0.22em] text-white/35">
+              <div
+                className={`mb-2 text-[10px] uppercase tracking-[0.22em] ${
+                  isDark ? "text-white/35" : "text-slate-500"
+                }`}
+              >
                 Status filter
               </div>
               <div className="relative">
@@ -3977,22 +4142,28 @@ function AttendanceHistoryOverlay({
                   onChange={(event) =>
                     setStatusFilter(event.target.value as "all" | AttendanceStatus | "warning")
                   }
-                  className="w-full appearance-none bg-transparent pr-10 text-sm text-white focus:outline-none"
+                  className={`w-full appearance-none bg-transparent pr-10 text-sm focus:outline-none ${
+                    isDark ? "text-white" : "text-slate-900"
+                  }`}
                 >
-                  <option value="all" className="bg-[#101010] text-white">
+                  <option value="all" className={isDark ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>
                     All statuses
                   </option>
-                  <option value="present" className="bg-[#101010] text-white">
+                  <option value="present" className={isDark ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>
                     Present only
                   </option>
-                  <option value="absent" className="bg-[#101010] text-white">
+                  <option value="absent" className={isDark ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>
                     Absent only
                   </option>
-                  <option value="warning" className="bg-[#101010] text-white">
+                  <option value="warning" className={isDark ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>
                     Warning only
                   </option>
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-0 top-1/2 size-4 -translate-y-1/2 text-white/45" />
+                <ChevronDown
+                  className={`pointer-events-none absolute right-0 top-1/2 size-4 -translate-y-1/2 ${
+                    isDark ? "text-white/45" : "text-slate-400"
+                  }`}
+                />
               </div>
             </label>
           </div>
@@ -4005,10 +4176,18 @@ function AttendanceHistoryOverlay({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto p-5 md:p-6">
-          <div className="hidden overflow-hidden rounded-3xl border border-white/10 lg:block">
+          <div className="min-h-0 flex-1 overflow-auto p-5 md:p-6">
+          <div
+            className={`hidden overflow-hidden rounded-3xl border lg:block ${
+              isDark ? "border-white/10" : "border-slate-300/90"
+            }`}
+          >
             <table className="w-full text-left text-sm">
-              <thead className="bg-white/[0.03] text-[10px] uppercase tracking-[0.25em] text-white/40">
+              <thead
+                className={`text-[10px] uppercase tracking-[0.25em] ${
+                  isDark ? "bg-white/[0.03] text-white/40" : "bg-white text-slate-500"
+                }`}
+              >
                 <tr>
                   <th className="px-5 py-4">Student</th>
                   <th className="px-5 py-4">Roll number</th>
@@ -4020,9 +4199,12 @@ function AttendanceHistoryOverlay({
               </thead>
               <tbody>
                 {filteredItems.map((item) => (
-                  <tr key={item.id} className="border-t border-white/10">
-                    <td className="px-5 py-4 font-medium">{item.student}</td>
-                    <td className="px-5 py-4 text-white/50">{item.studentCode || "CV-2026"}</td>
+                  <tr
+                    key={item.id}
+                    className={isDark ? "border-t border-white/10" : "border-t border-slate-200/80"}
+                  >
+                    <td className={`px-5 py-4 font-medium ${isDark ? "text-white" : "text-slate-900"}`}>{item.student}</td>
+                    <td className={`px-5 py-4 ${isDark ? "text-white/50" : "text-slate-700 font-medium"}`}>{item.studentCode || "CV-2026"}</td>
                     <td className="px-5 py-4">
                       <span
                         className={`rounded-full px-3 py-1 text-xs capitalize ${
@@ -4039,9 +4221,9 @@ function AttendanceHistoryOverlay({
                         </span>
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-white/60">{formatDateOnly(item.date)}</td>
-                    <td className="px-5 py-4 text-white/60">{formatTimeOnly(item.markedAt)}</td>
-                    <td className="px-5 py-4 text-white/50">{item.markedBy}</td>
+                    <td className={`px-5 py-4 ${isDark ? "text-white/60" : "text-slate-800 font-semibold"}`}>{formatDateOnly(item.date)}</td>
+                    <td className={`px-5 py-4 ${isDark ? "text-white/60" : "text-slate-800 font-semibold"}`}>{formatTimeOnly(item.markedAt)}</td>
+                    <td className={`px-5 py-4 ${isDark ? "text-white/50" : "text-slate-800 font-semibold"}`}>{item.markedBy}</td>
                   </tr>
                 ))}
               </tbody>
@@ -4053,8 +4235,10 @@ function AttendanceHistoryOverlay({
               <div key={item.id} className="glass rounded-2xl p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{item.student}</div>
-                    <div className="mt-1 text-xs text-white/40">
+                    <div className={`truncate text-sm font-medium ${isDark ? "text-white" : "text-slate-900"}`}>
+                      {item.student}
+                    </div>
+                    <div className={`mt-1 text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>
                       {item.studentCode || item.date}
                     </div>
                   </div>
@@ -4073,17 +4257,21 @@ function AttendanceHistoryOverlay({
                     </span>
                   </span>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/55">
+                <div className={`mt-4 grid grid-cols-2 gap-3 text-xs ${isDark ? "text-white/55" : "text-slate-600"}`}>
                   <div>{formatDateOnly(item.date)}</div>
                   <div className="text-right">{formatTimeOnly(item.markedAt)}</div>
-                  <div className="col-span-2 text-white/40">{item.markedBy}</div>
+                  <div className={`col-span-2 ${isDark ? "text-white/40" : "text-slate-500"}`}>{item.markedBy}</div>
                 </div>
               </div>
             ))}
           </div>
 
           {filteredItems.length === 0 && (
-            <div className="grid min-h-[260px] place-items-center rounded-3xl border border-dashed border-white/15 text-sm text-white/45">
+            <div
+              className={`grid min-h-[260px] place-items-center rounded-3xl border border-dashed text-sm ${
+                isDark ? "border-white/15 text-white/45" : "border-slate-300 text-slate-500"
+              }`}
+            >
               No attendance records found.
             </div>
           )}

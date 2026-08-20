@@ -1108,7 +1108,7 @@ function AdminDeskPage() {
               />
             </div>
             <div className={`overflow-hidden rounded-[24px] border ${isDark ? "border-white/10 bg-black/10" : "border-slate-200 bg-white"}`}>
-              <div className={`grid grid-cols-[2fr_1.1fr_1fr_0.5fr_auto] gap-3 border-b px-4 py-3 text-[10px] uppercase tracking-[0.28em] ${isDark ? "border-white/10 text-white/35" : "border-slate-100 text-slate-400 bg-slate-50/80"}`}>
+              <div className={`grid grid-cols-[2fr_1.1fr_1fr_0.6fr_auto] gap-3 border-b px-4 py-3 text-[10px] uppercase tracking-[0.28em] ${isDark ? "border-white/10 text-white/35" : "border-slate-100 text-slate-400 bg-slate-50/80"}`}>
                 <div className="min-w-0">Student</div>
                 <div className="min-w-0">Roll</div>
                 <div className="min-w-0">Address</div>
@@ -1138,7 +1138,7 @@ function AdminDeskPage() {
                       </div>
                       <div className={`min-w-0 text-[11px] font-mono whitespace-nowrap ${isDark ? "text-white/65" : "text-slate-600"}`}>{student.studentCode}</div>
                       <div className={`min-w-0 text-xs truncate ${isDark ? "text-white/65" : "text-slate-600"}`}>{student.address}</div>
-                      <div className={`min-w-0 text-xs font-bold tabular-nums ${isDark ? "text-emerald-300" : "text-emerald-600"}`}>{student.attendance.toFixed(0)}%</div>
+                      <div className={`min-w-0 text-right pr-3 text-xs font-bold tabular-nums ${isDark ? "text-emerald-300" : "text-emerald-600"}`}>{student.attendance.toFixed(0)}%</div>
                       <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <CompactActionButton
                           onClick={() => setSelectedStudentId(student.id)}

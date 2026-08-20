@@ -1474,3 +1474,42 @@ html.lenis, html.lenis body { height: auto; }
 ) {
   background: linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(216, 239, 188, 0.06)) !important;
 }
+
+/* Professor attendance history overlay: align light theme with other professor dialogs */
+:root.light .cv-attendance-history-overlay {
+  background: rgba(15, 23, 42, 0.28) !important;
+}
+
+:root.light .cv-attendance-history-overlay > div {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+:root.light .cv-attendance-history-overlay .cv-overlay-eyebrow {
+  color: #64748b !important;
+}
+
+:root.light .cv-attendance-history-overlay .cv-overlay-title {
+  color: #0f172a !important;
+}
+
+:root.light .cv-attendance-history-overlay table tbody td {
+  color: #334155 !important;
+}
+
+:root.light .cv-attendance-history-overlay table tbody td.font-medium,
+:root.light .cv-attendance-history-overlay table tbody td.font-semibold {
+  color: #0f172a !important;
+}
+
+:root.light .cv-attendance-history-overlay table tbody td .text-emerald-200 {
+  color: #047857 !important;
+}
+
+:root.light .cv-attendance-history-overlay table tbody td .text-rose-100 {
+  color: #be123c !important;
+}
+
+:root.light .cv-attendance-history-overlay table tbody td .text-amber-100 {
+  color: #b45309 !important;
+}
