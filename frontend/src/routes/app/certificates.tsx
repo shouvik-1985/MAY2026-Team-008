@@ -232,7 +232,9 @@ function CertificatesPage() {
             onClick={() => setActiveTab("certificates")}
             className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition ${
               activeTab === "certificates"
-                ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white shadow-md"
+                ? isDark
+                  ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white shadow-md"
+                  : "bg-[#ecf8e6] text-slate-950 shadow-sm shadow-emerald-900/10"
                 : isDark
                   ? "text-white/60 hover:text-white"
                   : "text-slate-700 hover:text-slate-950 hover:bg-slate-200"
@@ -245,7 +247,9 @@ function CertificatesPage() {
             onClick={() => setActiveTab("resume-builder")}
             className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition ${
               activeTab === "resume-builder"
-                ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white shadow-md"
+                ? isDark
+                  ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white shadow-md"
+                  : "bg-[#ecf8e6] text-slate-950 shadow-sm shadow-emerald-900/10"
                 : isDark
                   ? "text-white/60 hover:text-white"
                   : "text-slate-700 hover:text-slate-950 hover:bg-slate-200"
