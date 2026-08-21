@@ -209,6 +209,40 @@ def test_resubmit_digital_assignment_overwrites_previous_submission(client, make
     assert second.json()["review"]["score"] == 100
 
 
+def test_save_digital_assignment_draft_appears_in_progress(client, make_professor, make_student):
+    student = make_student()
+    professor = make_professor()
+    generated = _generate_assignment(
+        client,
+        professor["headers"],
+        subject="Programming in Python",
+        question_count=3,
+    ).json()["assignment"]
+    first_question_id = generated["questions"][0]["id"]
+
+    draft = client.post(
+        f"/api/student/assignments/{generated['id']}/draft",
+        json={
+            "answers": {first_question_id: "A"},
+            "notes": "I will finish the remaining questions later.",
+            "active_question_index": 1,
+        },
+        headers=student["headers"],
+    )
+
+    assert draft.status_code == 200
+    assert draft.json()["progress"] == 33
+
+    dashboard = client.get("/api/student/dashboard", headers=student["headers"])
+    assert dashboard.status_code == 200
+    assignment = next(item for item in dashboard.json()["assignment_items"] if item["id"] == generated["id"])
+    assert assignment["status"] == "ongoing"
+    assert assignment["progress"] == 33
+    assert assignment["draftAnswers"][first_question_id] == "A"
+    assert assignment["draftNotes"] == "I will finish the remaining questions later."
+    assert assignment["draftActiveQuestionIndex"] == 1
+
+
 # ---------------------------------------------------------------------------
 # Student file submission
 # ---------------------------------------------------------------------------
@@ -350,3 +384,66 @@ def test_professor_download_nonexistent_submission_file_returns_404(client, make
         headers=professor["headers"],
     )
     assert response.status_code in (404, 401, 403)
+
+
+def test_professor_delete_published_assignment_removes_assignment_and_history(client, make_professor, make_student):
+    professor = make_professor()
+    student = make_student()
+    generated = _generate_assignment(client, professor["headers"], subject="Compiler Design").json()["assignment"]
+
+    legacy_review = client.post(
+        "/api/professor/assignments/review",
+        json={
+            "student_id": student["user"]["id"],
+            "assignment_title": generated["title"],
+            "subject": generated["subject"],
+            "grade": "A",
+            "feedback": "Reviewed before cleanup.",
+        },
+        headers=professor["headers"],
+    )
+    assert legacy_review.status_code == 200
+
+    response = client.delete(f"/api/professor/assignments/{generated['id']}", headers=professor["headers"])
+    assert response.status_code == 200, response.text
+    deleted = response.json()
+    assert deleted["id"] == generated["id"]
+    assert deleted["deletedReviews"] >= 1
+
+    dashboard = client.get("/api/professor/dashboard", headers=professor["headers"]).json()
+    assert generated["id"] not in [item["id"] for item in dashboard["assignments"]]
+    assert all(
+        row["title"] != generated["title"] or row["subject"] != generated["subject"]
+        for row in dashboard["assignment_reviews"]
+    )
+
+
+def test_professor_delete_assignment_submission_removes_queue_item_and_history(client, make_professor, make_student):
+    professor = make_professor()
+    generated = _generate_assignment(client, professor["headers"], subject="Database Management System").json()["assignment"]
+    student = make_student()
+    correct_answers = {question["id"]: question["answerKey"] for question in generated["questions"]}
+    submission = client.post(
+        f"/api/student/assignments/{generated['id']}/digital-submit",
+        json={"answers": correct_answers},
+        headers=student["headers"],
+    ).json()
+    submission_id = submission["submissionId"]
+
+    professor_review = client.patch(
+        f"/api/professor/assignments/submissions/{submission_id}/review",
+        json={"score": 80, "feedback": "Ready for cleanup."},
+        headers=professor["headers"],
+    )
+    assert professor_review.status_code == 200
+
+    response = client.delete(f"/api/professor/assignments/submissions/{submission_id}", headers=professor["headers"])
+    assert response.status_code == 200, response.text
+    deleted = response.json()
+    assert deleted["id"] == submission_id
+    assert deleted["deletedReviews"] >= 1
+
+    dashboard = client.get("/api/professor/dashboard", headers=professor["headers"]).json()
+    assert submission_id not in [item["submissionId"] for item in dashboard["review_queue"]]
+    assert submission_id not in [item["submissionId"] for item in dashboard["assignment_submissions"]]
+    assert generated["id"] in [item["id"] for item in dashboard["assignments"]]

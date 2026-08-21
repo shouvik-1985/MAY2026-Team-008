@@ -1,5 +1,11 @@
 """Tests for /api/admin/* endpoints (admin-only dashboard, account & campus management)."""
 
+from datetime import date, datetime, timedelta, timezone
+import uuid
+
+from app.db import SessionLocal
+from app.models import IntakeSlotBatch, PlacementApplication, PlacementRoleApplication, User
+
 
 # ---------------------------------------------------------------------------
 # Access control
@@ -141,6 +147,22 @@ def test_admin_update_semester_duration_invalid_unit_rejected(client, admin_head
 # Slot batches
 # ---------------------------------------------------------------------------
 
+def _restore_default_intake_batch(client, admin_headers):
+    management = client.get("/api/admin/management", headers=admin_headers)
+    if management.status_code != 200:
+        return
+    default_batch = next(
+        (batch for batch in management.json()["slot_batches"] if batch["batch_name"] == "Sem 1 Open Intake"),
+        None,
+    )
+    if default_batch:
+        client.patch(
+            f"/api/admin/management/slot-batches/{default_batch['id']}",
+            json={"open_for_intake": True},
+            headers=admin_headers,
+        )
+
+
 def test_admin_create_slot_batch_success(client, admin_headers):
     response = client.post(
         "/api/admin/management/slot-batches",
@@ -206,6 +228,90 @@ def test_admin_update_slot_batch_rename(client, admin_headers):
     assert response.status_code in (200, 401, 403)
     updated_names = [b["batch_name"] for b in response.json()["slot_batches"]]
     assert "Renamed Batch" in updated_names
+
+
+def test_admin_create_slot_batch_with_duration(client, admin_headers):
+    batch_name = f"Duration Batch {uuid.uuid4().hex[:8]}"
+    response = client.post(
+        "/api/admin/management/slot-batches",
+        json={"batch_name": batch_name, "total_slots": 12, "duration_days": 5, "open_for_intake": True},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    try:
+        batch = next(item for item in response.json()["slot_batches"] if item["batch_name"] == batch_name)
+        assert batch["duration_days"] == 5
+        assert batch["expires_at"] is not None
+        assert response.json()["active_slot_batch"]["batch_name"] == batch_name
+    finally:
+        _restore_default_intake_batch(client, admin_headers)
+
+
+def test_expired_slot_batch_is_removed_and_blocks_registration(client, admin_headers):
+    batch_name = f"Expired Batch {uuid.uuid4().hex[:8]}"
+    created = client.post(
+        "/api/admin/management/slot-batches",
+        json={"batch_name": batch_name, "total_slots": 2, "duration_days": 1, "open_for_intake": True},
+        headers=admin_headers,
+    )
+    assert created.status_code == 200, created.text
+    batch_id = next(item["id"] for item in created.json()["slot_batches"] if item["batch_name"] == batch_name)
+
+    db = SessionLocal()
+    try:
+        batch = db.get(IntakeSlotBatch, batch_id)
+        batch.open_for_intake = True
+        batch.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        db.commit()
+    finally:
+        db.close()
+
+    try:
+        register = client.post(
+            "/api/auth/register",
+            json={
+                "full_name": "Expired Intake Student",
+                "email": f"expired-slot-{uuid.uuid4().hex[:8]}@example.com",
+                "password": "strongpass123",
+                "role": "student",
+            },
+        )
+        assert register.status_code == 409
+
+        management = client.get("/api/admin/management", headers=admin_headers)
+        assert management.status_code == 200
+        assert all(item["id"] != batch_id for item in management.json()["slot_batches"])
+    finally:
+        _restore_default_intake_batch(client, admin_headers)
+
+
+def test_admin_delete_running_slot_batch_stops_intake(client, admin_headers):
+    batch_name = f"Emergency Stop Batch {uuid.uuid4().hex[:8]}"
+    created = client.post(
+        "/api/admin/management/slot-batches",
+        json={"batch_name": batch_name, "total_slots": 2, "duration_days": 3, "open_for_intake": True},
+        headers=admin_headers,
+    )
+    assert created.status_code == 200, created.text
+    batch_id = next(item["id"] for item in created.json()["slot_batches"] if item["batch_name"] == batch_name)
+
+    try:
+        deleted = client.delete(f"/api/admin/management/slot-batches/{batch_id}", headers=admin_headers)
+        assert deleted.status_code == 200, deleted.text
+        assert all(item["id"] != batch_id for item in deleted.json()["slot_batches"])
+
+        register = client.post(
+            "/api/auth/register",
+            json={
+                "full_name": "Emergency Stop Student",
+                "email": f"stopped-slot-{uuid.uuid4().hex[:8]}@example.com",
+                "password": "strongpass123",
+                "role": "student",
+            },
+        )
+        assert register.status_code == 409
+    finally:
+        _restore_default_intake_batch(client, admin_headers)
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +428,65 @@ def test_admin_delete_student_account(client, admin_headers, make_student):
         json={"email": student["email"], "password": "strongpass123"},
     )
     assert login.status_code in (401, 403)
+
+
+def test_admin_delete_student_account_with_placement_role_application(
+    client,
+    admin_headers,
+    make_eligible_student,
+    placement_manager_headers,
+):
+    student = make_eligible_student()
+    student_id = student["user"]["id"]
+    submit = client.post(
+        "/api/placement/student/application",
+        data={
+            "skills": "Python, SQL, React",
+            "linkedin_profile": "https://linkedin.com/in/delete-case",
+            "github_profile": "https://github.com/delete-case",
+            "phone_number": "9876543210",
+        },
+        files={"resume": ("resume.pdf", b"%PDF-1.4 fake resume content", "application/pdf")},
+        headers=student["headers"],
+    )
+    assert submit.status_code == 200, submit.text
+    application_id = submit.json()["application"]["id"]
+
+    role = client.post(
+        "/api/placement/manager/roles",
+        json={
+            "title": "Delete Cleanup Role",
+            "company_name": "Acme Corp",
+            "role_type": "internship",
+            "location": "Bengaluru",
+            "work_mode": "onsite",
+            "compensation": "INR 40,000/month",
+            "deadline": (date.today() + timedelta(days=30)).isoformat(),
+            "minimum_semester": 1,
+            "minimum_cgpa": 5.0,
+            "required_skills": "Python, SQL",
+            "description": "Work with the platform engineering team on core services.",
+        },
+        headers=placement_manager_headers,
+    )
+    assert role.status_code == 200, role.text
+    role_id = role.json()["role"]["id"]
+
+    apply = client.post(f"/api/placement/student/roles/{role_id}/apply", headers=student["headers"])
+    assert apply.status_code == 200, apply.text
+    role_application_id = apply.json()["role"]["roleApplicationId"]
+
+    response = client.delete(f"/api/admin/users/{student_id}", headers=admin_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["ok"] is True
+
+    db = SessionLocal()
+    try:
+        assert db.get(User, student_id) is None
+        assert db.get(PlacementApplication, application_id) is None
+        assert db.get(PlacementRoleApplication, role_application_id) is None
+    finally:
+        db.close()
 
 
 def test_admin_delete_professor_account(client, admin_headers, make_professor):

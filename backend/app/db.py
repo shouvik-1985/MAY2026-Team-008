@@ -100,6 +100,15 @@ def ensure_database_shape() -> None:
             column["name"] for column in inspector.get_columns("assignment_submissions")
         }
 
+    assignment_columns = set()
+    if "assignments" in tables:
+        assignment_columns = {column["name"] for column in inspector.get_columns("assignments")}
+    assignment_additions = {
+        "semester": "INTEGER",
+        "start_at": _column_sql("timestamp"),
+        "due_at": _column_sql("timestamp"),
+    }
+
     certificate_request_columns = set()
     if "student_certificate_requests" in tables:
         certificate_request_columns = {
@@ -161,6 +170,16 @@ def ensure_database_shape() -> None:
         "updated_at": _column_sql("timestamp_now"),
     }
 
+    intake_slot_batch_columns = set()
+    if "intake_slot_batches" in tables:
+        intake_slot_batch_columns = {column["name"] for column in inspector.get_columns("intake_slot_batches")}
+    intake_slot_batch_additions = {
+        "duration_days": "INTEGER NOT NULL DEFAULT 30",
+        "opened_at": _column_sql("timestamp"),
+        "expires_at": _column_sql("timestamp"),
+        "archived_at": _column_sql("timestamp"),
+    }
+
     marketplace_columns = set()
     if "marketplace_items" in tables:
         marketplace_columns = {column["name"] for column in inspector.get_columns("marketplace_items")}
@@ -217,6 +236,11 @@ def ensure_database_shape() -> None:
         if "assignment_submissions" in tables and "professor_score" not in assignment_submission_columns:
             connection.execute(text("ALTER TABLE assignment_submissions ADD COLUMN professor_score FLOAT"))
 
+        if "assignments" in tables:
+            for name, definition in assignment_additions.items():
+                if name not in assignment_columns:
+                    connection.execute(text(f"ALTER TABLE assignments ADD COLUMN {name} {definition}"))
+
         if "student_certificate_requests" in tables:
             for name, definition in certificate_request_additions.items():
                 if name not in certificate_request_columns:
@@ -242,6 +266,11 @@ def ensure_database_shape() -> None:
             for name, definition in placement_role_application_additions.items():
                 if name not in placement_role_application_columns:
                     connection.execute(text(f"ALTER TABLE placement_role_applications ADD COLUMN {name} {definition}"))
+
+        if "intake_slot_batches" in tables:
+            for name, definition in intake_slot_batch_additions.items():
+                if name not in intake_slot_batch_columns:
+                    connection.execute(text(f"ALTER TABLE intake_slot_batches ADD COLUMN {name} {definition}"))
 
         if "marketplace_items" in tables:
             for name, definition in marketplace_additions.items():

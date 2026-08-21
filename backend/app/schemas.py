@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 import re
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models import Role
 
@@ -148,6 +148,7 @@ class StudentProfileOut(BaseModel):
     enrollmentDate: str | None = None
     biometricEnrolled: bool = False
     biometricEnrolledAt: str | None = None
+    optionalSubjectSelection: dict = Field(default_factory=dict)
 
 
 class StudentProfileUpdate(BaseModel):
@@ -284,6 +285,8 @@ class ProfessorDashboard(BaseModel):
     assignment_submissions: list[dict] = []
     assignment_reviews: list[dict]
     review_queue: list[dict]
+    academic_marks: list[dict] = []
+    subject_catalog: list[dict] = []
     academic_controls: list[dict]
     nav_modules: list[dict]
 
@@ -291,6 +294,29 @@ class ProfessorDashboard(BaseModel):
 class StudentAcademicUpdate(BaseModel):
     cgpa: float = Field(ge=0, le=10)
     attendance: float = Field(ge=0, le=100)
+
+
+class StudentOptionalSubjectUpdate(BaseModel):
+    optional_subject: str = Field(min_length=2, max_length=120)
+
+    @field_validator("optional_subject")
+    @classmethod
+    def clean_optional_subject(cls, value: str) -> str:
+        return value.strip()
+
+
+class StudentOfflineMarksUpdate(BaseModel):
+    student_id: int
+    semester: int = Field(ge=1, le=4)
+    subject: str = Field(min_length=2, max_length=120)
+    unit_test_1: float | None = Field(default=None, ge=0, le=100)
+    unit_test_2: float | None = Field(default=None, ge=0, le=100)
+    final_exam: float | None = Field(default=None, ge=0, le=100)
+
+    @field_validator("subject")
+    @classmethod
+    def clean_marks_subject(cls, value: str) -> str:
+        return value.strip()
 
 
 class StudentBlockUpdate(BaseModel):
@@ -341,6 +367,7 @@ class SemesterDurationUpdate(BaseModel):
 class SlotBatchCreate(BaseModel):
     batch_name: str = Field(min_length=2, max_length=120)
     total_slots: int = Field(ge=1, le=5000)
+    duration_days: int = Field(default=30, ge=1, le=365)
     open_for_intake: bool = True
 
     @field_validator("batch_name")
@@ -352,6 +379,7 @@ class SlotBatchCreate(BaseModel):
 class SlotBatchUpdate(BaseModel):
     batch_name: str | None = Field(default=None, min_length=2, max_length=120)
     total_slots: int | None = Field(default=None, ge=1, le=5000)
+    duration_days: int | None = Field(default=None, ge=1, le=365)
     open_for_intake: bool | None = None
 
     @field_validator("batch_name")
@@ -416,6 +444,8 @@ class AssignmentGenerateCreate(BaseModel):
     syllabus: str | None = Field(default=None, max_length=12000)
     custom_content: str | None = Field(default=None, max_length=12000)
     due_label: str = Field(default="in 7 days", min_length=2, max_length=80)
+    start_at: datetime | None = None
+    due_at: datetime | None = None
     question_count: int = Field(default=5, ge=1, le=12)
     total_points: int = Field(default=100, ge=10, le=100)
 
@@ -426,6 +456,12 @@ class AssignmentGenerateCreate(BaseModel):
             return None
         cleaned = value.strip()
         return cleaned or None
+
+    @model_validator(mode="after")
+    def validate_assignment_dates(self):
+        if self.start_at and self.due_at and self.due_at <= self.start_at:
+            raise ValueError("Assignment end date must be after the start date")
+        return self
 
 
 class AssignmentDigitalSubmissionCreate(BaseModel):
@@ -440,6 +476,25 @@ class AssignmentDigitalSubmissionCreate(BaseModel):
     @field_validator("notes")
     @classmethod
     def clean_submission_notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
+class AssignmentDraftSave(BaseModel):
+    answers: dict[str, str] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=2000)
+    active_question_index: int = Field(default=0, ge=0, le=200)
+
+    @field_validator("answers")
+    @classmethod
+    def clean_answers(cls, value: dict[str, str]) -> dict[str, str]:
+        return {str(key).strip(): str(answer).strip() for key, answer in value.items() if str(key).strip()}
+
+    @field_validator("notes")
+    @classmethod
+    def clean_draft_notes(cls, value: str | None) -> str | None:
         if value is None:
             return None
         cleaned = value.strip()

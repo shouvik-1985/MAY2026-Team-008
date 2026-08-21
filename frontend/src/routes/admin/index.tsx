@@ -42,6 +42,7 @@ import {
   createAdminAnnouncement,
   createAdminSlotBatch,
   deleteAdminAnnouncement,
+  deleteAdminSlotBatch,
   deleteAdminUserAccount,
   getAdminAnnouncements,
   getAdminCertificateRequests,
@@ -149,6 +150,7 @@ function AdminDeskPage() {
   const [semesterDurationDays, setSemesterDurationDays] = useState(180);
   const [slotBatchName, setSlotBatchName] = useState("");
   const [slotCount, setSlotCount] = useState(60);
+  const [slotDurationDays, setSlotDurationDays] = useState(30);
   const [openNewBatch, setOpenNewBatch] = useState(true);
   const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>([]);
   const [annTitle, setAnnTitle] = useState("");
@@ -647,11 +649,13 @@ function AdminDeskPage() {
       const managementData = await createAdminSlotBatch({
         batch_name: normalizedName,
         total_slots: slotCount,
+        duration_days: slotDurationDays,
         open_for_intake: openNewBatch,
       });
       setSettings(managementData);
       setSlotBatchName("");
       setSlotCount(60);
+      setSlotDurationDays(30);
       setOpenNewBatch(true);
       await refreshData(`${normalizedName} slot release created`);
     } catch (error) {
@@ -672,6 +676,23 @@ function AdminDeskPage() {
       await refreshData(`${batchName} intake ${nextState ? "opened" : "paused"}`, nextState ? "success" : "danger");
     } catch (error) {
       showStatusToast(error instanceof Error ? error.message : "Could not update slot release", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteSlotRelease(batchId: number, batchName: string) {
+    const okay = window.confirm(`Delete slot batch "${batchName}" and stop its intake? Existing students will stay registered.`);
+    if (!okay) return;
+
+    setSaving(true);
+    clearStatusToast();
+    try {
+      const managementData = await deleteAdminSlotBatch(batchId);
+      setSettings(managementData);
+      await refreshData(`${batchName} slot release removed`, "danger");
+    } catch (error) {
+      showStatusToast(error instanceof Error ? error.message : "Could not delete slot release", "error");
     } finally {
       setSaving(false);
     }
@@ -1716,7 +1737,7 @@ function AdminDeskPage() {
                         placeholder="Batch 2026"
                       />
                     </label>
-                    <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+                    <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
                       <label className="grid gap-2">
                         <span className="text-[10px] uppercase tracking-[0.28em] text-white/40">Total slots</span>
                         <input
@@ -1724,7 +1745,24 @@ function AdminDeskPage() {
                           min={1}
                           max={5000}
                           value={slotCount}
-                          onChange={(event) => setSlotCount(Number(event.target.value))}
+                          onChange={(event) => {
+                            const nextValue = Math.min(5000, Math.max(1, Number(event.target.value) || 1));
+                            setSlotCount(nextValue);
+                          }}
+                          className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
+                        />
+                      </label>
+                      <label className="grid gap-2">
+                        <span className="text-[10px] uppercase tracking-[0.28em] text-white/40">Slot duration</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={slotDurationDays}
+                          onChange={(event) => {
+                            const nextValue = Math.min(365, Math.max(1, Number(event.target.value) || 1));
+                            setSlotDurationDays(nextValue);
+                          }}
                           className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-200/40"
                         />
                       </label>
@@ -1754,59 +1792,80 @@ function AdminDeskPage() {
                   {slotBatches.length === 0 ? (
                     <EmptyState text="No slot batches released yet. Create the first Sem 1 intake from the left panel." />
                   ) : (
-                    slotBatches.map((batch) => (
-                      <div key={batch.id} className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div>
-                            <div className="text-[10px] uppercase tracking-[0.28em] text-white/40">Sem 1 batch</div>
-                            <div className="mt-2 font-display text-2xl text-white">{batch.batch_name}</div>
-                            <div className="mt-2 text-sm text-white/52">
-                              Created {batch.created_at ? formatDateTime(batch.created_at) : "recently"}
+                    slotBatches.map((batch) => {
+                      const batchIsFull = Boolean(batch.is_full ?? batch.slots_left <= 0);
+                      const batchIsOpen = Boolean(batch.registration_open ?? (batch.intake_open && !batchIsFull));
+                      const statusLabel = batchIsFull ? "Full" : batchIsOpen ? "Open intake" : "Closed";
+
+                      return (
+                        <div key={batch.id} className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                              <div className="text-[10px] uppercase tracking-[0.28em] text-white/40">Sem 1 batch</div>
+                              <div className="mt-2 font-display text-2xl text-white">{batch.batch_name}</div>
+                              <div className="mt-2 text-sm text-white/52">
+                                Created {batch.created_at ? formatDateTime(batch.created_at) : "recently"}
+                              </div>
+                              <div className="mt-1 text-xs text-white/42">
+                                {batch.expires_at ? `Closes ${formatDateTime(batch.expires_at)}` : "No closing date set"}
+                              </div>
+                            </div>
+                            <div
+                              className={`inline-flex items-center rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] ${
+                                batchIsFull
+                                  ? "border border-amber-300/20 bg-amber-400/10 text-amber-100"
+                                  : batchIsOpen
+                                    ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                                    : "border border-white/10 bg-white/[0.04] text-white/50"
+                              }`}
+                            >
+                              {statusLabel}
                             </div>
                           </div>
-                          <div
-                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] ${
-                              batch.intake_open
-                                ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-                                : "border border-white/10 bg-white/[0.04] text-white/50"
-                            }`}
-                          >
-                            {batch.intake_open ? "Open intake" : "Closed"}
+
+                          <div className="mt-4 grid gap-3 md:grid-cols-4">
+                            <DetailCard label="Total slots" value={String(batch.total_slots)} compact />
+                            <DetailCard label="Filled" value={String(batch.filled_slots)} compact />
+                            <DetailCard label="Left" value={String(batch.slots_left)} compact />
+                            <DetailCard label="Duration" value={`${batch.duration_days} ${batch.duration_days === 1 ? "day" : "days"}`} compact />
+                          </div>
+
+                          <div className="mt-4 h-3 rounded-full bg-white/10">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${batch.total_slots ? Math.max((batch.filled_slots / batch.total_slots) * 100, batch.filled_slots ? 6 : 0) : 0}%`,
+                                background: "var(--grad-aurora)",
+                              }}
+                            />
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              disabled={saving || loading || (batchIsFull && !batch.intake_open)}
+                              onClick={() => toggleSlotRelease(batch.id, !batch.intake_open, batch.batch_name)}
+                              className={`rounded-2xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition disabled:cursor-wait disabled:opacity-60 ${
+                                batch.intake_open
+                                  ? "border border-white/10 bg-white/[0.04] text-white/70 hover:text-white"
+                                  : "border border-cyan-200/20 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/20"
+                              }`}
+                            >
+                              {batchIsFull && !batch.intake_open ? "Full" : batch.intake_open ? "Pause intake" : "Open intake"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={saving || loading}
+                              onClick={() => deleteSlotRelease(batch.id, batch.batch_name)}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-wait disabled:opacity-60"
+                            >
+                              <Trash2 className="size-4" />
+                              Delete slot
+                            </button>
                           </div>
                         </div>
-
-                        <div className="mt-4 grid gap-3 md:grid-cols-3">
-                          <DetailCard label="Total slots" value={String(batch.total_slots)} compact />
-                          <DetailCard label="Filled" value={String(batch.filled_slots)} compact />
-                          <DetailCard label="Left" value={String(batch.slots_left)} compact />
-                        </div>
-
-                        <div className="mt-4 h-3 rounded-full bg-white/10">
-                          <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${batch.total_slots ? Math.max((batch.filled_slots / batch.total_slots) * 100, batch.filled_slots ? 6 : 0) : 0}%`,
-                              background: "var(--grad-aurora)",
-                            }}
-                          />
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap gap-3">
-                          <button
-                            type="button"
-                            disabled={saving || loading}
-                            onClick={() => toggleSlotRelease(batch.id, !batch.intake_open, batch.batch_name)}
-                            className={`rounded-2xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition disabled:cursor-wait disabled:opacity-60 ${
-                              batch.intake_open
-                                ? "border border-white/10 bg-white/[0.04] text-white/70 hover:text-white"
-                                : "border border-cyan-200/20 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/20"
-                            }`}
-                          >
-                            {batch.intake_open ? "Pause intake" : "Open intake"}
-                          </button>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </Panel>

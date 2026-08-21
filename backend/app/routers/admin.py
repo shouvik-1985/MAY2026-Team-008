@@ -19,19 +19,30 @@ from app.avatar import avatar_initials, professor_avatar_url, student_avatar_url
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.fee_flow import admin_fee_management_payload, update_semester_fee_amount
-from app.intake_flow import resolve_student_semester, slot_batches_payload
+from app.intake_flow import (
+    resolve_student_semester,
+    slot_batch_is_expired,
+    slot_batches_payload,
+    slot_duration_days,
+    slot_expires_at,
+)
 from app.models import (
     Announcement,
     AnnouncementNotification,
+    AssignmentDraft,
     AssignmentReview,
+    AssignmentSubmission,
     CampusAttendanceSetting,
     ConnectAttachment,
     ConnectMessage,
     ConnectMessageHidden,
     ConnectRelationship,
     IntakeSlotBatch,
+    MarketplaceItem,
+    MarketplacePurchase,
     PlacementApplication,
     PlacementNotification,
+    PlacementRoleApplication,
     ProfessorProfile,
     RevokedToken,
     Role,
@@ -40,8 +51,12 @@ from app.models import (
     StudentCertificateRequest,
     StudentComplaint,
     StudentComplaintAttachment,
+    StudentEventRegistration,
     StudentFeeInvoice,
+    StudentMarketplaceInquiry,
     StudentProfile,
+    StudentSubjectMark,
+    StudentSubjectSelection,
     StudentTodo,
     StudyResource,
     User,
@@ -506,6 +521,12 @@ def _delete_user_records(db: Session, target: User) -> None:
             .filter(PlacementApplication.student_id == target.id)
             .scalar_subquery()
         )
+        db.query(PlacementRoleApplication).filter(
+            or_(
+                PlacementRoleApplication.student_id == target.id,
+                PlacementRoleApplication.placement_application_id.in_(placement_application_ids),
+            )
+        ).delete(synchronize_session=False)
         db.query(PlacementNotification).filter(
             PlacementNotification.application_id.in_(placement_application_ids)
         ).delete(synchronize_session=False)
@@ -524,10 +545,25 @@ def _delete_user_records(db: Session, target: User) -> None:
         db.query(StudentComplaint).filter(StudentComplaint.student_id == target.id).delete(synchronize_session=False)
         db.query(StudentFeeInvoice).filter(StudentFeeInvoice.student_id == target.id).delete(synchronize_session=False)
         db.query(StudentCertificateRequest).filter(StudentCertificateRequest.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentSubjectSelection).filter(StudentSubjectSelection.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentSubjectMark).filter(StudentSubjectMark.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentEventRegistration).filter(StudentEventRegistration.student_id == target.id).delete(synchronize_session=False)
+        db.query(StudentMarketplaceInquiry).filter(StudentMarketplaceInquiry.student_id == target.id).delete(synchronize_session=False)
+        db.query(AssignmentDraft).filter(AssignmentDraft.student_id == target.id).delete(synchronize_session=False)
+        db.query(AssignmentSubmission).filter(AssignmentSubmission.student_id == target.id).delete(synchronize_session=False)
         db.query(AssignmentReview).filter(AssignmentReview.student_id == target.id).delete(synchronize_session=False)
         db.query(StudentTodo).filter(StudentTodo.student_id == target.id).delete(synchronize_session=False)
         db.query(StudentAttendance).filter(StudentAttendance.student_id == target.id).delete(synchronize_session=False)
         db.query(StudentBiometricCheckIn).filter(StudentBiometricCheckIn.student_id == target.id).delete(synchronize_session=False)
+        db.query(MarketplacePurchase).filter(MarketplacePurchase.buyer_id == target.id).delete(synchronize_session=False)
+        db.query(MarketplacePurchase).filter(MarketplacePurchase.seller_id == target.id).update(
+            {"seller_id": None},
+            synchronize_session=False,
+        )
+        db.query(MarketplaceItem).filter(MarketplaceItem.seller_id == target.id).update(
+            {"seller_id": None},
+            synchronize_session=False,
+        )
         db.query(StudentProfile).filter(StudentProfile.user_id == target.id).delete(synchronize_session=False)
     elif target.role == Role.faculty:
         db.query(StudentAttendance).filter(StudentAttendance.marked_by_id == target.id).update(
@@ -668,11 +704,16 @@ def create_slot_batch(
     if existing:
         raise HTTPException(status_code=409, detail="That batch name already exists")
 
+    duration_days = slot_duration_days(payload.duration_days)
+    opened_at = now_utc() if payload.open_for_intake else None
     batch = IntakeSlotBatch(
         batch_name=payload.batch_name,
         total_slots=payload.total_slots,
+        duration_days=duration_days,
         open_for_intake=payload.open_for_intake,
         created_by_id=current_user.id,
+        opened_at=opened_at,
+        expires_at=slot_expires_at(duration_days, opened_at) if opened_at else None,
     )
     if payload.open_for_intake:
         for row in db.query(IntakeSlotBatch).all():
@@ -695,7 +736,7 @@ def update_slot_batch(
 ) -> CampusAttendanceSettingsOut:
     _require_admin(current_user)
     batch = db.get(IntakeSlotBatch, batch_id)
-    if not batch:
+    if not batch or batch.archived_at or slot_batch_is_expired(batch):
         raise HTTPException(status_code=404, detail="Slot batch not found")
 
     if payload.batch_name:
@@ -719,13 +760,44 @@ def update_slot_batch(
             )
         batch.total_slots = payload.total_slots
 
+    if payload.duration_days is not None:
+        batch.duration_days = slot_duration_days(payload.duration_days)
+        if batch.open_for_intake:
+            opened_at = batch.opened_at or now_utc()
+            batch.opened_at = opened_at
+            batch.expires_at = slot_expires_at(batch.duration_days, opened_at)
+
     if payload.open_for_intake is not None:
         if payload.open_for_intake:
+            opened_at = now_utc()
             for row in db.query(IntakeSlotBatch).all():
                 row.open_for_intake = row.id == batch.id
+            batch.opened_at = opened_at
+            batch.expires_at = slot_expires_at(batch.duration_days, opened_at)
         else:
             batch.open_for_intake = False
 
+    setting = get_campus_attendance_setting(db)
+    setting.updated_by_id = current_user.id
+    setting.updated_at = now_utc()
+    db.commit()
+    db.refresh(setting)
+    return _management_out(db, setting)
+
+
+@router.delete("/management/slot-batches/{batch_id}", response_model=CampusAttendanceSettingsOut)
+def delete_slot_batch(
+    batch_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> CampusAttendanceSettingsOut:
+    _require_admin(current_user)
+    batch = db.get(IntakeSlotBatch, batch_id)
+    if not batch or batch.archived_at:
+        raise HTTPException(status_code=404, detail="Slot batch not found")
+
+    batch.open_for_intake = False
+    batch.archived_at = now_utc()
     setting = get_campus_attendance_setting(db)
     setting.updated_by_id = current_user.id
     setting.updated_at = now_utc()

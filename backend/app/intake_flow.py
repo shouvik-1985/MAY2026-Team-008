@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.attendance_flow import get_campus_attendance_setting
@@ -15,10 +16,15 @@ except Exception:
     LOCAL_TIMEZONE = timezone.utc
 DEFAULT_SEMESTER_DURATION_MONTHS = 6
 DEFAULT_SEMESTER_DURATION_DAYS = 180
+DEFAULT_SLOT_DURATION_DAYS = 30
 
 
 def local_today() -> date:
     return datetime.now(LOCAL_TIMEZONE).date()
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def semester_duration_months(value: int | None) -> int:
@@ -31,6 +37,25 @@ def semester_duration_days(value: int | None) -> int:
 
 def semester_duration_unit(value: str | None) -> str:
     return "days" if value == "days" else "months"
+
+
+def slot_duration_days(value: int | None) -> int:
+    return max(1, value or DEFAULT_SLOT_DURATION_DAYS)
+
+
+def slot_expires_at(duration_days: int | None, opened_at: datetime | None = None) -> datetime:
+    return (opened_at or utc_now()) + timedelta(days=slot_duration_days(duration_days))
+
+
+def _aware_utc(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def slot_batch_is_expired(batch: IntakeSlotBatch, as_of: datetime | None = None) -> bool:
+    if not batch.expires_at:
+        return False
+    reference = as_of or utc_now()
+    return _aware_utc(batch.expires_at) <= reference
 
 
 def student_enrollment_date(profile: StudentProfile | None, user: User) -> date:
@@ -129,23 +154,41 @@ def slot_batch_usage_map(db: Session) -> dict[int, int]:
 def slot_batch_payload(batch: IntakeSlotBatch, filled_slots: int) -> dict:
     total_slots = max(0, batch.total_slots)
     slots_left = max(total_slots - filled_slots, 0)
+    expired = slot_batch_is_expired(batch)
+    is_full = total_slots > 0 and filled_slots >= total_slots
+    intake_open = bool(batch.open_for_intake and not expired)
+    registration_open = intake_open and not is_full
     return {
         "id": batch.id,
         "batch_name": batch.batch_name,
         "total_slots": total_slots,
+        "duration_days": slot_duration_days(batch.duration_days),
         "filled_slots": filled_slots,
         "slots_left": slots_left,
-        "intake_open": batch.open_for_intake,
+        "intake_open": intake_open,
+        "registration_open": registration_open,
+        "is_full": is_full,
+        "expired": expired,
+        "status": "full" if is_full else "open" if registration_open else "closed",
+        "opened_at": batch.opened_at.isoformat() if batch.opened_at else None,
+        "expires_at": batch.expires_at.isoformat() if batch.expires_at else None,
         "created_at": batch.created_at.isoformat() if batch.created_at else None,
         "updated_at": batch.updated_at.isoformat() if batch.updated_at else None,
     }
 
 
 def slot_batches_payload(db: Session) -> tuple[list[dict], dict | None]:
-    batches = db.query(IntakeSlotBatch).order_by(IntakeSlotBatch.created_at.desc(), IntakeSlotBatch.id.desc()).all()
+    reference = utc_now()
+    batches = (
+        db.query(IntakeSlotBatch)
+        .filter(IntakeSlotBatch.archived_at.is_(None))
+        .filter(or_(IntakeSlotBatch.expires_at.is_(None), IntakeSlotBatch.expires_at > reference))
+        .order_by(IntakeSlotBatch.created_at.desc(), IntakeSlotBatch.id.desc())
+        .all()
+    )
     usage = slot_batch_usage_map(db)
     payload = [slot_batch_payload(batch, usage.get(batch.id, 0)) for batch in batches]
-    active = next((item for item in payload if item["intake_open"]), None)
+    active = next((item for item in payload if item["registration_open"]), None)
     return payload, active
 
 
@@ -157,9 +200,12 @@ def close_other_slot_batches(db: Session, keep_batch_id: int | None = None) -> N
 
 
 def available_slot_batch_for_intake(db: Session) -> IntakeSlotBatch:
+    reference = utc_now()
     batches = (
         db.query(IntakeSlotBatch)
         .filter(IntakeSlotBatch.open_for_intake.is_(True))
+        .filter(IntakeSlotBatch.archived_at.is_(None))
+        .filter(or_(IntakeSlotBatch.expires_at.is_(None), IntakeSlotBatch.expires_at > reference))
         .order_by(IntakeSlotBatch.created_at.desc(), IntakeSlotBatch.id.desc())
         .all()
     )

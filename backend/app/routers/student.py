@@ -11,6 +11,20 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session, load_only, selectinload
 
 from app.announcement_flow import announcement_notifications_for_user, announcement_rows_for_user
+from app.academic_flow import (
+    assignment_due_label,
+    assignment_is_available,
+    assignment_is_late,
+    assignment_matches_student_semester,
+    infer_subject_semester,
+    normalize_datetime,
+    normalize_subject_name,
+    optional_selection_payload,
+    choose_optional_subject,
+    real_cgpa_for_student,
+    resolve_student_semester_with_rules,
+    student_enrolled_subjects,
+)
 from app.assignment_ai import grade_from_score, normalize_grade_code, review_digital_submission, review_file_submission
 from app.attendance_flow import (
     campus_setting_payload,
@@ -32,6 +46,7 @@ from app.intake_flow import resolve_student_semester
 from app.models import (
     Announcement,
     Assignment,
+    AssignmentDraft,
     AssignmentSubmission,
     ConnectMessage,
     MarketplaceItem,
@@ -53,12 +68,14 @@ from app.resource_ai import build_study_resource_ai_summary
 from app.resource_files import resource_file_url
 from app.schemas import (
     AssignmentDigitalSubmissionCreate,
+    AssignmentDraftSave,
     CampusAttendanceSettingsOut,
     StudentAssistantRequest,
     StudentAssistantResponse,
     StudentAvatarUpdate,
     StudentBiometricVerify,
     StudentDashboard,
+    StudentOptionalSubjectUpdate,
     StudentProfileOut,
     StudentProfileUpdate,
     StudentRadiusCheck,
@@ -532,12 +549,17 @@ def _student_profile_payload(db: Session, user: User) -> dict:
     setting = get_campus_attendance_setting(db)
     attendance_records = _attendance_records(db, user.id)
     attendance = _attendance_percentage(attendance_records, profile.attendance)
-    semester = resolve_student_semester(profile, user, setting.semester_duration_months)
+    semester = resolve_student_semester_with_rules(db, profile, user, setting)
     profile.semester = semester
     profile.attendance = attendance
+    academic = real_cgpa_for_student(db, user, profile, semester)
+    if academic["hasAcademicData"]:
+        profile.cgpa = academic["cgpa"]
+    cgpa = academic["cgpa"]
     skills = _split_skills(profile.skills_text)
     completed_credits = _completed_credits(profile, semester)
     total_credits = profile.total_credits or 180
+    optional_state = optional_selection_payload(db, user, profile, setting, semester)
 
     return {
         "id": user.id,
@@ -546,7 +568,7 @@ def _student_profile_payload(db: Session, user: User) -> dict:
         "studentCode": profile.student_code,
         "department": profile.department,
         "semester": semester,
-        "cgpa": round(profile.cgpa, 2),
+        "cgpa": round(cgpa, 2),
         "attendance": round(attendance, 2),
         "completedCredits": completed_credits,
         "totalCredits": total_credits,
@@ -563,13 +585,14 @@ def _student_profile_payload(db: Session, user: User) -> dict:
         "githubUrl": profile.github_url or "",
         "avatar": _avatar(user.full_name),
         "avatarUrl": student_avatar_url(profile),
-        "academicStanding": _academic_standing(profile.cgpa, attendance),
+        "academicStanding": _academic_standing(cgpa, attendance),
         "profileCompletion": _profile_completion(user, profile),
         "enrollmentDate": profile.enrollment_date.isoformat() if profile.enrollment_date else None,
         "biometricEnrolled": has_face_template(profile),
         "biometricEnrolledAt": profile.biometric_enrolled_at.isoformat()
         if profile.biometric_enrolled_at
         else None,
+        "optionalSubjectSelection": optional_state,
     }
 
 
@@ -665,7 +688,8 @@ def _monthly_attendance(records: list[StudentAttendance]) -> list[dict]:
     return rows
 
 
-def _resource_rows(db: Session) -> list[dict]:
+def _resource_rows(db: Session, enrolled_subjects: list[str]) -> list[dict]:
+    enrolled_subject_names = {normalize_subject_name(subject) for subject in enrolled_subjects}
     rows = (
         db.query(StudyResource, User.full_name)
         .options(
@@ -690,6 +714,8 @@ def _resource_rows(db: Session) -> list[dict]:
     )
     items: list[dict] = []
     for resource, professor_name in rows:
+        if normalize_subject_name(resource.subject) not in enrolled_subject_names:
+            continue
         items.append(
             {
                 "id": resource.id,
@@ -779,7 +805,11 @@ def _resource_rows(db: Session) -> list[dict]:
                 "time": "5 days ago",
             },
         ]
-        items.extend(defaults)
+        items.extend(
+            item
+            for item in defaults
+            if normalize_subject_name(item["subject"]) in enrolled_subject_names
+        )
     return items
 
 
@@ -856,6 +886,7 @@ def _student_assignment_items(
     department: str,
     seed: int,
     cgpa: float,
+    semester: int,
 ) -> list[dict]:
     assignments = (
         db.query(Assignment)
@@ -898,12 +929,43 @@ def _student_assignment_items(
             .all()
         )
     }
+    drafts = {
+        item.assignment_id: item
+        for item in (
+            db.query(AssignmentDraft)
+            .filter(AssignmentDraft.student_id == user.id)
+            .all()
+        )
+    }
     rows: list[dict] = []
+    enrolled_subjects = student_enrolled_subjects(db, user.id, semester)
+    visible_since = normalize_datetime(user.created_at)
+    moment = datetime.now(timezone.utc)
     for item in assignments:
+        assignment_created_at = normalize_datetime(item.created_at)
+        if visible_since and assignment_created_at and assignment_created_at < visible_since:
+            continue
+        if not assignment_is_available(item, moment):
+            continue
+        if not assignment_matches_student_semester(item, semester, enrolled_subjects):
+            continue
         content = _json_loads(item.content_json, {})
         rubric = _json_loads(item.rubric_json, [])
         questions = content.get("questions", []) if isinstance(content, dict) else []
         submission = submissions.get(item.id)
+        draft = drafts.get(item.id)
+        draft_answers = _json_loads(draft.answers_json, {}) if draft else {}
+        if not isinstance(draft_answers, dict):
+            draft_answers = {}
+        draft_answer_count = len(
+            [
+                answer
+                for answer in draft_answers.values()
+                if str(answer).strip()
+            ]
+        )
+        draft_progress = round((draft_answer_count / len(questions)) * 100) if questions else 0
+        late = assignment_is_late(item, moment)
         status = "pending"
         progress = 0
         grade = None
@@ -931,12 +993,24 @@ def _student_assignment_items(
                 or professor_grade
                 or submission.professor_feedback
             )
+        elif late:
+            status = "graded"
+            progress = 100
+            grade = grade_from_score(0)
+            review_finalized = True
+        elif draft and (draft_answer_count or draft.notes):
+            status = "ongoing"
+            progress = draft_progress
         rows.append(
             {
                 "id": item.id,
                 "title": item.title,
                 "subject": item.subject,
-                "due": item.due_label,
+                "semester": item.semester or infer_subject_semester(item.subject) or semester,
+                "due": assignment_due_label(item, moment),
+                "dueAt": item.due_at.isoformat() if item.due_at else None,
+                "startAt": item.start_at.isoformat() if item.start_at else None,
+                "late": late,
                 "progress": progress,
                 "status": status,
                 "grade": grade,
@@ -946,19 +1020,23 @@ def _student_assignment_items(
                 "instructions": content.get("instructions", "") if isinstance(content, dict) else "",
                 "questions": questions if isinstance(questions, list) else [],
                 "rubric": rubric if isinstance(rubric, list) else [],
+                "draftAnswers": draft_answers if draft and not submission and not late else {},
+                "draftNotes": draft.notes if draft and not submission and not late else None,
+                "draftUpdatedAt": draft.updated_at.isoformat() if draft and not submission and not late else None,
+                "draftActiveQuestionIndex": draft.active_question_index if draft and not submission and not late else 0,
                 "allowedFileTypes": content.get("allowedFileTypes", []) if isinstance(content, dict) else [],
                 "totalPoints": item.total_points,
                 "submittedAt": submission.submitted_at.isoformat() if submission else None,
-                "aiGrade": ai_grade if submission else None,
-                "aiScore": submission.ai_score if submission else None,
-                "aiFeedback": submission.ai_feedback if submission else None,
-                "aiReview": _json_loads(submission.ai_review_json, {}) if submission else None,
+                "aiGrade": ai_grade if submission else grade_from_score(0) if late else None,
+                "aiScore": submission.ai_score if submission else 0 if late else None,
+                "aiFeedback": submission.ai_feedback if submission else "Deadline passed; assignment counted as zero." if late else None,
+                "aiReview": _json_loads(submission.ai_review_json, {}) if submission else _late_zero_review(item) if late else None,
                 "professorScore": submission.professor_score if submission else None,
                 "professorGrade": professor_grade if submission else None,
                 "professorFeedback": submission.professor_feedback if submission else None,
                 "reviewFinalized": review_finalized,
-                "reviewStatus": "faculty_final" if review_finalized else "ai_reviewed" if submission else "not_submitted",
-                "reviewLabel": "Faculty final grade" if review_finalized else "AI provisional review" if submission else "Not submitted",
+                "reviewStatus": "faculty_final" if review_finalized and submission else "late_zero" if late else "ai_reviewed" if submission else "not_submitted",
+                "reviewLabel": "Faculty final grade" if review_finalized and submission else "Deadline zero" if late else "AI provisional review" if submission else "Not submitted",
                 "fileName": submission.filename if submission else None,
             }
         )
@@ -969,17 +1047,14 @@ def _student_dataset(db: Session, user: User) -> dict:
     profile = _ensure_student_profile(db, user)
     setting = get_campus_attendance_setting(db)
     seed = user.id % 7
-    cgpa = profile.cgpa if profile else round(8.1 + (seed * 0.13), 1)
     fallback_attendance = profile.attendance if profile else float(84 + seed)
     attendance_records = _attendance_records(db, user.id)
     attendance = _attendance_percentage(attendance_records, fallback_attendance)
-    semester = resolve_student_semester(
-        profile,
-        user,
-        setting.semester_duration_months,
-        setting.semester_duration_unit,
-        setting.semester_duration_days,
-    )
+    semester = resolve_student_semester_with_rules(db, profile, user, setting)
+    academic = real_cgpa_for_student(db, user, profile, semester)
+    if academic["hasAcademicData"]:
+        profile.cgpa = academic["cgpa"]
+    cgpa = academic["cgpa"]
     student_code = profile.student_code if profile else f"CV-2026-{1000 + user.id:04d}"
     department = profile.department if profile else "Computer Science & AI"
     profile.attendance = attendance
@@ -1001,14 +1076,15 @@ def _student_dataset(db: Session, user: User) -> dict:
     fee_data = student_fee_data(db, user, semester)
     due_amount = fee_data["summary"]["outstanding"]
     first_name = user.full_name.split()[0] if user.full_name else "Student"
-    resource_rows = _resource_rows(db)
+    enrolled_subjects = student_enrolled_subjects(db, user.id, semester)
+    resource_rows = _resource_rows(db, enrolled_subjects)
     resource_status = f"{len(resource_rows)} uploaded" if resource_rows else "0 uploaded"
     resource_detail = "Notes, slides, previous papers" if resource_rows else "No study resources uploaded yet"
     certificate_items = _certificate_items(db, user, due_amount, first_name)
     fee_history = fee_data["history"]
     event_items: list[dict] = []
     marketplace_items = _marketplace_items(db, user, semester)
-    assignment_items = _student_assignment_items(db, user, first_name, department, seed, cgpa)
+    assignment_items = _student_assignment_items(db, user, first_name, department, seed, cgpa, semester)
     announcements = _student_announcement_rows(db, user)
     notifications = announcement_notifications_for_user(db, user, limit=20)
     pending_assignment_count = len(
@@ -1074,17 +1150,15 @@ def _student_dataset(db: Session, user: User) -> dict:
             "biometricEnrolledAt": profile.biometric_enrolled_at.isoformat()
             if profile and profile.biometric_enrolled_at
             else None,
+            "optionalSubjectSelection": optional_selection_payload(db, user, profile, setting, semester),
         },
         "metrics": [
-            {"label": "CGPA", "value": f"{cgpa:.1f}", "hint": "Updated from your student profile", "tone": "cyan"},
+            {"label": "CGPA", "value": f"{cgpa:.1f}", "hint": "Calculated from marks and assignments", "tone": "cyan"},
             {"label": "Attendance", "value": f"{attendance:.0f}%", "hint": f"{max(0, int(attendance - 75))}% above safe zone", "tone": "green"},
             {"label": "Open Requests", "value": str(1 + (user.id % 4)), "hint": "Live student request queue", "tone": "pink"},
             {"label": "Due This Week", "value": str(2 + (user.id % 5)), "hint": "Assignments, fees, announcements", "tone": "amber"},
         ],
-        "cgpa_trend": [
-            {"term": f"Sem {idx}", "cgpa": round(max(6.5, cgpa - ((semester - idx) * 0.18)), 2)}
-            for idx in range(1, min(semester, 6) + 1)
-        ],
+        "cgpa_trend": academic["trend"],
         "attendance_weekly": weekly_attendance,
         "attendance_timeline": attendance_timeline,
         "attendance_by_subject": [
@@ -1456,6 +1530,29 @@ def update_student_avatar(
     return StudentProfileOut(**payload_out)
 
 
+@router.post("/profile/optional-subject", response_model=StudentProfileOut)
+def update_optional_subject(
+    payload: StudentOptionalSubjectUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> StudentProfileOut:
+    _require_student(current_user)
+    profile = _ensure_student_profile(db, current_user)
+    setting = get_campus_attendance_setting(db)
+    try:
+        choose_optional_subject(db, current_user, profile, setting, payload.optional_subject)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    db.commit()
+    db.refresh(current_user)
+    payload_out = _student_profile_payload(db, current_user)
+    db.commit()
+    return StudentProfileOut(**payload_out)
+
+
 @router.get("/dashboard", response_model=StudentDashboard)
 def dashboard(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -1511,6 +1608,16 @@ def generate_resource_ai_summary(
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="OpenAI key is not configured.")
 
+    profile = _ensure_student_profile(db, current_user)
+    setting = get_campus_attendance_setting(db)
+    semester = resolve_student_semester_with_rules(db, profile, current_user, setting)
+    enrolled_subjects = {
+        normalize_subject_name(subject)
+        for subject in student_enrolled_subjects(db, current_user.id, semester)
+    }
+    if normalize_subject_name(item.subject) not in enrolled_subjects:
+        raise HTTPException(status_code=404, detail="Study resource not found")
+
     try:
         return build_study_resource_ai_summary(
             item=item,
@@ -1526,6 +1633,30 @@ def _require_published_assignment(db: Session, assignment_id: int) -> Assignment
     if not assignment or assignment.status != "published":
         raise HTTPException(status_code=404, detail="Assignment not found")
     return assignment
+
+
+def _ensure_assignment_open(assignment: Assignment) -> datetime:
+    moment = datetime.now(timezone.utc)
+    if not assignment_is_available(assignment, moment):
+        raise HTTPException(status_code=409, detail="Assignment has not opened yet")
+    return moment
+
+
+def _late_zero_review(assignment: Assignment) -> dict:
+    return {
+        "score": 0,
+        "grade": grade_from_score(0),
+        "feedback": "Submission was after the assignment deadline, so this attempt is recorded as zero.",
+        "criteria": [
+            {
+                "label": "Deadline",
+                "status": "late",
+                "detail": "Submitted after the configured due date",
+            }
+        ],
+        "late": True,
+        "totalPoints": assignment.total_points,
+    }
 
 
 def _upsert_submission(
@@ -1564,6 +1695,60 @@ def _upsert_submission(
     return item
 
 
+def _draft_progress_for_assignment(assignment: Assignment, answers: dict[str, str]) -> int:
+    content = _json_loads(assignment.content_json, {})
+    questions = content.get("questions", []) if isinstance(content, dict) else []
+    if not questions:
+        return 0
+    answered = len([answer for answer in answers.values() if str(answer).strip()])
+    return round((answered / len(questions)) * 100)
+
+
+@router.post("/assignments/{assignment_id}/draft")
+def save_assignment_draft(
+    assignment_id: int,
+    payload: AssignmentDraftSave,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_student(current_user)
+    assignment = _require_published_assignment(db, assignment_id)
+    if assignment.assignment_type not in {"mcq", "qa"}:
+        raise HTTPException(status_code=422, detail="Only portal question assignments support answer drafts")
+
+    moment = _ensure_assignment_open(assignment)
+    if assignment_is_late(assignment, moment):
+        raise HTTPException(status_code=409, detail="Assignment deadline has passed")
+
+    draft = (
+        db.query(AssignmentDraft)
+        .filter(
+            AssignmentDraft.assignment_id == assignment.id,
+            AssignmentDraft.student_id == current_user.id,
+        )
+        .first()
+    )
+    if draft is None:
+        draft = AssignmentDraft(
+            assignment_id=assignment.id,
+            student_id=current_user.id,
+        )
+        db.add(draft)
+
+    draft.answers_json = json.dumps(payload.answers)
+    draft.notes = payload.notes
+    draft.active_question_index = payload.active_question_index
+    draft.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(draft)
+    return {
+        "ok": True,
+        "assignmentId": assignment.id,
+        "progress": _draft_progress_for_assignment(assignment, payload.answers),
+        "draftUpdatedAt": draft.updated_at.isoformat(),
+    }
+
+
 @router.post("/assignments/{assignment_id}/digital-submit")
 def submit_digital_assignment(
     assignment_id: int,
@@ -1576,12 +1761,18 @@ def submit_digital_assignment(
     if assignment.assignment_type not in {"mcq", "qa"}:
         raise HTTPException(status_code=422, detail="This assignment expects a file upload")
 
+    moment = _ensure_assignment_open(assignment)
+    is_late = assignment_is_late(assignment, moment)
     content = _json_loads(assignment.content_json, {})
-    review = review_digital_submission(
-        assignment_type=assignment.assignment_type,
-        content=content,
-        answers=payload.answers,
-        total_points=assignment.total_points,
+    review = (
+        _late_zero_review(assignment)
+        if is_late
+        else review_digital_submission(
+            assignment_type=assignment.assignment_type,
+            content=content,
+            answers=payload.answers,
+            total_points=assignment.total_points,
+        )
     )
     item = _upsert_submission(db, assignment, current_user, assignment.assignment_type)
     item.answers_json = json.dumps(payload.answers)
@@ -1594,6 +1785,12 @@ def submit_digital_assignment(
     item.ai_score = float(review["score"])
     item.ai_feedback = review["feedback"]
     item.ai_review_json = json.dumps(review)
+    if is_late:
+        item.status = "late_zero"
+    db.query(AssignmentDraft).filter(
+        AssignmentDraft.assignment_id == assignment.id,
+        AssignmentDraft.student_id == current_user.id,
+    ).delete(synchronize_session=False)
     db.commit()
     db.refresh(item)
     return {"ok": True, "submissionId": item.id, "review": review}
@@ -1613,6 +1810,8 @@ def submit_file_assignment(
         raise HTTPException(status_code=422, detail="This assignment must be completed in the portal")
     if not file.filename:
         raise HTTPException(status_code=400, detail="Please choose a PDF or Word document")
+    moment = _ensure_assignment_open(assignment)
+    is_late = assignment_is_late(assignment, moment)
 
     filename = Path(file.filename).name
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -1623,11 +1822,15 @@ def submit_file_assignment(
     if len(file_bytes) > 15_000_000:
         raise HTTPException(status_code=413, detail="Assignment file must be 15 MB or smaller")
 
-    review = review_file_submission(
-        filename=filename,
-        notes=notes,
-        file_size=len(file_bytes),
-        total_points=assignment.total_points,
+    review = (
+        _late_zero_review(assignment)
+        if is_late
+        else review_file_submission(
+            filename=filename,
+            notes=notes,
+            file_size=len(file_bytes),
+            total_points=assignment.total_points,
+        )
     )
     item = _upsert_submission(db, assignment, current_user, "file")
     item.answers_json = None
@@ -1640,6 +1843,8 @@ def submit_file_assignment(
     item.ai_score = float(review["score"])
     item.ai_feedback = review["feedback"]
     item.ai_review_json = json.dumps(review)
+    if is_late:
+        item.status = "late_zero"
     db.commit()
     db.refresh(item)
     return {"ok": True, "submissionId": item.id, "review": review}

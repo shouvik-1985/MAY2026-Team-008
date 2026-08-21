@@ -281,8 +281,8 @@ function LampCharacter({
   const activePull = Math.max(0, Math.min(maxRopePull, pullDistance));
   const cordPath =
     activePull > 0
-      ? `M150 115 C${156 + activePull * 0.06} ${138 + activePull * 0.2} ${142 + activePull * 0.07} ${152 + activePull * 0.54} 151 ${178 + activePull}`
-      : "M150 115 C156 138 142 152 151 178";
+      ? `M156 128 C${164 + activePull * 0.06} ${146 + activePull * 0.2} ${144 + activePull * 0.07} ${158 + activePull * 0.54} 151 ${178 + activePull}`
+      : "M156 128 C164 146 144 158 151 178";
   const shadeY =
     activePull > 0
       ? Math.min(8, activePull * 0.11)
@@ -345,6 +345,10 @@ function LampCharacter({
             <stop offset="0%" stopColor={tone.shade} />
             <stop offset="100%" stopColor={tone.shadeDark} />
           </linearGradient>
+          <linearGradient id="lampShadeUnderGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={tone.shadeDark} stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#161a17" stopOpacity="0.28" />
+          </linearGradient>
           <radialGradient id="lampLightGradient" cx="50%" cy="0%" r="78%">
             <stop offset="0%" stopColor="rgba(255,245,190,0.78)" />
             <stop offset="52%" stopColor="rgba(255,226,133,0.22)" />
@@ -357,16 +361,16 @@ function LampCharacter({
 
         <motion.ellipse
           cx="110"
-          cy="132"
+          cy="136"
           rx="72"
-          ry="34"
+          ry="30"
           fill="rgba(255,228,146,0.62)"
           filter="url(#lampSoftBlur)"
           animate={{ opacity: isOn ? [0.42, 0.72, 0.42] : 0.06 }}
           transition={lightTransition}
         />
         <motion.path
-          d="M62 126 L158 126 L184 318 L36 318 Z"
+          d="M52 132 L168 132 L184 318 L36 318 Z"
           fill="url(#lampLightGradient)"
           animate={{ opacity: isOn ? [0.28, 0.48, 0.28] : 0.03 }}
           transition={lightTransition}
@@ -374,10 +378,20 @@ function LampCharacter({
 
         <motion.rect
           x="101"
-          y="120"
+          y="132"
           width="18"
-          height="166"
+          height="154"
           rx="9"
+          fill="url(#lampBaseGradient)"
+          animate={{ y: stickY }}
+          transition={stickTransition}
+        />
+        <motion.rect
+          x="92"
+          y="124"
+          width="36"
+          height="14"
+          rx="7"
           fill="url(#lampBaseGradient)"
           animate={{ y: stickY }}
           transition={stickTransition}
@@ -452,10 +466,12 @@ function LampCharacter({
             rotate: shadeRotate,
           }}
           transition={shadeTransition}
-          style={{ transformOrigin: "110px 120px" }}
+          style={{ transformOrigin: "110px 126px" }}
         >
+          <rect x="106" y="57" width="8" height="14" rx="4" fill="url(#lampBaseGradient)" />
+          <ellipse cx="110" cy="69" rx="17" ry="5" fill="rgba(255,255,255,0.28)" />
           <motion.path
-            d="M42 120 C42 46 178 46 178 120 C178 138 42 138 42 120 Z"
+            d="M72 72 C83 64 137 64 148 72 L174 124 C177 130 171 134 160 136 C132 140 88 140 60 136 C49 134 43 130 46 124 Z"
             fill="url(#lampShadeGradient)"
             animate={{
               filter: isOn
@@ -465,7 +481,18 @@ function LampCharacter({
             transition={shadeTransition}
           />
           <path
-            d="M57 119 C58 90 74 73 96 66"
+            d="M48 125 C69 135 151 135 172 125 C166 137 54 137 48 125 Z"
+            fill="url(#lampShadeUnderGradient)"
+          />
+          <path
+            d="M48 125 C69 135 151 135 172 125"
+            fill="none"
+            stroke="rgba(255,255,255,0.18)"
+            strokeWidth="4"
+            strokeLinecap="round"
+          />
+          <path
+            d="M61 122 C64 99 77 81 96 73"
             fill="none"
             stroke="rgba(255,255,255,0.18)"
             strokeWidth="4"

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 import {
+  saveStudentAssignmentDraft,
   submitStudentDigitalAssignment,
   submitStudentFileAssignment,
   type StudentDashboard,
@@ -50,6 +51,13 @@ function AssignmentsPage() {
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [digitalAnswers, setDigitalAnswers] = useState<Record<string, string>>({});
   const [digitalNotes, setDigitalNotes] = useState("");
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestDraftPayload = useRef<{
+    assignment: Assignment;
+    answers: Record<string, string>;
+    notes: string;
+    questionIndex: number;
+  } | null>(null);
 
   // Upload Form State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -98,10 +106,43 @@ function AssignmentsPage() {
     hasFacultyFinalReview(assignment) ? "View Faculty Feedback" : "View AI Review";
   const formatMarks = (score?: number | null, totalPoints?: number | null) =>
     typeof score === "number" ? `${score}/${totalPoints ?? 100}` : "Not published";
+  const answeredQuestionCount = (answers: Record<string, string>) =>
+    Object.values(answers).filter((answer) => answer.trim()).length;
+  const draftProgressFor = (assignment: Assignment, answers: Record<string, string>) => {
+    const total = assignment.questions?.length ?? 0;
+    if (!total) return 0;
+    return Math.round((answeredQuestionCount(answers) / total) * 100);
+  };
 
   useEffect(() => {
     void refreshAssignmentsFromDashboard();
   }, []);
+
+  useEffect(() => {
+    if (!digitalModalItem || !isBackendAssignment(digitalModalItem) || digitalModalItem.status === "graded" || isSubmitting) {
+      return;
+    }
+    latestDraftPayload.current = {
+      assignment: digitalModalItem,
+      answers: digitalAnswers,
+      notes: digitalNotes,
+      questionIndex: activeQuestionIndex,
+    };
+    if (draftSaveTimer.current) {
+      clearTimeout(draftSaveTimer.current);
+    }
+    draftSaveTimer.current = setTimeout(() => {
+      const payload = latestDraftPayload.current;
+      if (!payload) return;
+      void persistDigitalDraft(payload.assignment, payload.answers, payload.notes, payload.questionIndex);
+    }, 700);
+    return () => {
+      if (draftSaveTimer.current) {
+        clearTimeout(draftSaveTimer.current);
+        draftSaveTimer.current = null;
+      }
+    };
+  }, [activeQuestionIndex, digitalAnswers, digitalModalItem, digitalNotes, isSubmitting]);
 
   function openAssignment(assignment: Assignment) {
     if (assignmentType(assignment) === "file") {
@@ -109,12 +150,64 @@ function AssignmentsPage() {
       return;
     }
     const answers = Object.fromEntries(
-      (assignment.questions ?? []).map((question) => [question.id, ""]),
+      (assignment.questions ?? []).map((question) => [question.id, assignment.draftAnswers?.[question.id] ?? ""]),
     );
     setDigitalAnswers(answers);
-    setDigitalNotes("");
-    setActiveQuestionIndex(0);
+    setDigitalNotes(assignment.draftNotes ?? "");
+    setActiveQuestionIndex(Math.min(assignment.draftActiveQuestionIndex ?? 0, Math.max(0, (assignment.questions?.length ?? 1) - 1)));
     setDigitalModalItem(assignment);
+  }
+
+  async function persistDigitalDraft(
+    assignment: Assignment,
+    answers: Record<string, string>,
+    notes: string,
+    questionIndex: number,
+  ) {
+    if (!isBackendAssignment(assignment) || assignmentType(assignment) === "file" || assignment.status === "graded") {
+      return;
+    }
+    try {
+      const result = await saveStudentAssignmentDraft(assignment.id, {
+        answers,
+        notes: notes || undefined,
+        active_question_index: questionIndex,
+      });
+      setAssignmentList((current) => {
+        const source = current.length ? current : currentAssignments;
+        return source.map((item) =>
+          item.id === assignment.id
+            ? {
+                ...item,
+                status: "ongoing",
+                progress: result.progress,
+                draftAnswers: answers,
+                draftNotes: notes || null,
+                draftUpdatedAt: result.draftUpdatedAt,
+                draftActiveQuestionIndex: questionIndex,
+              }
+            : item,
+        );
+      });
+    } catch {
+      // Draft saving is intentionally quiet so typing never feels blocked.
+    }
+  }
+
+  function flushDigitalDraft() {
+    if (draftSaveTimer.current) {
+      clearTimeout(draftSaveTimer.current);
+      draftSaveTimer.current = null;
+    }
+    const payload = latestDraftPayload.current;
+    if (payload) {
+      void persistDigitalDraft(payload.assignment, payload.answers, payload.notes, payload.questionIndex);
+    }
+  }
+
+  function closeDigitalAssignment() {
+    flushDigitalDraft();
+    setDigitalModalItem(null);
   }
 
   async function refreshAssignmentsFromDashboard() {
@@ -138,6 +231,10 @@ function AssignmentsPage() {
     e.preventDefault();
     if (!digitalModalItem) return;
 
+    if (draftSaveTimer.current) {
+      clearTimeout(draftSaveTimer.current);
+      draftSaveTimer.current = null;
+    }
     setIsSubmitting(true);
     try {
       if (isBackendAssignment(digitalModalItem)) {
@@ -162,6 +259,7 @@ function AssignmentsPage() {
         { t: "Just now", l: `Completed digital assignment: ${digitalModalItem.title}` },
         ...timelineItems,
       ]);
+      latestDraftPayload.current = null;
       setDigitalModalItem(null);
       setDigitalAnswers({});
       setDigitalNotes("");
@@ -425,7 +523,7 @@ function AssignmentsPage() {
                     onClick={() => openAssignment(a)}
                     className="text-xs uppercase tracking-wider font-extrabold text-[#101417] bg-[#d8efbc] hover:bg-[#c8e9a8] inline-flex items-center gap-2 rounded-full px-5 py-2.5 shadow-[0_10px_26px_rgba(76,175,80,0.24)] transition hover:brightness-105"
                   >
-                    <Upload className="size-3.5" /> {assignmentType(a) === "file" ? "Upload Assignment" : "Start Assignment"}
+                    <Upload className="size-3.5" /> {assignmentType(a) === "file" ? "Upload Assignment" : a.status === "ongoing" ? "Resume Assignment" : "Start Assignment"}
                   </button>
                 )}
               </div>
@@ -491,7 +589,7 @@ function AssignmentsPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                onClick={() => setDigitalModalItem(null)}
+                onClick={closeDigitalAssignment}
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
               >
                 <motion.div
@@ -527,7 +625,7 @@ function AssignmentsPage() {
                       ))}
                       <button
                         type="button"
-                        onClick={() => setDigitalModalItem(null)}
+                        onClick={closeDigitalAssignment}
                         className="ml-1 grid size-9 shrink-0 place-items-center rounded-full bg-white/5 text-white/55 hover:text-white"
                         aria-label="Close assessment"
                       >

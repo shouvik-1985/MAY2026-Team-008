@@ -51,6 +51,9 @@ import {
 
   createProfessorAssignment,
   createProfessorResource,
+  deleteProfessorAssignment,
+  deleteProfessorAssignmentReview,
+  deleteProfessorAssignmentSubmission,
   deleteProfessorResource,
   finalizeProfessorAttendance,
   getProfessorDashboard,
@@ -60,10 +63,12 @@ import {
   reviewProfessorAssignment,
   updateProfessorAssignmentSubmissionReview,
   updateStudentBlock,
+  updateStudentOfflineMarks,
   updateProfessorProfile,
   updateProfessorAvatar,
   type AssignmentType,
   type ProfessorDashboard,
+  type StudentAcademicMark,
 } from "@/lib/api";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -98,6 +103,21 @@ type AssignmentDetailView =
   | { kind: "assignment"; item: PublishedAssignment };
 type AttendanceStatus = "present" | "absent";
 type AssignmentSourceKind = "resources" | "syllabus" | "content";
+
+function reviewQueueItemKey(item: ReviewLikeItem) {
+  return String(item.submissionId ?? item.id);
+}
+
+function publishedAssignmentItemKey(item: PublishedAssignment) {
+  return String(item.id);
+}
+
+function historyItemKey(item: ReviewLikeItem) {
+  if (item.submissionId) return `submission:${item.submissionId}`;
+  if (typeof item.assignmentId === "number") return `assignment:${item.assignmentId}`;
+  return `review:${item.id}`;
+}
+
 const GRADE_CRITERIA = [
   { code: "S", cutoff: 90 },
   { code: "A", cutoff: 80 },
@@ -112,6 +132,19 @@ const PROFESSOR_PRIMARY_ACTION_CLASS =
   "relative w-full rounded-full border border-[#d8efbc]/80 bg-[#d8efbc] px-5 py-3.5 text-xs font-extrabold uppercase tracking-[0.2em] text-[#101417] shadow-[0_12px_28px_rgba(76,175,80,0.22)] transition-all duration-200 hover:bg-[#c8e9a8] hover:shadow-[0_16px_34px_rgba(76,175,80,0.28)] disabled:cursor-wait disabled:opacity-60";
 const PROFESSOR_ACTIVE_PILL_CLASS =
   "border-[#d8efbc]/80 bg-[#d8efbc] text-[#101417] shadow-[0_8px_18px_rgba(76,175,80,0.22)]";
+const CGPA_GRADE_LABELS: Record<string, string> = {
+  S: "S (90+)",
+  A: "A (80+)",
+  B: "B (70+)",
+  C: "C (60+)",
+  D: "D (50+)",
+  E: "E (40+)",
+  U: "U (<40)",
+  P: "P (Pass)",
+  F: "F (Fail)",
+  W: "W (Withdrawn)",
+  I: "I (Incomplete)",
+};
 
 function gradeCodeFromScore(score: number) {
   const normalized = Math.max(0, Math.min(100, score));
@@ -120,6 +153,43 @@ function gradeCodeFromScore(score: number) {
 
 function gradeCodeFromMarks(marks: number, totalPoints = 100) {
   return gradeCodeFromScore((marks / Math.max(1, totalPoints)) * 100);
+}
+
+function cgpaGradeCode(cgpa: number) {
+  return gradeCodeFromScore(cgpa * 10);
+}
+
+function cgpaGradeClass(code: string) {
+  if (code === "S") return "bg-purple-500/15 border border-purple-500/30 text-purple-500";
+  if (code === "A") return "bg-emerald-500/15 border border-emerald-500/30 text-emerald-500";
+  if (code === "B") return "bg-cyan-500/15 border border-cyan-500/30 text-cyan-500";
+  if (code === "C") return "bg-blue-500/15 border border-blue-500/30 text-blue-500";
+  if (code === "D") return "bg-amber-500/15 border border-amber-500/30 text-amber-500";
+  if (code === "E") return "bg-orange-500/15 border border-orange-500/30 text-orange-500";
+  return "bg-rose-500/15 border border-rose-500/30 text-rose-500";
+}
+
+function toDatetimeLocal(value: Date) {
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function daysFromNow(days: number) {
+  const value = new Date();
+  value.setDate(value.getDate() + days);
+  return value;
+}
+
+function assignmentDueLabelFromDate(value: string) {
+  const due = new Date(value);
+  if (Number.isNaN(due.getTime())) return "Scheduled deadline";
+  const now = new Date();
+  const diffMs = due.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / 86_400_000);
+  if (diffDays > 1) return `in ${diffDays} days`;
+  if (diffDays === 1) return "in 1 day";
+  const diffHours = Math.max(1, Math.ceil(diffMs / 3_600_000));
+  return `in ${diffHours} hour${diffHours === 1 ? "" : "s"}`;
 }
 
 function parseSubmittedAt(item: ReviewLikeItem) {
@@ -176,6 +246,12 @@ function ProfessorDashboardPage() {
   const [assignmentDetailView, setAssignmentDetailView] = useState<AssignmentDetailView | null>(null);
   const [reviewLeftTab, setReviewLeftTab] = useState<"queue" | "assignments" | "history">("queue");
   const [reviewRightTab, setReviewRightTab] = useState<"build" | "grade">("build");
+  const [seenReviewQueueKeys, setSeenReviewQueueKeys] = useState<string[]>([]);
+  const [seenPublishedAssignmentKeys, setSeenPublishedAssignmentKeys] = useState<string[]>([]);
+  const [selectedReviewQueueKeys, setSelectedReviewQueueKeys] = useState<string[]>([]);
+  const [selectedPublishedAssignmentKeys, setSelectedPublishedAssignmentKeys] = useState<string[]>([]);
+  const [selectedHistoryKeys, setSelectedHistoryKeys] = useState<string[]>([]);
+  const [seenStorageReady, setSeenStorageReady] = useState(false);
 
   const [assignmentType, setAssignmentType] = useState<AssignmentType>("mcq");
   const [assignmentTitle, setAssignmentTitle] = useState("");
@@ -184,12 +260,32 @@ function ProfessorDashboardPage() {
   const [assignmentResourceIds, setAssignmentResourceIds] = useState<number[]>([]);
   const [assignmentSyllabus, setAssignmentSyllabus] = useState("");
   const [assignmentContent, setAssignmentContent] = useState("");
-  const [assignmentDueLabel, setAssignmentDueLabel] = useState("in 7 days");
+  const [assignmentStartAt, setAssignmentStartAt] = useState(() => toDatetimeLocal(new Date()));
+  const [assignmentDueAt, setAssignmentDueAt] = useState(() => toDatetimeLocal(daysFromNow(7)));
   const [assignmentQuestionCount, setAssignmentQuestionCount] = useState(5);
+  const [markSemester, setMarkSemester] = useState(1);
+  const [markSubject, setMarkSubject] = useState("");
+  const [markDrafts, setMarkDrafts] = useState<Record<string, { unitTest1: string; unitTest2: string; finalExam: string }>>({});
+  const [savingMarkKeys, setSavingMarkKeys] = useState<Record<string, boolean>>({});
+  const [markStatus, setMarkStatus] = useState<string | null>(null);
+  const [cgpaRosterSemester, setCgpaRosterSemester] = useState("all");
+  const [cgpaRosterRoll, setCgpaRosterRoll] = useState("");
+  const [cgpaRosterName, setCgpaRosterName] = useState("");
+  const [cgpaRosterMin, setCgpaRosterMin] = useState("");
+  const [cgpaRosterMax, setCgpaRosterMax] = useState("");
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
 
   const students = dashboard?.students ?? [];
   const professorResources = dashboard?.resources ?? [];
+  const reviewQueueItems = dashboard?.review_queue ?? [];
+  const publishedAssignmentItems = dashboard?.assignments ?? [];
+  const reviewSeenStorageKey = `campusverse-professor-review-seen:${dashboard?.professor.email ?? "pending"}`;
+  const unseenReviewQueueCount = reviewQueueItems.filter(
+    (item) => !seenReviewQueueKeys.includes(reviewQueueItemKey(item)),
+  ).length;
+  const unseenPublishedAssignmentCount = publishedAssignmentItems.filter(
+    (item) => !seenPublishedAssignmentKeys.includes(publishedAssignmentItemKey(item)),
+  ).length;
   const filteredStudents = useMemo(() => {
     const query = studentQuery.trim().toLowerCase();
     if (!query) return students;
@@ -204,6 +300,52 @@ function ProfessorDashboardPage() {
     () => students.filter((student) => student.biometricVerified && !student.professorConfirmed),
     [students],
   );
+  const subjectCatalog = dashboard?.subject_catalog ?? [];
+  const academicMarks = dashboard?.academic_marks ?? [];
+  const selectedSubjectCatalog = useMemo(
+    () => subjectCatalog.find((item) => item.semester === markSemester) ?? subjectCatalog[0] ?? null,
+    [markSemester, subjectCatalog],
+  );
+  const availableMarkSubjects = useMemo(() => {
+    if (!selectedSubjectCatalog) return STUDY_SUBJECTS;
+    return [
+      ...selectedSubjectCatalog.fixedSubjects,
+      ...selectedSubjectCatalog.optionalSubjects,
+    ];
+  }, [selectedSubjectCatalog]);
+  const filteredAcademicMarks = useMemo(
+    () =>
+      academicMarks.filter(
+        (row) =>
+          row.semester === markSemester &&
+          (!markSubject || row.subject === markSubject),
+      ),
+    [academicMarks, markSemester, markSubject],
+  );
+  const cgpaRosterSemesters = useMemo(
+    () => Array.from(new Set(students.map((student) => student.semester))).sort((left, right) => left - right),
+    [students],
+  );
+  const filteredCgpaRosterStudents = useMemo(() => {
+    const nameQuery = cgpaRosterName.trim().toLowerCase();
+    const rollQuery = cgpaRosterRoll.trim().toLowerCase();
+    const minCgpa = cgpaRosterMin.trim() === "" ? null : Number(cgpaRosterMin);
+    const maxCgpa = cgpaRosterMax.trim() === "" ? null : Number(cgpaRosterMax);
+    return students.filter((student) => {
+      if (cgpaRosterSemester !== "all" && student.semester !== Number(cgpaRosterSemester)) return false;
+      if (nameQuery && !student.name.toLowerCase().includes(nameQuery)) return false;
+      if (rollQuery && !student.studentCode.toLowerCase().includes(rollQuery)) return false;
+      if (minCgpa !== null && Number.isFinite(minCgpa) && student.cgpa < minCgpa) return false;
+      if (maxCgpa !== null && Number.isFinite(maxCgpa) && student.cgpa > maxCgpa) return false;
+      return true;
+    });
+  }, [cgpaRosterMax, cgpaRosterMin, cgpaRosterName, cgpaRosterRoll, cgpaRosterSemester, students]);
+  const cgpaRosterFiltersActive =
+    cgpaRosterSemester !== "all" ||
+    Boolean(cgpaRosterRoll.trim()) ||
+    Boolean(cgpaRosterName.trim()) ||
+    Boolean(cgpaRosterMin.trim()) ||
+    Boolean(cgpaRosterMax.trim());
 
   const filteredProfessorResources = useMemo(() => {
     const query = resourceSearch.trim().toLowerCase();
@@ -366,6 +508,21 @@ function ProfessorDashboardPage() {
     }
   }, [assignmentResourceIds.length, assignmentSourceKind, professorResources]);
 
+  useEffect(() => {
+    if (!dashboard) return;
+    const firstSemester = dashboard.students[0]?.semester ?? dashboard.subject_catalog[0]?.semester ?? 1;
+    if (!dashboard.subject_catalog.some((item) => item.semester === markSemester)) {
+      setMarkSemester(firstSemester);
+    }
+  }, [dashboard, markSemester]);
+
+  useEffect(() => {
+    if (availableMarkSubjects.length === 0) return;
+    if (!markSubject || !availableMarkSubjects.includes(markSubject)) {
+      setMarkSubject(availableMarkSubjects[0]);
+    }
+  }, [availableMarkSubjects, markSubject]);
+
   const todayStatusByStudent = useMemo(() => {
     const map = new Map<number, AttendanceStatus>();
     const today = dashboard?.attendance_today.date;
@@ -496,6 +653,33 @@ function ProfessorDashboardPage() {
     }
   }, [academicTab, activeSection]);
 
+  useEffect(() => {
+    if (reviewSeenStorageKey.endsWith(":pending")) return;
+    setSeenStorageReady(false);
+    try {
+      const raw = window.localStorage.getItem(reviewSeenStorageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      setSeenReviewQueueKeys(Array.isArray(parsed.queue) ? parsed.queue : []);
+      setSeenPublishedAssignmentKeys(Array.isArray(parsed.assignments) ? parsed.assignments : []);
+    } catch {
+      setSeenReviewQueueKeys([]);
+      setSeenPublishedAssignmentKeys([]);
+    } finally {
+      setSeenStorageReady(true);
+    }
+  }, [reviewSeenStorageKey]);
+
+  useEffect(() => {
+    if (!seenStorageReady || reviewSeenStorageKey.endsWith(":pending")) return;
+    window.localStorage.setItem(
+      reviewSeenStorageKey,
+      JSON.stringify({
+        queue: seenReviewQueueKeys,
+        assignments: seenPublishedAssignmentKeys,
+      }),
+    );
+  }, [reviewSeenStorageKey, seenPublishedAssignmentKeys, seenReviewQueueKeys, seenStorageReady]);
+
   function loadReview(item: ReviewLikeItem) {
     setReviewSubmissionId(item.submissionId ?? null);
     setReviewStudentId(String(item.studentId));
@@ -528,8 +712,23 @@ function ProfessorDashboardPage() {
     setReviewFeedback(item.professorFeedback || item.aiFeedback || item.feedback || "");
   }
 
+  function markReviewQueueSeen(item: ReviewLikeItem) {
+    const key = reviewQueueItemKey(item);
+    setSeenReviewQueueKeys((current) => (current.includes(key) ? current : [...current, key]));
+  }
+
+  function markPublishedAssignmentSeen(item: PublishedAssignment) {
+    const key = publishedAssignmentItemKey(item);
+    setSeenPublishedAssignmentKeys((current) => (current.includes(key) ? current : [...current, key]));
+  }
+
+  function toggleSelection(keys: string[], setKeys: (value: string[]) => void, key: string) {
+    setKeys(keys.includes(key) ? keys.filter((item) => item !== key) : [...keys, key]);
+  }
+
   function openStudentAssignmentHistory(item: ReviewLikeItem) {
     if (item.submissionId) {
+      markReviewQueueSeen(item);
       loadReview(item);
       setAssignmentDetailView({ kind: "submission", item });
       return;
@@ -537,7 +736,166 @@ function ProfessorDashboardPage() {
 
     const assignment = dashboard?.assignments.find((row) => row.id === item.assignmentId);
     if (assignment) {
+      markPublishedAssignmentSeen(assignment);
       setAssignmentDetailView({ kind: "assignment", item: assignment });
+    }
+  }
+
+  async function deleteReviewQueueItem(item: ReviewLikeItem, options?: { skipConfirm?: boolean; silent?: boolean }) {
+    const submissionId = item.submissionId ?? item.id;
+    if (!submissionId) return;
+    if (!options?.skipConfirm && !window.confirm(`Delete "${item.title}" from review queue/history?`)) return;
+    if (!options?.silent) setSaving(true);
+    try {
+      await deleteProfessorAssignmentSubmission(submissionId);
+      setDashboard((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          review_queue: current.review_queue.filter((row) => (row.submissionId ?? row.id) !== submissionId),
+          assignment_submissions: current.assignment_submissions.filter((row) => (row.submissionId ?? row.id) !== submissionId),
+          assignment_reviews: current.assignment_reviews.filter(
+            (row) => !(row.studentId === item.studentId && row.title === item.title && row.subject === item.subject),
+          ),
+        };
+      });
+      setSelectedReviewQueueKeys((current) => current.filter((key) => key !== reviewQueueItemKey(item)));
+      setSelectedHistoryKeys((current) => current.filter((key) => key !== historyItemKey(item)));
+      setSeenReviewQueueKeys((current) => current.filter((key) => key !== reviewQueueItemKey(item)));
+      if (reviewSubmissionId === submissionId) {
+        setReviewSubmissionId(null);
+        setAssignmentDetailView(null);
+      }
+      if (!options?.silent) setStatus("Assignment submission deleted");
+    } catch (error) {
+      if (!options?.silent) setStatus(error instanceof Error ? error.message : "Could not delete submission");
+      throw error;
+    } finally {
+      if (!options?.silent) setSaving(false);
+    }
+  }
+
+  async function deletePublishedAssignmentItem(item: PublishedAssignment, options?: { skipConfirm?: boolean; silent?: boolean }) {
+    if (!options?.skipConfirm && !window.confirm(`Delete published assignment "${item.title}"? Student submissions and drafts for it will also be removed.`)) return;
+    if (!options?.silent) setSaving(true);
+    try {
+      await deleteProfessorAssignment(item.id);
+      setDashboard((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          assignments: current.assignments.filter((row) => row.id !== item.id),
+          review_queue: current.review_queue.filter((row) => row.assignmentId !== item.id),
+          assignment_submissions: current.assignment_submissions.filter((row) => row.assignmentId !== item.id),
+          assignment_reviews: current.assignment_reviews.filter(
+            (row) => !(row.title === item.title && row.subject === item.subject),
+          ),
+        };
+      });
+      setSelectedPublishedAssignmentKeys((current) => current.filter((key) => key !== publishedAssignmentItemKey(item)));
+      setSelectedHistoryKeys((current) => current.filter((key) => key !== `assignment:${item.id}`));
+      setSeenPublishedAssignmentKeys((current) => current.filter((key) => key !== publishedAssignmentItemKey(item)));
+      if (assignmentDetailView?.kind === "assignment" && assignmentDetailView.item.id === item.id) {
+        setAssignmentDetailView(null);
+      }
+      if (!options?.silent) setStatus("Published assignment deleted");
+    } catch (error) {
+      if (!options?.silent) setStatus(error instanceof Error ? error.message : "Could not delete assignment");
+      throw error;
+    } finally {
+      if (!options?.silent) setSaving(false);
+    }
+  }
+
+  async function deleteHistoryItem(item: ReviewLikeItem, options?: { skipConfirm?: boolean; silent?: boolean }) {
+    if (item.submissionId) {
+      await deleteReviewQueueItem(item, options);
+      return;
+    }
+    if (typeof item.assignmentId === "number") {
+      const assignment = dashboard?.assignments.find((row) => row.id === item.assignmentId);
+      if (assignment) {
+        await deletePublishedAssignmentItem(assignment, options);
+        return;
+      }
+    }
+    if (item.id > 0) {
+      if (!options?.skipConfirm && !window.confirm(`Delete history record "${item.title}"?`)) return;
+      if (!options?.silent) setSaving(true);
+      try {
+        await deleteProfessorAssignmentReview(item.id);
+        setDashboard((current) =>
+          current
+            ? {
+                ...current,
+                assignment_reviews: current.assignment_reviews.filter((row) => row.id !== item.id),
+              }
+            : current,
+        );
+        setSelectedHistoryKeys((current) => current.filter((key) => key !== historyItemKey(item)));
+        if (!options?.silent) setStatus("History record deleted");
+      } catch (error) {
+        if (!options?.silent) setStatus(error instanceof Error ? error.message : "Could not delete history record");
+        throw error;
+      } finally {
+        if (!options?.silent) setSaving(false);
+      }
+    }
+  }
+
+  async function deleteSelectedReviewQueueItems() {
+    const selected = reviewQueueItems.filter((item) => selectedReviewQueueKeys.includes(reviewQueueItemKey(item)));
+    if (!selected.length) return;
+    if (!window.confirm(`Delete ${selected.length} selected review queue item${selected.length === 1 ? "" : "s"}?`)) return;
+    setSaving(true);
+    try {
+      for (const item of selected) {
+        await deleteReviewQueueItem(item, { skipConfirm: true, silent: true });
+      }
+      setSelectedReviewQueueKeys([]);
+      setStatus("Selected review queue items deleted");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete selected queue items");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteSelectedPublishedAssignments() {
+    const selected = publishedAssignmentItems.filter((item) =>
+      selectedPublishedAssignmentKeys.includes(publishedAssignmentItemKey(item)),
+    );
+    if (!selected.length) return;
+    if (!window.confirm(`Delete ${selected.length} selected published assignment${selected.length === 1 ? "" : "s"}? Student submissions and drafts for them will also be removed.`)) return;
+    setSaving(true);
+    try {
+      for (const item of selected) {
+        await deletePublishedAssignmentItem(item, { skipConfirm: true, silent: true });
+      }
+      setSelectedPublishedAssignmentKeys([]);
+      setStatus("Selected published assignments deleted");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete selected assignments");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteSelectedHistoryItems() {
+    const selected = selectedStudentAssignmentHistory.filter((item) => selectedHistoryKeys.includes(historyItemKey(item)));
+    if (!selected.length) return;
+    if (!window.confirm(`Delete ${selected.length} selected history item${selected.length === 1 ? "" : "s"}?`)) return;
+    setSaving(true);
+    try {
+      for (const item of selected) {
+        await deleteHistoryItem(item, { skipConfirm: true, silent: true });
+      }
+      setSelectedHistoryKeys([]);
+      setStatus("Selected history items deleted");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete selected history items");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -816,6 +1174,16 @@ function ProfessorDashboardPage() {
       setStatus("Add source content before generating from custom content");
       return;
     }
+    const startDate = new Date(assignmentStartAt);
+    const dueDate = new Date(assignmentDueAt);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(dueDate.getTime())) {
+      setStatus("Choose a valid assignment start and end date");
+      return;
+    }
+    if (dueDate <= startDate) {
+      setStatus("Assignment end date must be after the start date");
+      return;
+    }
 
     await runAction(
       () =>
@@ -827,7 +1195,9 @@ function ProfessorDashboardPage() {
           resource_ids: assignmentResourceIds,
           syllabus: assignmentSyllabus || undefined,
           custom_content: assignmentContent || undefined,
-          due_label: assignmentDueLabel,
+          due_label: assignmentDueLabelFromDate(assignmentDueAt),
+          start_at: startDate.toISOString(),
+          due_at: dueDate.toISOString(),
           question_count: assignmentType === "file" ? 1 : assignmentQuestionCount,
           total_points: 100,
         }),
@@ -837,6 +1207,114 @@ function ProfessorDashboardPage() {
     if (assignmentSourceKind !== "resources") {
       setAssignmentSyllabus("");
       setAssignmentContent("");
+    }
+    setAssignmentStartAt(toDatetimeLocal(new Date()));
+    setAssignmentDueAt(toDatetimeLocal(daysFromNow(7)));
+  }
+
+  function markDraftKey(row: StudentAcademicMark) {
+    return `${row.studentId}:${row.semester}:${row.subject}`;
+  }
+
+  function savedDraftForMark(row: StudentAcademicMark) {
+    return {
+      unitTest1: row.unitTest1 == null ? "" : String(row.unitTest1),
+      unitTest2: row.unitTest2 == null ? "" : String(row.unitTest2),
+      finalExam: row.finalExam == null ? "" : String(row.finalExam),
+    };
+  }
+
+  function draftForMark(row: StudentAcademicMark) {
+    return markDrafts[markDraftKey(row)] ?? savedDraftForMark(row);
+  }
+
+  function updateMarkDraft(row: StudentAcademicMark, field: "unitTest1" | "unitTest2" | "finalExam", value: string) {
+    const key = markDraftKey(row);
+    setMarkDrafts((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] ?? savedDraftForMark(row)),
+        [field]: value,
+      },
+    }));
+  }
+
+  function parseMarkValue(value: string) {
+    if (!value.trim()) return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      throw new Error("Marks must be between 0 and 100");
+    }
+    return parsed;
+  }
+
+  function previewMarkValue(value: string) {
+    if (!value.trim()) return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return null;
+    return parsed;
+  }
+
+  function previewStudentMarks(row: StudentAcademicMark, draft: ReturnType<typeof draftForMark>) {
+    const unitTest1 = previewMarkValue(draft.unitTest1);
+    const unitTest2 = previewMarkValue(draft.unitTest2);
+    const finalExam = previewMarkValue(draft.finalExam);
+    const overallPercentage = Number(
+      (
+        row.assignmentScore * 0.1 +
+        (unitTest1 ?? 0) * 0.2 +
+        (unitTest2 ?? 0) * 0.2 +
+        (finalExam ?? 0) * 0.5
+      ).toFixed(1),
+    );
+    const offlineComplete = unitTest1 !== null && unitTest2 !== null && finalExam !== null;
+    return {
+      overallPercentage,
+      status: offlineComplete ? (overallPercentage >= 50 ? "pass" : "reattempt") : "incomplete",
+    };
+  }
+
+  async function saveStudentMarks(row: StudentAcademicMark) {
+    const key = markDraftKey(row);
+    const draft = draftForMark(row);
+    setSavingMarkKeys((current) => ({ ...current, [key]: true }));
+    setMarkStatus(null);
+    try {
+      const result = await updateStudentOfflineMarks(row.studentId, {
+        student_id: row.studentId,
+        semester: row.semester,
+        subject: row.subject,
+        unit_test_1: parseMarkValue(draft.unitTest1),
+        unit_test_2: parseMarkValue(draft.unitTest2),
+        final_exam: parseMarkValue(draft.finalExam),
+      });
+      setDashboard((current) => {
+        if (!current) return current;
+        const markExists = current.academic_marks.some((item) => markDraftKey(item) === key);
+        return {
+          ...current,
+          students: current.students.map((student) =>
+            student.id === result.student_id ? { ...student, cgpa: result.cgpa } : student,
+          ),
+          academic_marks: markExists
+            ? current.academic_marks.map((item) => (markDraftKey(item) === key ? result.mark : item))
+            : [...current.academic_marks, result.mark],
+        };
+      });
+      setMarkStatus(`Saved marks for ${row.student}`);
+      setMarkDrafts((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    } catch (error) {
+      setMarkStatus(error instanceof Error ? error.message : "Could not save marks");
+    } finally {
+      setSavingMarkKeys((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
     }
   }
 
@@ -1594,6 +2072,158 @@ function ProfessorDashboardPage() {
                 </div>
               </div>
 
+              <div className={`rounded-3xl p-5 border ${
+                isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-white/90 shadow-xs"
+              }`}>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <SectionTitle icon={ClipboardCheck} eyebrow="Marks Entry" title="Offline exam marks" />
+                  <div className="grid w-full gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[560px]">
+                    <label className="space-y-2">
+                      <span className={`block text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                        Semester
+                      </span>
+                      <select
+                        value={markSemester}
+                        onChange={(event) => setMarkSemester(Number(event.target.value) || 1)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ${
+                          isDark ? "border-white/10 bg-neutral-950 text-white" : "border-slate-200 bg-white text-slate-900"
+                        }`}
+                      >
+                        {(subjectCatalog.length ? subjectCatalog : [{ semester: 1, fixedSubjects: [], optionalSubjects: [] }]).map((item) => (
+                          <option key={item.semester} value={item.semester}>
+                            Semester {item.semester}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-2">
+                      <span className={`block text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                        Subject
+                      </span>
+                      <select
+                        value={markSubject}
+                        onChange={(event) => setMarkSubject(event.target.value)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ${
+                          isDark ? "border-white/10 bg-neutral-950 text-white" : "border-slate-200 bg-white text-slate-900"
+                        }`}
+                      >
+                        {availableMarkSubjects.map((subject) => (
+                          <option key={subject} value={subject}>
+                            {subject}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div className={`mt-3 text-xs font-medium ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                  Assignments are pulled automatically at 10%. Enter only UT1, UT2, and final exam marks out of 100.
+                </div>
+                {markStatus && (
+                  <div className={`mt-4 inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                    markStatus.toLowerCase().includes("saved")
+                      ? isDark
+                        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : isDark
+                        ? "border-rose-300/20 bg-rose-400/10 text-rose-100"
+                        : "border-rose-200 bg-rose-50 text-rose-900"
+                  }`}>
+                    <CheckCircle2 className="size-4" />
+                    {markStatus}
+                  </div>
+                )}
+
+                <div className="mt-5 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className={`text-[10px] uppercase tracking-[0.22em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                      <tr>
+                        <th className="py-3 pr-4">Student</th>
+                        <th className="py-3 pr-4">Assignments</th>
+                        <th className="py-3 pr-4">UT1</th>
+                        <th className="py-3 pr-4">UT2</th>
+                        <th className="py-3 pr-4">Final</th>
+                        <th className="py-3 pr-4">Overall</th>
+                        <th className="py-3 pr-4">Status</th>
+                        <th className="py-3 pr-4">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAcademicMarks.map((row) => {
+                        const rowKey = markDraftKey(row);
+                        const draft = draftForMark(row);
+                        const preview = previewStudentMarks(row, draft);
+                        const rowSaving = Boolean(savingMarkKeys[rowKey]);
+                        return (
+                          <tr key={rowKey} className={`border-t ${isDark ? "border-white/10" : "border-slate-200"}`}>
+                            <td className="py-4 pr-4 min-w-[210px]">
+                              <div className={isDark ? "font-semibold text-white" : "font-bold text-slate-950"}>{row.student}</div>
+                              <div className={`text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>{row.studentCode}</div>
+                            </td>
+                            <td className={`py-4 pr-4 font-mono text-sm ${isDark ? "text-emerald-200" : "text-emerald-700"}`}>
+                              {row.assignmentScore.toFixed(1)}%
+                              <div className={`mt-1 text-[10px] font-sans ${isDark ? "text-white/35" : "text-slate-500"}`}>
+                                {row.gradedAssignmentCount}/{row.assignmentCount} graded
+                                {row.lateZeroCount ? `, ${row.lateZeroCount} late zero` : ""}
+                              </div>
+                            </td>
+                            {(["unitTest1", "unitTest2", "finalExam"] as const).map((field) => (
+                              <td key={field} className="py-4 pr-4 min-w-[96px]">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step="0.01"
+                                  value={draft[field]}
+                                  onChange={(event) => updateMarkDraft(row, field, event.target.value)}
+                                  className={`w-24 rounded-2xl border px-3 py-2 text-sm font-semibold outline-none ${
+                                    isDark
+                                      ? "border-white/10 bg-black/30 text-white focus:border-emerald-300/40"
+                                      : "border-slate-200 bg-white text-slate-950 focus:border-emerald-500"
+                                  }`}
+                                />
+                              </td>
+                            ))}
+                            <td className={`py-4 pr-4 font-display text-lg font-bold ${preview.overallPercentage >= 50 ? "text-emerald-500" : "text-amber-500"}`}>
+                              {preview.overallPercentage.toFixed(1)}%
+                            </td>
+                            <td className="py-4 pr-4">
+                              <span className={`rounded-full px-3 py-1 text-xs font-bold capitalize ${
+                                preview.status === "pass"
+                                  ? "bg-emerald-400/10 text-emerald-200"
+                                  : preview.status === "reattempt"
+                                    ? "bg-rose-500/10 text-rose-100"
+                                    : "bg-amber-400/10 text-amber-100"
+                              }`}>
+                                {preview.status}
+                              </span>
+                            </td>
+                            <td className="py-4 pr-4">
+                              <button
+                                type="button"
+                                onClick={() => void saveStudentMarks(row)}
+                                disabled={rowSaving}
+                                className="rounded-full bg-[#d8efbc] px-4 py-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[#101417] transition hover:bg-[#c8e9a8] disabled:cursor-wait disabled:opacity-60"
+                              >
+                                {rowSaving ? "Saving" : "Save"}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredAcademicMarks.length === 0 && (
+                        <tr className={`border-t ${isDark ? "border-white/10" : "border-slate-200"}`}>
+                          <td colSpan={8} className={`py-6 text-sm ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                            No enrolled students found for this semester and subject.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {/* Multi-Year CGPA Graph */}
               <div className={`rounded-3xl p-5 border ${
                 isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-white/90 shadow-xs"
@@ -1616,7 +2246,121 @@ function ProfessorDashboardPage() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                   <SectionTitle icon={GraduationCap} eyebrow="Class Roster" title="Student CGPA Breakdown" />
                   <div className={`text-xs font-semibold ${isDark ? "text-white/50" : "text-slate-500"}`}>
-                    Total: {students.length} student records
+                    Total: {filteredCgpaRosterStudents.length}/{students.length} student records
+                  </div>
+                </div>
+
+                <div className={`mb-5 rounded-2xl border p-4 ${
+                  isDark ? "border-white/10 bg-black/15" : "border-slate-200 bg-slate-50/80"
+                }`}>
+                  <div className="grid gap-3 md:grid-cols-[0.9fr_1fr_1fr_0.65fr_0.65fr_auto]">
+                    <label className="grid gap-1.5">
+                      <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                        Semester
+                      </span>
+                      <select
+                        value={cgpaRosterSemester}
+                        onChange={(event) => setCgpaRosterSemester(event.target.value)}
+                        className={`h-11 rounded-2xl border px-3 text-sm font-semibold outline-none ${
+                          isDark
+                            ? "border-white/10 bg-black/30 text-white focus:border-emerald-300/40"
+                            : "border-slate-200 bg-white text-slate-950 focus:border-emerald-500"
+                        }`}
+                      >
+                        <option value="all">All semesters</option>
+                        {cgpaRosterSemesters.map((semester) => (
+                          <option key={semester} value={semester}>
+                            Semester {semester}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                        Roll / Code
+                      </span>
+                      <input
+                        value={cgpaRosterRoll}
+                        onChange={(event) => setCgpaRosterRoll(event.target.value)}
+                        placeholder="CV-2026..."
+                        className={`h-11 rounded-2xl border px-3 text-sm font-semibold outline-none ${
+                          isDark
+                            ? "border-white/10 bg-black/30 text-white placeholder:text-white/30 focus:border-emerald-300/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-emerald-500"
+                        }`}
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                        Name
+                      </span>
+                      <input
+                        value={cgpaRosterName}
+                        onChange={(event) => setCgpaRosterName(event.target.value)}
+                        placeholder="Student name"
+                        className={`h-11 rounded-2xl border px-3 text-sm font-semibold outline-none ${
+                          isDark
+                            ? "border-white/10 bg-black/30 text-white placeholder:text-white/30 focus:border-emerald-300/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-emerald-500"
+                        }`}
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                        Min CGPA
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={10}
+                        step="0.1"
+                        value={cgpaRosterMin}
+                        onChange={(event) => setCgpaRosterMin(event.target.value)}
+                        placeholder="0.0"
+                        className={`h-11 rounded-2xl border px-3 text-sm font-semibold outline-none ${
+                          isDark
+                            ? "border-white/10 bg-black/30 text-white placeholder:text-white/30 focus:border-emerald-300/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-emerald-500"
+                        }`}
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                        Max CGPA
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={10}
+                        step="0.1"
+                        value={cgpaRosterMax}
+                        onChange={(event) => setCgpaRosterMax(event.target.value)}
+                        placeholder="10.0"
+                        className={`h-11 rounded-2xl border px-3 text-sm font-semibold outline-none ${
+                          isDark
+                            ? "border-white/10 bg-black/30 text-white placeholder:text-white/30 focus:border-emerald-300/40"
+                            : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400 focus:border-emerald-500"
+                        }`}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCgpaRosterSemester("all");
+                        setCgpaRosterRoll("");
+                        setCgpaRosterName("");
+                        setCgpaRosterMin("");
+                        setCgpaRosterMax("");
+                      }}
+                      disabled={!cgpaRosterFiltersActive}
+                      className={`mt-auto h-11 rounded-2xl border px-4 text-xs font-extrabold uppercase tracking-[0.16em] transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                        isDark
+                          ? "border-white/10 bg-white/[0.04] text-white/70 hover:border-[#d8efbc]/40 hover:text-[#d8efbc]"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                      }`}
+                    >
+                      Reset
+                    </button>
                   </div>
                 </div>
 
@@ -1633,8 +2377,9 @@ function ProfessorDashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {students.map((student) => {
-                        const gradeLetter = student.cgpa >= 9.0 ? "S (Outstanding)" : student.cgpa >= 8.0 ? "A (Excellent)" : student.cgpa >= 7.0 ? "B (Good)" : "C (Average)";
+                      {filteredCgpaRosterStudents.map((student) => {
+                        const gradeCode = cgpaGradeCode(student.cgpa);
+                        const gradeLetter = CGPA_GRADE_LABELS[gradeCode] ?? gradeCode;
                         return (
                           <tr key={student.id} className={`border-t transition-colors ${isDark ? "border-white/10 hover:bg-white/5" : "border-slate-200 hover:bg-slate-50"}`}>
                             <td className="py-4 pr-4 font-medium min-w-[200px]">
@@ -1651,13 +2396,7 @@ function ProfessorDashboardPage() {
                               <span className={`ml-1 text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>/ 10</span>
                             </td>
                             <td className="py-4 pr-4">
-                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold font-mono ${
-                                student.cgpa >= 9.0
-                                  ? "bg-purple-500/15 border border-purple-500/30 text-purple-600"
-                                  : student.cgpa >= 8.0
-                                    ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-600"
-                                    : "bg-blue-500/15 border border-blue-500/30 text-blue-600"
-                              }`}>
+                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold font-mono ${cgpaGradeClass(gradeCode)}`}>
                                 {gradeLetter}
                               </span>
                             </td>
@@ -1670,6 +2409,13 @@ function ProfessorDashboardPage() {
                           </tr>
                         );
                       })}
+                      {filteredCgpaRosterStudents.length === 0 && (
+                        <tr className={`border-t ${isDark ? "border-white/10" : "border-slate-200"}`}>
+                          <td colSpan={6} className={`py-6 text-sm ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                            No student records match the selected filters.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1862,8 +2608,8 @@ function ProfessorDashboardPage() {
           }`}>
             {(
               [
-                { key: "queue", label: "Review Queue", count: (dashboard?.review_queue ?? []).length, color: "fuchsia" },
-                { key: "assignments", label: "Published", count: (dashboard?.assignments ?? []).length, color: "cyan" },
+                { key: "queue", label: "Review Queue", count: unseenReviewQueueCount, color: "fuchsia" },
+                { key: "assignments", label: "Published", count: unseenPublishedAssignmentCount, color: "cyan" },
                 { key: "history", label: "History", count: null, color: "purple" },
               ] as const
             ).map(({ key, label, count, color }) => {
@@ -1892,7 +2638,7 @@ function ProfessorDashboardPage() {
                   }`}
                 >
                   <span>{label}</span>
-                  {count !== null && (
+                  {count !== null && count > 0 && (
                     <span className={`rounded-full min-w-[20px] text-center px-1.5 py-1 text-[10px] font-mono font-bold leading-none ${
                       active
                         ? activeBadgeStyles[color]
@@ -1912,16 +2658,55 @@ function ProfessorDashboardPage() {
           {/* Tab: Review Queue */}
           {reviewLeftTab === "queue" && (
             <div className="flex min-h-0 flex-1 flex-col pt-1">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const keys = reviewQueueItems.map(reviewQueueItemKey);
+                    setSelectedReviewQueueKeys(selectedReviewQueueKeys.length === keys.length ? [] : keys);
+                  }}
+                  disabled={reviewQueueItems.length === 0}
+                  className={`rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.16em] transition disabled:opacity-40 ${
+                    isDark ? "border-white/10 bg-white/[0.04] text-white/60 hover:text-[#d8efbc]" : "border-slate-200 bg-white text-slate-600 hover:text-emerald-700"
+                  }`}
+                >
+                  {selectedReviewQueueKeys.length === reviewQueueItems.length && reviewQueueItems.length ? "Clear selection" : "Select all"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void deleteSelectedReviewQueueItems()}
+                  disabled={saving || selectedReviewQueueKeys.length === 0}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.16em] transition disabled:opacity-40 ${
+                    isDark ? "border-rose-400/25 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20" : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  }`}
+                >
+                  <Trash2 className="size-3" /> Delete selected
+                </button>
+              </div>
               <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
-                {(dashboard?.review_queue ?? []).map((item) => {
+                {reviewQueueItems.map((item) => {
                   const active = item.submissionId && item.submissionId === reviewSubmissionId;
+                  const itemKey = reviewQueueItemKey(item);
+                  const checked = selectedReviewQueueKeys.includes(itemKey);
                   return (
-                    <button
+                    <div
                       key={item.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
+                        markReviewQueueSeen(item);
                         loadReview(item);
                         setAssignmentDetailView({ kind: "submission", item });
                         setReviewRightTab("grade");
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          markReviewQueueSeen(item);
+                          loadReview(item);
+                          setAssignmentDetailView({ kind: "submission", item });
+                          setReviewRightTab("grade");
+                        }
                       }}
                       className={`group relative w-full text-left rounded-2xl p-4 transition-all duration-200 border ${
                         active
@@ -1935,6 +2720,14 @@ function ProfessorDashboardPage() {
                     >
                       {/* Title + chevron row */}
                       <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={() => toggleSelection(selectedReviewQueueKeys, setSelectedReviewQueueKeys, itemKey)}
+                          className="size-4 shrink-0 accent-[#d8efbc]"
+                          aria-label={`Select ${item.title}`}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className={`truncate text-sm font-semibold transition leading-snug ${
                             active
@@ -1954,6 +2747,20 @@ function ProfessorDashboardPage() {
                             ? isDark ? "text-[#d8efbc]" : "text-[#2f8f46]"
                             : isDark ? "text-white/20 group-hover:text-[#d8efbc]" : "text-slate-300 group-hover:text-[#2f8f46]"
                         }`} />
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void deleteReviewQueueItem(item);
+                          }}
+                          disabled={saving}
+                          className={`grid size-8 shrink-0 place-items-center rounded-full border transition disabled:opacity-40 ${
+                            isDark ? "border-rose-400/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20" : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                          }`}
+                          aria-label={`Delete ${item.title}`}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
                       </div>
                       {/* Consolidated status row: type · priority · AI grade */}
                       <div className="mt-2.5 flex items-center gap-1.5 text-[11px]">
@@ -1983,10 +2790,10 @@ function ProfessorDashboardPage() {
                           </span>
                         )}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
-                {(dashboard?.review_queue ?? []).length === 0 && (
+                {reviewQueueItems.length === 0 && (
                   <div className={`rounded-3xl border border-dashed py-10 text-center text-sm ${
                     isDark ? "border-white/15 text-white/45 bg-white/[0.01]" : "border-slate-200 text-slate-400 bg-slate-50/50"
                   }`}>
@@ -2000,14 +2807,52 @@ function ProfessorDashboardPage() {
           {/* Tab: Published Assignments */}
           {reviewLeftTab === "assignments" && (
             <div className="flex min-h-0 flex-1 flex-col pt-1">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const keys = publishedAssignmentItems.map(publishedAssignmentItemKey);
+                    setSelectedPublishedAssignmentKeys(selectedPublishedAssignmentKeys.length === keys.length ? [] : keys);
+                  }}
+                  disabled={publishedAssignmentItems.length === 0}
+                  className={`rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.16em] transition disabled:opacity-40 ${
+                    isDark ? "border-white/10 bg-white/[0.04] text-white/60 hover:text-[#d8efbc]" : "border-slate-200 bg-white text-slate-600 hover:text-emerald-700"
+                  }`}
+                >
+                  {selectedPublishedAssignmentKeys.length === publishedAssignmentItems.length && publishedAssignmentItems.length ? "Clear selection" : "Select all"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void deleteSelectedPublishedAssignments()}
+                  disabled={saving || selectedPublishedAssignmentKeys.length === 0}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.16em] transition disabled:opacity-40 ${
+                    isDark ? "border-rose-400/25 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20" : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  }`}
+                >
+                  <Trash2 className="size-3" /> Delete selected
+                </button>
+              </div>
               <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
-                {(dashboard?.assignments ?? []).map((item) => {
+                {publishedAssignmentItems.map((item) => {
                   const active = assignmentDetailView?.kind === "assignment" && assignmentDetailView.item.id === item.id;
+                  const itemKey = publishedAssignmentItemKey(item);
+                  const checked = selectedPublishedAssignmentKeys.includes(itemKey);
                   return (
-                  <button
+                  <div
                     key={item.id}
-                    type="button"
-                    onClick={() => setAssignmentDetailView({ kind: "assignment", item })}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      markPublishedAssignmentSeen(item);
+                      setAssignmentDetailView({ kind: "assignment", item });
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        markPublishedAssignmentSeen(item);
+                        setAssignmentDetailView({ kind: "assignment", item });
+                      }
+                    }}
                     className={`group w-full rounded-2xl border p-4 text-left transition-all duration-200 ${
                       active
                         ? isDark
@@ -2019,6 +2864,14 @@ function ProfessorDashboardPage() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => toggleSelection(selectedPublishedAssignmentKeys, setSelectedPublishedAssignmentKeys, itemKey)}
+                        className="mt-1 size-4 shrink-0 accent-[#d8efbc]"
+                        aria-label={`Select ${item.title}`}
+                      />
                       <div className="min-w-0 flex-1">
                         <div className={`truncate text-sm font-semibold transition ${
                           active
@@ -2038,11 +2891,25 @@ function ProfessorDashboardPage() {
                       }`}>
                         {item.assignmentType === "qa" ? "Q&A" : item.assignmentType.toUpperCase()}
                       </span>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void deletePublishedAssignmentItem(item);
+                        }}
+                        disabled={saving}
+                        className={`grid size-8 shrink-0 place-items-center rounded-full border transition disabled:opacity-40 ${
+                          isDark ? "border-rose-400/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20" : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                        }`}
+                        aria-label={`Delete ${item.title}`}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
                     </div>
-                  </button>
+                  </div>
                   );
                 })}
-                {(dashboard?.assignments ?? []).length === 0 && (
+                {publishedAssignmentItems.length === 0 && (
                   <div className={`rounded-3xl border border-dashed py-8 text-center text-sm ${
                     isDark ? "border-white/15 text-white/45 bg-white/[0.01]" : "border-slate-200 text-slate-400 bg-slate-50/50"
                   }`}>
@@ -2064,6 +2931,15 @@ function ProfessorDashboardPage() {
               selectedSubmissionId={reviewSubmissionId}
               selectedAssignmentId={assignmentDetailView?.kind === "assignment" ? assignmentDetailView.item.id : selectedReviewItem?.assignmentId ?? null}
               onOpen={openStudentAssignmentHistory}
+              selectedKeys={selectedHistoryKeys}
+              onToggleSelect={(item) => toggleSelection(selectedHistoryKeys, setSelectedHistoryKeys, historyItemKey(item))}
+              onSelectAll={() => {
+                const keys = selectedStudentAssignmentHistory.map(historyItemKey);
+                setSelectedHistoryKeys(selectedHistoryKeys.length === keys.length ? [] : keys);
+              }}
+              onDelete={(item) => void deleteHistoryItem(item)}
+              onDeleteSelected={() => void deleteSelectedHistoryItems()}
+              deleting={saving}
             />
           )}
         </Panel>
@@ -2293,17 +3169,29 @@ function ProfessorDashboardPage() {
                     />
                   )}
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-3">
                     <label className="space-y-2">
                       <span className={`block text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
-                        Assignment Duration
+                        Start Date / Time
                       </span>
                       <Input
-                        value={assignmentDueLabel}
-                        onChange={(event) => setAssignmentDueLabel(event.target.value)}
-                        placeholder="e.g. in 7 days"
+                        type="datetime-local"
+                        value={assignmentStartAt}
+                        onChange={(event) => setAssignmentStartAt(event.target.value)}
                         required
-                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900"}`}
+                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 [color-scheme:dark]" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900 [color-scheme:light]"}`}
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className={`block text-[10px] uppercase tracking-[0.25em] font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                        End Date / Time
+                      </span>
+                      <Input
+                        type="datetime-local"
+                        value={assignmentDueAt}
+                        onChange={(event) => setAssignmentDueAt(event.target.value)}
+                        required
+                        className={`rounded-2xl ${isDark ? "bg-white/[0.04] border-white/12 focus:border-fuchsia-400/50 [color-scheme:dark]" : "bg-white border-slate-200 focus:border-fuchsia-500 text-slate-900 [color-scheme:light]"}`}
                       />
                     </label>
                     <label className="space-y-2">
@@ -3122,6 +4010,12 @@ function StudentAssignmentHistory({
   selectedSubmissionId,
   selectedAssignmentId,
   onOpen,
+  selectedKeys = [],
+  onToggleSelect,
+  onSelectAll,
+  onDelete,
+  onDeleteSelected,
+  deleting = false,
   className = "",
   listClassName = "max-h-56",
 }: {
@@ -3131,6 +4025,12 @@ function StudentAssignmentHistory({
   selectedSubmissionId: number | null;
   selectedAssignmentId?: number | null;
   onOpen: (item: ReviewLikeItem) => void;
+  selectedKeys?: string[];
+  onToggleSelect?: (item: ReviewLikeItem) => void;
+  onSelectAll?: () => void;
+  onDelete?: (item: ReviewLikeItem) => void;
+  onDeleteSelected?: () => void;
+  deleting?: boolean;
   className?: string;
   listClassName?: string;
 }) {
@@ -3158,8 +4058,35 @@ function StudentAssignmentHistory({
         </span>
       </div>
 
+      <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onSelectAll}
+          disabled={!items.length || !onSelectAll}
+          className={`rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.16em] transition disabled:opacity-40 ${
+            isDark ? "border-white/10 bg-white/[0.04] text-white/60 hover:text-[#d8efbc]" : "border-slate-200 bg-white text-slate-600 hover:text-emerald-700"
+          }`}
+        >
+          {selectedKeys.length === items.length && items.length ? "Clear selection" : "Select all"}
+        </button>
+        <button
+          type="button"
+          onClick={onDeleteSelected}
+          disabled={deleting || selectedKeys.length === 0 || !onDeleteSelected}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.16em] transition disabled:opacity-40 ${
+            isDark
+              ? "border-rose-300/45 bg-rose-500/15 text-rose-100 shadow-[0_0_0_1px_rgba(251,113,133,0.08)] hover:border-rose-300/65 hover:bg-rose-500/25 hover:text-white"
+              : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+          }`}
+        >
+          <Trash2 className="size-3" /> Delete selected
+        </button>
+      </div>
+
       <div className={`mt-3 min-h-0 space-y-2.5 overflow-y-auto pr-1 ${listClassName}`}>
         {items.map((item) => {
+          const itemKey = historyItemKey(item);
+          const checked = selectedKeys.includes(itemKey);
           const selected = item.submissionId
             ? item.submissionId === selectedSubmissionId
             : typeof item.assignmentId === "number" && item.assignmentId === selectedAssignmentId;
@@ -3183,14 +4110,21 @@ function StudentAssignmentHistory({
                 : item.status || "Submitted";
 
           return (
-            <button
+            <div
               key={item.submissionId ?? item.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onOpen(item)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onOpen(item);
+                }
+              }}
               className={`group w-full rounded-2xl border p-3.5 text-left transition-all duration-200 ${
                 selected
                   ? isDark
-                    ? "border-[#d8efbc]/70 bg-gradient-to-r from-[#4caf50]/18 via-[#68c56d]/10 to-transparent shadow-[0_0_20px_rgba(76,175,80,0.2)]"
+                    ? "border-[#d8efbc]/80 bg-[#d8efbc] text-[#101417] shadow-[0_0_20px_rgba(76,175,80,0.2)]"
                     : "border-[#68c56d] bg-[#ecf8e6] shadow-md shadow-green-200/40"
                   : isDark
                     ? "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]"
@@ -3198,44 +4132,136 @@ function StudentAssignmentHistory({
               }`}
             >
               <div className="flex items-start justify-between gap-3">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={() => onToggleSelect?.(item)}
+                  className="mt-1 size-4 shrink-0 accent-[#d8efbc]"
+                  aria-label={`Select ${item.title}`}
+                />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-white group-hover:text-cyan-200 transition">
+                  <div
+                    className={`truncate text-sm font-semibold transition ${
+                      selected
+                        ? isDark
+                          ? "text-[#101417]"
+                          : "text-[#1f7a32]"
+                        : isDark
+                          ? "text-white group-hover:text-[#d8efbc]"
+                          : "text-slate-800 group-hover:text-[#1f7a32]"
+                    }`}
+                  >
                     {item.title}
                   </div>
-                  <div className="mt-1 text-xs text-white/40 truncate">
+                  <div
+                    className={`mt-1 truncate text-xs ${
+                      selected
+                        ? isDark
+                          ? "text-[#101417]/70"
+                          : "text-slate-500"
+                        : isDark
+                          ? "text-white/40"
+                          : "text-slate-400"
+                    }`}
+                  >
                     {item.subject} • {item.submitted}
                   </div>
                 </div>
-                <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[10px] font-mono font-medium uppercase tracking-[0.16em] text-white/60">
+                <span
+                  className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-mono font-medium uppercase tracking-[0.16em] ${
+                    selected
+                      ? isDark
+                        ? "border-[#101417]/20 bg-[#101417]/10 text-[#101417]/75"
+                        : "border-[#a5d6a7] bg-white text-[#2f8f46]"
+                      : isDark
+                        ? "border-white/10 bg-white/5 text-white/60"
+                        : "border-slate-200 bg-slate-100 text-slate-500"
+                  }`}
+                >
                   {item.assignmentType === "qa" ? "Q&A" : (item.assignmentType ?? "manual").toUpperCase()}
                 </span>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDelete?.(item);
+                  }}
+                  disabled={deleting || !onDelete}
+                  className={`grid size-8 shrink-0 place-items-center rounded-full border shadow-sm transition disabled:opacity-40 ${
+                    isDark
+                      ? selected
+                        ? "border-rose-500/55 bg-rose-500/15 text-rose-800 hover:border-rose-600/70 hover:bg-rose-500/25 hover:text-rose-950"
+                        : "border-rose-300/45 bg-rose-500/16 text-rose-100 shadow-[0_0_0_1px_rgba(251,113,133,0.08)] hover:border-rose-300/70 hover:bg-rose-500/28 hover:text-white"
+                      : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  }`}
+                  aria-label={`Delete ${item.title}`}
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em]">
                 <span
                   className={`rounded-full border px-2.5 py-0.5 font-bold ${
-                    submitted
-                      ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
-                      : "border-white/10 bg-white/5 text-white/45"
+                    selected
+                      ? isDark
+                        ? "border-[#101417]/20 bg-[#101417]/10 text-[#101417]"
+                        : submitted
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 bg-slate-100 text-slate-500"
+                      : submitted
+                        ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
+                        : isDark
+                          ? "border-white/10 bg-white/5 text-white/45"
+                          : "border-slate-200 bg-slate-100 text-slate-500"
                   }`}
                 >
                   {score !== null ? `${score}/${totalPoints}` : submitted ? "Marks pending" : "Assigned"}
                 </span>
                 <span
                   className={`rounded-full border px-2.5 py-0.5 font-bold ${
-                    submitted
-                      ? "border-fuchsia-400/30 bg-fuchsia-500/15 text-fuchsia-200"
-                      : "border-cyan-400/30 bg-cyan-500/15 text-cyan-200"
+                    selected
+                      ? isDark
+                        ? "border-[#101417]/20 bg-[#101417]/10 text-[#101417]"
+                        : submitted
+                          ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
+                          : "border-cyan-300 bg-cyan-50 text-cyan-700"
+                      : submitted
+                        ? "border-fuchsia-400/30 bg-fuchsia-500/15 text-fuchsia-200"
+                        : "border-cyan-400/30 bg-cyan-500/15 text-cyan-200"
                   }`}
                 >
                   Grade {grade}
                 </span>
-                <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-white/40">{statusLabel}</span>
-                <span className="ml-auto inline-flex items-center gap-1 font-sans text-xs font-medium text-cyan-300 group-hover:translate-x-0.5 transition-transform">
+                <span
+                  className={`rounded-full px-2.5 py-0.5 ${
+                    selected
+                      ? isDark
+                        ? "bg-[#101417]/10 text-[#101417]/65"
+                        : "bg-slate-100 text-slate-500"
+                      : isDark
+                        ? "bg-white/5 text-white/40"
+                        : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {statusLabel}
+                </span>
+                <span
+                  className={`ml-auto inline-flex items-center gap-1 font-sans text-xs font-medium transition-transform group-hover:translate-x-0.5 ${
+                    selected
+                      ? isDark
+                        ? "text-[#101417]"
+                        : "text-[#2f8f46]"
+                      : isDark
+                        ? "text-cyan-300"
+                        : "text-[#2f8f46]"
+                  }`}
+                >
                   <Eye className="size-3.5" />
                   {submitted ? "Open" : "View"}
                 </span>
               </div>
-            </button>
+            </div>
           );
         })}
 

@@ -9,12 +9,15 @@ def _ensure_default_intake_batch(db: Session) -> IntakeSlotBatch:
     batch = db.query(IntakeSlotBatch).filter(IntakeSlotBatch.batch_name == "Sem 1 Open Intake").first()
     if batch:
         batch.total_slots = max(batch.total_slots, 5000)
-        batch.open_for_intake = True
+        batch.duration_days = max(batch.duration_days or 30, 30)
+        if batch.archived_at is None:
+            batch.open_for_intake = True
         return batch
 
     batch = IntakeSlotBatch(
         batch_name="Sem 1 Open Intake",
         total_slots=5000,
+        duration_days=30,
         open_for_intake=True,
     )
     db.add(batch)

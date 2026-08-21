@@ -25,10 +25,16 @@ import {
 } from "lucide-react";
 import { GlassCard, PageTransition, SectionHeading } from "@/components/app/cinematic";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { getStudentProfile, updateStudentAvatar, updateStudentProfile, type StudentProfile } from "@/lib/api";
+import {
+  getStudentProfile,
+  selectStudentOptionalSubject,
+  updateStudentAvatar,
+  updateStudentProfile,
+  type StudentProfile,
+} from "@/lib/api";
 import { setCustomAvatar, useUserAvatar } from "@/lib/avatar";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
-import { getStoredDashboard, setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
+import { getStoredDashboard, refreshStudentDashboard, setStoredDashboard, useStudentDashboard } from "@/lib/student-session";
 import { useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/app/profile")({ component: ProfilePage });
@@ -108,6 +114,8 @@ function ProfilePage() {
   const [draft, setDraft] = useState<DraftProfile>(emptyDraft());
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [autoSaveDraft, setAutoSaveDraft] = useState<DraftProfile | null>(null);
+  const [optionalSubjectDraft, setOptionalSubjectDraft] = useState("");
+  const [savingOptionalSubject, setSavingOptionalSubject] = useState(false);
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -248,6 +256,7 @@ function ProfilePage() {
       enrollmentDate: null,
       biometricEnrolled: cached?.user.biometricEnrolled ?? false,
       biometricEnrolledAt: cached?.user.biometricEnrolledAt ?? null,
+      optionalSubjectSelection: cached?.user.optionalSubjectSelection,
     } satisfies StudentProfile;
   }, [profile]);
 
@@ -265,6 +274,20 @@ function ProfilePage() {
         { t: "2 days ago", l: "Dashboard synced with academic records" },
         { t: "1 week ago", l: "Progress data refreshed" },
       ];
+  const optionalSelection = view.optionalSubjectSelection;
+
+  useEffect(() => {
+    if (!optionalSelection) return;
+    setOptionalSubjectDraft(
+      optionalSelection.selectedSubject ||
+        optionalSelection.optionalSubjects[0] ||
+        "",
+    );
+  }, [
+    optionalSelection?.selectedSubject,
+    optionalSelection?.optionalSubjects.join("|"),
+    optionalSelection?.semester,
+  ]);
 
   const spotlight = [
     {
@@ -368,6 +391,33 @@ function ProfilePage() {
       setError(errorMsg);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleOptionalSubjectSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!optionalSubjectDraft.trim()) {
+      setError("Choose an optional subject before saving.");
+      return;
+    }
+
+    setSavingOptionalSubject(true);
+    setError(null);
+    setStatus(null);
+    try {
+      const updated = await selectStudentOptionalSubject({
+        optional_subject: optionalSubjectDraft.trim(),
+      });
+      setProfile(updated);
+      setDraft(toDraft(updated));
+      syncCachedStudentState(updated);
+      const freshDashboard = await refreshStudentDashboard({ force: true });
+      setStoredDashboard(freshDashboard);
+      setStatus(`Optional subject saved: ${updated.optionalSubjectSelection?.selectedSubject ?? optionalSubjectDraft}`);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Optional subject selection failed");
+    } finally {
+      setSavingOptionalSubject(false);
     }
   }
 
@@ -556,6 +606,87 @@ function ProfilePage() {
           </div>
         </div>
       </section>
+
+      {optionalSelection && (
+        <GlassCard className={`mb-6 overflow-hidden ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
+          <form onSubmit={handleOptionalSubjectSave} className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
+            <div>
+              <div className={`text-[10px] uppercase tracking-[0.3em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                Optional Subject Selection
+              </div>
+              <div className={`mt-1 font-display text-2xl font-extrabold ${isDark ? "text-white" : "text-slate-950"}`}>
+                Semester {optionalSelection.semester} subject plan
+              </div>
+              <div className={`mt-3 grid gap-2 ${isDark ? "text-white/70" : "text-slate-700"}`}>
+                {optionalSelection.fixedSubjects.map((subject) => (
+                  <div
+                    key={subject}
+                    className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                      isDark ? "border-white/8 bg-white/[0.02]" : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
+                    <CheckCircle2 className={`size-4 ${isDark ? "text-emerald-300" : "text-emerald-700"}`} />
+                    {subject}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={`rounded-[24px] border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50/80"}`}>
+              <div className={`text-[10px] uppercase tracking-[0.26em] font-bold ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                Choose one optional subject
+              </div>
+              <select
+                value={optionalSubjectDraft}
+                onChange={(event) => setOptionalSubjectDraft(event.target.value)}
+                disabled={!optionalSelection.canSelect || savingOptionalSubject}
+                className={`mt-3 w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none transition ${
+                  isDark
+                    ? "border-white/10 bg-neutral-950 text-white focus:border-white/30"
+                    : "border-slate-300 bg-white text-slate-950 focus:border-[#4caf50]"
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                {optionalSelection.optionalSubjects.map((subject) => (
+                  <option key={subject} value={subject}>
+                    {subject}
+                  </option>
+                ))}
+              </select>
+              <div className={`mt-3 text-xs font-medium leading-5 ${isDark ? "text-white/48" : "text-slate-600"}`}>
+                Selection window: {optionalSelection.selectionWindowDays} day
+                {optionalSelection.selectionWindowDays === 1 ? "" : "s"} from semester start. Deadline:{" "}
+                {formatDate(optionalSelection.deadline)}.
+              </div>
+              {optionalSelection.selectedSubject && (
+                <div className={`mt-3 rounded-2xl border px-4 py-3 text-xs font-bold ${
+                  isDark ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                }`}>
+                  Current optional: {optionalSelection.selectedSubject}
+                </div>
+              )}
+              {optionalSelection.deadlineExpired && (
+                <div className={`mt-3 rounded-2xl border px-4 py-3 text-xs font-semibold ${
+                  isDark ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : "border-amber-200 bg-amber-50 text-amber-900"
+                }`}>
+                  Selection deadline has passed. Changes are locked by the backend.
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={!optionalSelection.canSelect || savingOptionalSubject || !optionalSubjectDraft.trim()}
+                className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-xs font-extrabold uppercase tracking-[0.2em] transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                  isDark
+                    ? "bg-[#d8efbc] text-[#101417] hover:bg-[#c8e9a8]"
+                    : "bg-[#2f8f46] text-white hover:bg-[#267a38]"
+                }`}
+              >
+                <ShieldCheck className="size-4" />
+                {savingOptionalSubject ? "Saving..." : "Save optional subject"}
+              </button>
+            </div>
+          </form>
+        </GlassCard>
+      )}
 
       <div className="mb-6 grid gap-5 xl:grid-cols-3">
         {spotlight.map((item, index) => {
@@ -964,6 +1095,7 @@ function syncCachedStudentState(profile: StudentProfile) {
         githubUrl: profile.githubUrl,
         biometricEnrolled: profile.biometricEnrolled,
         biometricEnrolledAt: profile.biometricEnrolledAt,
+        optionalSubjectSelection: profile.optionalSubjectSelection,
       },
       skills: profile.skills.length ? profile.skills : cachedDashboard.skills,
     });

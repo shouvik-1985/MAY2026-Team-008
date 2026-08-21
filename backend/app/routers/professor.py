@@ -15,6 +15,18 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session, load_only, selectinload
 
 from app.announcement_flow import announcement_notifications_for_user, announcement_rows_for_user
+from app.academic_flow import (
+    assignment_due_label,
+    infer_subject_semester,
+    normalize_datetime,
+    normalize_subject_name,
+    real_cgpa_for_student,
+    resolve_student_semester_with_rules,
+    save_offline_marks,
+    student_enrolled_subjects,
+    subject_catalog_payload,
+    subject_mark_payload,
+)
 from app.assignment_ai import build_assignment_blueprint, grade_from_score, normalize_grade_code
 from app.attendance_flow import checkin_payload, get_campus_attendance_setting, get_today_checkin, today_local
 from app.avatar import avatar_initials, student_avatar_url, user_avatar_url
@@ -24,6 +36,7 @@ from app.dependencies import get_current_user
 from app.intake_flow import local_today, resolve_student_semester
 from app.models import (
     Assignment,
+    AssignmentDraft,
     AssignmentReview,
     AssignmentSubmission,
     ProfessorProfile,
@@ -45,6 +58,7 @@ from app.schemas import (
     StudentAcademicUpdate,
     StudentAttendanceMark,
     StudentBlockUpdate,
+    StudentOfflineMarksUpdate,
     StudyResourceCreate,
 )
 from app.resource_files import resource_file_url
@@ -72,6 +86,20 @@ def _now() -> datetime:
 
 def _today() -> date:
     return datetime.now(LOCAL_TIMEZONE).date()
+
+
+def _due_at_from_label(label: str | None, start_at: datetime) -> datetime:
+    text = (label or "").strip().lower()
+    match = re.search(r"(\d+)\s*(day|days|hour|hours|hr|hrs|minute|minutes|min|mins)", text)
+    if not match:
+        return start_at + timedelta(days=7)
+    amount = max(1, int(match.group(1)))
+    unit = match.group(2)
+    if unit.startswith("hour") or unit in {"hr", "hrs"}:
+        return start_at + timedelta(hours=amount)
+    if unit.startswith("min"):
+        return start_at + timedelta(minutes=amount)
+    return start_at + timedelta(days=amount)
 
 
 def _require_professor(user: User) -> None:
@@ -207,13 +235,16 @@ def _student_rows(db: Session) -> list[dict]:
     rows: list[dict] = []
     for student in students:
         profile = _ensure_student_profile(db, student)
-        semester = resolve_student_semester(
+        semester = resolve_student_semester_with_rules(
+            db,
             profile,
             student,
-            setting.semester_duration_months,
-            setting.semester_duration_unit,
-            setting.semester_duration_days,
+            setting,
         )
+        profile.semester = semester
+        academic = real_cgpa_for_student(db, student, profile, semester)
+        if academic["hasAcademicData"]:
+            profile.cgpa = academic["cgpa"]
         counts = attendance_counts.get(student.id, {"present": 0, "absent": 0, "total": 0})
         total_marked = counts["total"]
         present_count = counts["present"]
@@ -386,6 +417,29 @@ def _cgpa_years(students: list[dict]) -> list[dict]:
     ]
 
 
+def _academic_mark_rows(db: Session) -> list[dict]:
+    students = (
+        db.query(User)
+        .options(selectinload(User.student_profile))
+        .filter(User.role == Role.student)
+        .order_by(User.full_name.asc())
+        .all()
+    )
+    setting = get_campus_attendance_setting(db)
+    rows: list[dict] = []
+    for student in students:
+        profile = _ensure_student_profile(db, student)
+        current_semester = resolve_student_semester_with_rules(db, profile, student, setting)
+        profile.semester = current_semester
+        academic = real_cgpa_for_student(db, student, profile, current_semester)
+        if academic["hasAcademicData"]:
+            profile.cgpa = academic["cgpa"]
+        for semester in range(1, current_semester + 1):
+            for subject in student_enrolled_subjects(db, student.id, semester):
+                rows.append(subject_mark_payload(db, student, profile, semester, subject))
+    return rows
+
+
 def _announcement_rows(db: Session, professor: User) -> list[dict]:
     rows = announcement_rows_for_user(db, professor, limit=12)
     return [
@@ -480,7 +534,11 @@ def _assignment_payload(item: Assignment) -> dict:
         "allowedFileTypes": content.get("allowedFileTypes", []) if isinstance(content, dict) else [],
         "questionCount": item.question_count,
         "totalPoints": item.total_points,
-        "due": item.due_label,
+        "semester": item.semester or infer_subject_semester(item.subject),
+        "due": assignment_due_label(item),
+        "dueLabel": item.due_label,
+        "startAt": item.start_at.isoformat() if item.start_at else None,
+        "dueAt": item.due_at.isoformat() if item.due_at else None,
         "status": item.status,
         "createdAt": item.created_at.isoformat(),
         "updatedAt": item.updated_at.isoformat(),
@@ -618,6 +676,20 @@ def _review_rows(db: Session, submission_rows: list[dict] | None = None) -> list
 
 def _review_queue(db: Session, students: list[dict]) -> list[dict]:
     return _submission_rows(db, limit=30)
+
+
+def _delete_assignment_reviews_for_submission(db: Session, submission: AssignmentSubmission, assignment: Assignment | None) -> int:
+    if assignment is None:
+        return 0
+    return (
+        db.query(AssignmentReview)
+        .filter(
+            AssignmentReview.student_id == submission.student_id,
+            AssignmentReview.assignment_title == assignment.title,
+            AssignmentReview.subject == assignment.subject,
+        )
+        .delete(synchronize_session=False)
+    )
 
 
 def _compact_source_text(value: str, limit: int = 12000) -> str:
@@ -836,6 +908,7 @@ def dashboard(
     _require_professor(current_user)
     profile = current_user.professor_profile
     students = _student_rows(db)
+    academic_marks = _academic_mark_rows(db)
     db.commit()
 
     avg_cgpa = round(sum(student["cgpa"] for student in students) / len(students), 2) if students else 0
@@ -891,6 +964,8 @@ def dashboard(
         assignment_submissions=submission_rows,
         assignment_reviews=_review_rows(db, submission_rows[:10]),
         review_queue=queue,
+        academic_marks=academic_marks,
+        subject_catalog=subject_catalog_payload(),
         academic_controls=[
             {"label": "CGPA", "detail": "Semester performance criteria"},
             {"label": "Attendance", "detail": "Daily present and absent records"},
@@ -918,6 +993,47 @@ def update_student_academics(
     profile.attendance = round(payload.attendance, 2)
     db.commit()
     return {"ok": True, "student_id": student.id, "cgpa": profile.cgpa, "attendance": profile.attendance}
+
+
+@router.put("/students/{student_id}/marks")
+def update_student_offline_marks(
+    student_id: int,
+    payload: StudentOfflineMarksUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    if payload.student_id != student_id:
+        raise HTTPException(status_code=422, detail="Student id in path and body must match")
+
+    student = db.get(User, student_id)
+    if not student or student.role != Role.student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    profile = _ensure_student_profile(db, student)
+    try:
+        row = save_offline_marks(
+            db=db,
+            professor=current_user,
+            student=student,
+            profile=profile,
+            semester=payload.semester,
+            subject=payload.subject,
+            unit_test_1=payload.unit_test_1,
+            unit_test_2=payload.unit_test_2,
+            final_exam=payload.final_exam,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    db.commit()
+    db.refresh(profile)
+    return {
+        "ok": True,
+        "student_id": student.id,
+        "cgpa": round(profile.cgpa, 2),
+        "mark": row,
+    }
 
 
 @router.post("/students/{student_id}/block")
@@ -1200,8 +1316,12 @@ def generate_assignment(
 ) -> dict:
     _require_professor(current_user)
     source_title, source_text = _assignment_source_from_payload(db, payload, current_user)
-    clean_subject = payload.subject.strip()
+    clean_subject = normalize_subject_name(payload.subject)
     title = payload.title or f"{clean_subject} {payload.assignment_type.upper()} Assignment"
+    start_at = normalize_datetime(payload.start_at) or _now()
+    due_at = normalize_datetime(payload.due_at) or _due_at_from_label(payload.due_label, start_at)
+    if due_at <= start_at:
+        raise HTTPException(status_code=422, detail="Assignment end date must be after the start date")
     settings = get_settings()
     openai_api_key = settings.openai_api_key.get_secret_value() if settings.openai_api_key else None
     content, rubric = build_assignment_blueprint(
@@ -1225,7 +1345,10 @@ def generate_assignment(
         source_text=source_text[:12000],
         total_points=payload.total_points,
         question_count=payload.question_count,
+        semester=infer_subject_semester(clean_subject),
         due_label=payload.due_label.strip()[:80],
+        start_at=start_at,
+        due_at=due_at,
         content_json=json.dumps(content),
         rubric_json=json.dumps(rubric),
         status="published",
@@ -1267,6 +1390,63 @@ def open_assignment_submission_file(
             "Content-Length": str(len(item.file_data)),
         },
     )
+
+
+@router.delete("/assignments/{assignment_id}")
+def delete_published_assignment(
+    assignment_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    item = db.get(Assignment, assignment_id)
+    if not item or (item.created_by_id is not None and item.created_by_id != current_user.id):
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    submission_count = (
+        db.query(AssignmentSubmission)
+        .filter(AssignmentSubmission.assignment_id == item.id)
+        .delete(synchronize_session=False)
+    )
+    draft_count = (
+        db.query(AssignmentDraft)
+        .filter(AssignmentDraft.assignment_id == item.id)
+        .delete(synchronize_session=False)
+    )
+    review_count = (
+        db.query(AssignmentReview)
+        .filter(
+            AssignmentReview.assignment_title == item.title,
+            AssignmentReview.subject == item.subject,
+        )
+        .delete(synchronize_session=False)
+    )
+    db.delete(item)
+    db.commit()
+    return {
+        "ok": True,
+        "id": assignment_id,
+        "deletedSubmissions": submission_count,
+        "deletedDrafts": draft_count,
+        "deletedReviews": review_count,
+    }
+
+
+@router.delete("/assignments/submissions/{submission_id}")
+def delete_assignment_submission(
+    submission_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    item = db.get(AssignmentSubmission, submission_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Assignment submission not found")
+    assignment = db.get(Assignment, item.assignment_id)
+    review_count = _delete_assignment_reviews_for_submission(db, item, assignment)
+    db.delete(item)
+    db.commit()
+    return {"ok": True, "id": submission_id, "deletedReviews": review_count}
 
 
 @router.patch("/assignments/submissions/{submission_id}/review")
@@ -1311,6 +1491,21 @@ def update_assignment_submission_review(
     db.commit()
     db.refresh(item)
     return {"ok": True, "submission": _submission_payload(db, item)}
+
+
+@router.delete("/assignments/reviews/{review_id}")
+def delete_assignment_review(
+    review_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _require_professor(current_user)
+    item = db.get(AssignmentReview, review_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Assignment review not found")
+    db.delete(item)
+    db.commit()
+    return {"ok": True, "id": review_id}
 
 
 @router.post("/assignments/review")

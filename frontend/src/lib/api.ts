@@ -107,6 +107,7 @@ export type StudentDashboard = {
     githubUrl?: string;
     biometricEnrolled?: boolean;
     biometricEnrolledAt?: string | null;
+    optionalSubjectSelection?: OptionalSubjectSelection;
   };
   metrics: { label: string; value: string; hint: string; tone: string }[];
   cgpa_trend: { term: string; cgpa: number }[];
@@ -177,7 +178,11 @@ export type StudentDashboard = {
     id: number;
     title: string;
     subject: string;
+    semester?: number;
     due: string;
+    dueAt?: string | null;
+    startAt?: string | null;
+    late?: boolean;
     progress: number;
     status: string;
     grade?: string;
@@ -187,6 +192,10 @@ export type StudentDashboard = {
     instructions?: string;
     questions?: AssignmentQuestion[];
     rubric?: AssignmentRubricItem[];
+    draftAnswers?: Record<string, string>;
+    draftNotes?: string | null;
+    draftUpdatedAt?: string | null;
+    draftActiveQuestionIndex?: number;
     allowedFileTypes?: string[];
     totalPoints?: number;
     submittedAt?: string | null;
@@ -333,6 +342,19 @@ export type AssignmentAiReview = {
   criteria?: { label: string; status: string; detail: string }[];
 };
 
+export type OptionalSubjectSelection = {
+  semester: number;
+  fixedSubjects: string[];
+  optionalSubjects: string[];
+  selectedSubject?: string | null;
+  selectedAt?: string | null;
+  deadline: string;
+  deadlineExpired: boolean;
+  canSelect: boolean;
+  selectionWindowDays: number;
+  semesterStart: string;
+};
+
 export type StudentProfile = {
   id: number;
   name: string;
@@ -362,6 +384,7 @@ export type StudentProfile = {
   enrollmentDate?: string | null;
   biometricEnrolled?: boolean;
   biometricEnrolledAt?: string | null;
+  optionalSubjectSelection?: OptionalSubjectSelection;
 };
 
 export type PlacementApplication = {
@@ -534,9 +557,16 @@ export type IntakeSlotBatch = {
   id: number;
   batch_name: string;
   total_slots: number;
+  duration_days: number;
   filled_slots: number;
   slots_left: number;
   intake_open: boolean;
+  registration_open?: boolean;
+  is_full?: boolean;
+  expired?: boolean;
+  status?: "open" | "full" | "closed" | string;
+  opened_at: string | null;
+  expires_at: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -833,6 +863,32 @@ export type StudentBiometricVerifyResponse = {
   checkIn: StudentBiometricCheckIn;
 };
 
+export type AcademicSubjectCatalog = {
+  semester: number;
+  fixedSubjects: string[];
+  optionalSubjects: string[];
+};
+
+export type StudentAcademicMark = {
+  studentId: number;
+  student: string;
+  studentCode: string;
+  semester: number;
+  subject: string;
+  assignmentScore: number;
+  assignmentCount: number;
+  gradedAssignmentCount: number;
+  lateZeroCount: number;
+  unitTest1: number | null;
+  unitTest2: number | null;
+  finalExam: number | null;
+  overallPercentage: number;
+  cgpa: number;
+  offlineComplete: boolean;
+  status: "pass" | "reattempt" | "incomplete" | string;
+  updatedAt: string | null;
+};
+
 export type ProfessorDashboard = {
   professor: {
     name: string;
@@ -963,7 +1019,11 @@ export type ProfessorDashboard = {
     allowedFileTypes: string[];
     questionCount: number;
     totalPoints: number;
+    semester?: number | null;
     due: string;
+    dueLabel?: string;
+    startAt?: string | null;
+    dueAt?: string | null;
     status: string;
     createdAt: string;
     updatedAt: string;
@@ -1033,6 +1093,8 @@ export type ProfessorDashboard = {
     answerCount?: number;
     answers?: Record<string, string>;
   }[];
+  academic_marks: StudentAcademicMark[];
+  subject_catalog: AcademicSubjectCatalog[];
   academic_controls: { label: string; detail: string }[];
   nav_modules: { label: string; path: string; feature: string }[];
 };
@@ -1371,6 +1433,13 @@ export function updateStudentAvatar(payload: { avatar_url: string | null }) {
   });
 }
 
+export function selectStudentOptionalSubject(payload: { optional_subject: string }) {
+  return request<StudentProfile>("/student/profile/optional-subject", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getPlacementStudentPortal() {
   return request<PlacementStudentPortal>("/placement/student");
 }
@@ -1656,6 +1725,7 @@ export function updateAdminSemesterDuration(payload: {
 export function createAdminSlotBatch(payload: {
   batch_name: string;
   total_slots: number;
+  duration_days?: number;
   open_for_intake?: boolean;
 }) {
   return request<CampusAttendanceSettings>("/admin/management/slot-batches", {
@@ -1669,12 +1739,19 @@ export function updateAdminSlotBatch(
   payload: {
     batch_name?: string;
     total_slots?: number;
+    duration_days?: number;
     open_for_intake?: boolean;
   },
 ) {
   return request<CampusAttendanceSettings>(`/admin/management/slot-batches/${batchId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdminSlotBatch(batchId: number) {
+  return request<CampusAttendanceSettings>(`/admin/management/slot-batches/${batchId}`, {
+    method: "DELETE",
   });
 }
 
@@ -1801,6 +1878,8 @@ export function createProfessorAssignment(payload: {
   syllabus?: string;
   custom_content?: string;
   due_label?: string;
+  start_at?: string;
+  due_at?: string;
   question_count?: number;
   total_points?: number;
 }) {
@@ -1814,6 +1893,44 @@ export function createProfessorAssignment(payload: {
   });
 }
 
+export function deleteProfessorAssignment(assignmentId: number) {
+  return request<{ ok: boolean; id: number; deletedSubmissions: number; deletedDrafts: number; deletedReviews: number }>(
+    `/professor/assignments/${assignmentId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export function updateStudentOfflineMarks(
+  studentId: number,
+  payload: {
+    student_id: number;
+    semester: number;
+    subject: string;
+    unit_test_1?: number | null;
+    unit_test_2?: number | null;
+    final_exam?: number | null;
+  },
+) {
+  return request<{ ok: boolean; student_id: number; cgpa: number; mark: StudentAcademicMark }>(
+    `/professor/students/${studentId}/marks`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function deleteProfessorAssignmentSubmission(submissionId: number) {
+  return request<{ ok: boolean; id: number; deletedReviews: number }>(
+    `/professor/assignments/submissions/${submissionId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
 export function updateProfessorAssignmentSubmissionReview(
   submissionId: number,
   payload: { score?: number; grade?: string; feedback?: string },
@@ -1824,6 +1941,12 @@ export function updateProfessorAssignmentSubmissionReview(
   }>(`/professor/assignments/submissions/${submissionId}/review`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+export function deleteProfessorAssignmentReview(reviewId: number) {
+  return request<{ ok: boolean; id: number }>(`/professor/assignments/reviews/${reviewId}`, {
+    method: "DELETE",
   });
 }
 
@@ -1846,6 +1969,19 @@ export function submitStudentDigitalAssignment(
 ) {
   return request<{ ok: boolean; submissionId: number; review: AssignmentAiReview }>(
     `/student/assignments/${assignmentId}/digital-submit`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function saveStudentAssignmentDraft(
+  assignmentId: number,
+  payload: { answers: Record<string, string>; notes?: string; active_question_index?: number },
+) {
+  return request<{ ok: boolean; assignmentId: number; progress: number; draftUpdatedAt: string }>(
+    `/student/assignments/${assignmentId}/draft`,
     {
       method: "POST",
       body: JSON.stringify(payload),

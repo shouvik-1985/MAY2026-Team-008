@@ -10,7 +10,19 @@ from app.core.security import create_access_token, decode_access_token, hash_pas
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.intake_flow import available_slot_batch_for_intake, local_today
-from app.models import AuthProvider, ProfessorProfile, RevokedToken, Role, StudentProfile, User
+from app.models import (
+    AssignmentDraft,
+    AssignmentReview,
+    AssignmentSubmission,
+    AuthProvider,
+    ProfessorProfile,
+    RevokedToken,
+    Role,
+    StudentProfile,
+    StudentSubjectMark,
+    StudentSubjectSelection,
+    User,
+)
 from app.schemas import GoogleLoginRequest, LoginRequest, RegisterRequest, TokenResponse, UserOut
 from app.services.redis_client import cache_token, revoke_token
 from app.workers.tasks import audit_login, send_welcome_email
@@ -48,6 +60,15 @@ def _ensure_student_profile(db: Session, user: User, slot_batch_id: int | None =
             slot_batch_id=slot_batch_id,
         )
     )
+
+
+def _clear_reused_student_academic_records(db: Session, user_id: int) -> None:
+    db.query(AssignmentDraft).filter(AssignmentDraft.student_id == user_id).delete(synchronize_session=False)
+    db.query(AssignmentSubmission).filter(AssignmentSubmission.student_id == user_id).delete(synchronize_session=False)
+    db.query(AssignmentReview).filter(AssignmentReview.student_id == user_id).delete(synchronize_session=False)
+    db.query(StudentSubjectSelection).filter(StudentSubjectSelection.student_id == user_id).delete(synchronize_session=False)
+    db.query(StudentSubjectMark).filter(StudentSubjectMark.student_id == user_id).delete(synchronize_session=False)
+    db.query(StudentProfile).filter(StudentProfile.user_id == user_id).delete(synchronize_session=False)
 
 
 def _ensure_professor_profile(db: Session, user: User, payload: RegisterRequest) -> None:
@@ -126,6 +147,8 @@ def register(payload: RegisterRequest, db: Annotated[Session, Depends(get_db)]) 
     )
     db.add(user)
     db.flush()
+    if payload.role == Role.student:
+        _clear_reused_student_academic_records(db, user.id)
     _ensure_student_profile(db, user, intake_batch.id if intake_batch else None)
     _ensure_professor_profile(db, user, payload)
     db.commit()
@@ -195,6 +218,7 @@ def google_login(
         )
         db.add(user)
         db.flush()
+        _clear_reused_student_academic_records(db, user.id)
         _ensure_student_profile(db, user, intake_batch.id if intake_batch else None)
         db.commit()
         db.refresh(user)

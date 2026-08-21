@@ -94,14 +94,65 @@ class StudentProfile(Base):
     user: Mapped[User] = relationship(back_populates="student_profile")
 
 
+class StudentSubjectSelection(Base):
+    __tablename__ = "student_subject_selections"
+    __table_args__ = (UniqueConstraint("student_id", "semester", name="uq_student_optional_subject_semester"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    semester: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    optional_subject: Mapped[str] = mapped_column(String(120), nullable=False)
+    selected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    student: Mapped[User] = relationship(foreign_keys=[student_id])
+
+
+class StudentSubjectMark(Base):
+    __tablename__ = "student_subject_marks"
+    __table_args__ = (UniqueConstraint("student_id", "semester", "subject", name="uq_student_subject_marks"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    semester: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    subject: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    unit_test_1: Mapped[float | None] = mapped_column(Float, nullable=True)
+    unit_test_2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    final_exam: Mapped[float | None] = mapped_column(Float, nullable=True)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    student: Mapped[User] = relationship(foreign_keys=[student_id])
+    updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
+
+
 class IntakeSlotBatch(Base):
     __tablename__ = "intake_slot_batches"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     batch_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     total_slots: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    duration_days: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     open_for_intake: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -540,7 +591,9 @@ class Assignment(Base):
     source_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     total_points: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     question_count: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    semester: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     due_label: Mapped[str] = mapped_column(String(80), default="in 7 days", nullable=False)
+    start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     content_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     rubric_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
@@ -583,6 +636,27 @@ class AssignmentSubmission(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class AssignmentDraft(Base):
+    __tablename__ = "assignment_drafts"
+    __table_args__ = (UniqueConstraint("assignment_id", "student_id", name="uq_assignment_draft_student"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("assignments.id"), nullable=False, index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    answers_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    active_question_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
