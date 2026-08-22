@@ -229,28 +229,32 @@ function AnnouncementsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {categories.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCat(c)}
-              className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition whitespace-nowrap flex items-center gap-1.5 ${
-                cat === c
-                  ? "border border-[#d8efbc]/70 bg-[#d8efbc] font-extrabold text-[#101417] shadow-[0_0_18px_rgba(76,175,80,0.28)]"
-                  : isDark
-                    ? "border border-white/10 bg-white/[0.04] text-white/70 hover:border-[#d8efbc]/40 hover:bg-white/[0.08] hover:text-[#d8efbc]"
-                    : "border border-[#a5d6a7] bg-white text-slate-700 hover:bg-[#ecf8e6] hover:text-[#1f7a32] font-bold shadow-sm"
-              }`}
-            >
-              <span>{c}</span>
-              <span className={`text-[10px] font-extrabold ${cat === c ? "text-[#101417]/85" : isDark ? "text-white/50" : "text-slate-600"}`}>({categoryCounts[c] || 0})</span>
-            </button>
-          ))}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-1 sm:flex-wrap sm:justify-end">
+            {categories.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCat(c)}
+                data-announcement-filter
+                data-active={cat === c}
+                className={`min-h-10 min-w-0 justify-center px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-[0.12em] transition whitespace-nowrap flex items-center gap-1.5 ${
+                  cat === c
+                    ? "border border-[#5da962] bg-[#bfe5a8] font-extrabold text-[#17301b] shadow-[0_3px_8px_rgba(35,91,43,0.18)]"
+                    : isDark
+                      ? "border border-white/10 bg-white/[0.04] text-white/70 hover:border-[#d8efbc]/40 hover:bg-white/[0.08] hover:text-[#d8efbc]"
+                      : "border border-slate-300 bg-white text-slate-700 hover:border-[#79b87a] hover:bg-[#f1faec] hover:text-[#1f7a32] font-bold shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
+                }`}
+              >
+                <span>{c}</span>
+                <span className={`text-[10px] font-extrabold ${cat === c ? "text-[#17301b]/85" : isDark ? "text-white/50" : "text-slate-600"}`}>({categoryCounts[c] || 0})</span>
+              </button>
+            ))}
+          </div>
 
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className={`shrink-0 cursor-pointer rounded-full border px-3.5 py-2 text-xs font-semibold outline-none transition ${
+            className={`w-full shrink-0 cursor-pointer rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition sm:w-auto ${
               isDark
                 ? "border-white/10 bg-[#0d0d12] text-white/90"
                 : "border-slate-300 bg-white text-slate-900 shadow-sm font-bold hover:border-indigo-500"
@@ -330,18 +334,19 @@ function AnnouncementsPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setActive(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
+            className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md ${isDark ? "bg-black/80" : "bg-slate-900/35"}`}
           >
             <motion.div
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-2xl rounded-3xl border border-white/15 bg-[#11131a] p-8 text-white relative shadow-2xl space-y-5"
+              data-announcement-dialog
+              className={`w-full max-w-2xl rounded-3xl border p-8 relative shadow-2xl space-y-5 ${isDark ? "border-white/15 bg-[#11131a] text-white" : "border-slate-200 bg-white text-slate-900 shadow-slate-900/20"}`}
             >
               <button
                 onClick={() => setActive(null)}
-                className="absolute top-6 right-6 text-white/50 hover:text-white glass p-2 rounded-full transition"
+                className={`absolute top-6 right-6 p-2 rounded-full transition ${isDark ? "text-white/50 hover:text-white glass" : "border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
               >
                 <X className="size-5" />
               </button>
@@ -362,7 +367,7 @@ function AnnouncementsPage() {
                     </span>
                   );
                 })()}
-                <span className="text-xs text-white/40">• {active.time}</span>
+                <span className={`text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>• {active.time}</span>
                 {active.pinned && (
                   <span className="text-[10px] uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1 font-semibold">
                     <Pin className="size-3" /> Pinned
@@ -373,9 +378,9 @@ function AnnouncementsPage() {
                 </span>
               </div>
 
-              <h3 className="font-display text-2xl md:text-3xl leading-snug font-bold">{active.title}</h3>
+              <h3 className={`font-display text-2xl md:text-3xl leading-snug font-bold ${isDark ? "text-white" : "text-slate-950"}`}>{active.title}</h3>
 
-              <div className="glass rounded-2xl p-5 text-sm text-white/80 leading-relaxed whitespace-pre-wrap border border-white/10">
+              <div className={`rounded-2xl p-5 text-sm leading-relaxed whitespace-pre-wrap border ${isDark ? "glass text-white/80 border-white/10" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
                 {active.body}
               </div>
 
@@ -418,9 +423,9 @@ function AnnouncementsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-white/10 text-xs text-white/40 font-mono">
+              <div className={`flex items-center justify-between pt-3 border-t text-xs font-mono ${isDark ? "border-white/10 text-white/40" : "border-slate-200 text-slate-500"}`}>
                 <span>Issued by: Office of Academic Registrar</span>
-                <span className="flex items-center gap-1 text-white/50"><Eye className="size-3" /> {typeof active.reads === "number" && active.reads > 0 ? `${active.reads} Reads` : "Official Circular"}</span>
+                <span className={`flex items-center gap-1 ${isDark ? "text-white/50" : "text-slate-500"}`}><Eye className="size-3" /> {typeof active.reads === "number" && active.reads > 0 ? `${active.reads} Reads` : "Official Circular"}</span>
               </div>
             </motion.div>
           </motion.div>

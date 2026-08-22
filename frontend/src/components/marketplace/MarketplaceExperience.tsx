@@ -801,8 +801,8 @@ function MarketplaceHeroCard({
   return (
     <GlassCard className="overflow-hidden border border-white/10 p-0">
       <div className="grid gap-0 lg:grid-cols-[1.2fr_minmax(0,0.8fr)]">
-        <div className="relative min-h-[320px] overflow-hidden">
-          <img src={resolveResourceUrl(gallery[0])} alt={item.name} className="h-full w-full object-cover" />
+        <div className="relative h-[360px] overflow-hidden bg-slate-100 sm:h-[440px] lg:h-[520px] lg:self-start">
+          <img src={resolveResourceUrl(gallery[0])} alt={item.name} className="h-full w-full object-contain" />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />
           <div className="absolute left-6 top-6 flex flex-wrap gap-2">
             <Badge text={item.category} tone="emerald" />
@@ -818,7 +818,7 @@ function MarketplaceHeroCard({
             <div className="mt-3 text-3xl font-bold text-white">{item.price}</div>
           </div>
           <p className="text-sm leading-6 text-white/65">{item.description}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3">
             <Meta label="Seller" value={item.seller} icon={User} />
             <Meta label="Availability" value={item.availability || item.status || "Available"} icon={CheckCircle2} />
             <Meta label="Condition" value={item.condition || "Campus Listed"} icon={Sparkles} />
@@ -1550,13 +1550,15 @@ function UploadField({
 }
 
 function Meta({ label, value, icon: Icon }: { label: string; value: string; icon: typeof User }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/40">
+    <div className={`min-w-0 rounded-[20px] border p-4 ${isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-slate-50"}`}>
+      <div className={`flex min-w-0 items-center gap-2 text-[10px] uppercase tracking-[0.16em] ${isDark ? "text-white/40" : "text-slate-500"}`}>
         <Icon className="size-3.5" />
         {label}
       </div>
-      <div className="mt-2 text-sm text-white/80">{value}</div>
+      <div className={`mt-2 break-words text-sm font-medium ${isDark ? "text-white/80" : "text-slate-800"}`}>{value}</div>
     </div>
   );
 }

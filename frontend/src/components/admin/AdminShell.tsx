@@ -112,7 +112,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           />
 
           {/* Logo / Header */}
-          <div className="relative flex items-center justify-between px-4 py-4 shrink-0 border-b border-white/[0.07]">
+          <div className={`relative flex ${collapsed ? "flex-col items-center gap-3.5 px-2 py-4" : "items-center justify-between px-4 py-4"} shrink-0 border-b border-white/[0.07] transition-all duration-300`}>
             <Link to="/admin" className="flex min-w-0 items-center gap-2.5">
               <span
                 className="flex size-8 shrink-0 items-center justify-center rounded-xl shadow-lg shadow-violet-500/40"
@@ -126,7 +126,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 </span>
               )}
             </Link>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className={`flex ${collapsed ? "flex-col items-center gap-2.5" : "items-center gap-1.5"} shrink-0`}>
               {/* Theme Toggle — always visible */}
               <button
                 onClick={toggleTheme}
@@ -165,6 +165,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 <a
                   key={item.href}
                   href={item.href}
+                  title={collapsed ? item.label : undefined}
                   onClick={(event) => {
                     event.preventDefault();
                     const nextHash = item.href.replace("#", "");
@@ -172,7 +173,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
                     window.history.replaceState(null, "", item.href);
                     window.dispatchEvent(new HashChangeEvent("hashchange"));
                   }}
-                  className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  className={`group relative flex items-center rounded-xl text-sm font-medium transition-all duration-200 ${
+                    collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
+                  } ${
                     isActive
                       ? "text-white bg-white/[0.10] shadow-sm"
                       : "text-white/45 hover:text-white/80 hover:bg-white/[0.06]"
@@ -207,7 +210,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/60 hover:text-white hover:bg-white/[0.08] transition-all"
+              title={collapsed ? (isDark ? "Switch to Light Mode" : "Switch to Dark Mode") : undefined}
+              className={`group flex w-full items-center rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/[0.08] transition-all ${
+                collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+              }`}
             >
               <div className={`size-7 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 ${
                 isDark ? "bg-amber-500/20 text-amber-300" : "bg-green-500/20 text-[#2f8f46]"
@@ -225,7 +231,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <button
               onClick={logout}
               disabled={loggingOut}
-              className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-400/80 hover:text-rose-300 hover:bg-rose-500/[0.08] transition-all disabled:cursor-wait disabled:opacity-50"
+              title={collapsed ? "Logout" : undefined}
+              className={`group flex w-full items-center rounded-xl text-sm font-medium text-rose-400/80 hover:text-rose-300 hover:bg-rose-500/[0.08] transition-all disabled:cursor-wait disabled:opacity-50 ${
+                collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+              }`}
             >
               <div className="size-7 rounded-lg flex items-center justify-center shrink-0 bg-rose-500/20 text-rose-400 group-hover:scale-105 transition-transform">
                 <LogOut className="size-3.5" />

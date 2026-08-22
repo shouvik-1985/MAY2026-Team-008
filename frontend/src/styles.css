@@ -133,6 +133,13 @@
   --grad-text: linear-gradient(180deg, #0f172a 0%, #2f5635 50%, #2f8f46 100%);
 }
 
+/* Prevent a refresh from briefly showing server-rendered markup in the
+   fallback palette. ThemeProvider reveals the document in a layout effect
+   once the locally saved mode has been applied. */
+html.theme-pending body {
+  visibility: hidden;
+}
+
 /* Dedicated AI palette. Component-specific rules avoid fighting the rest of the dashboard. */
 .cv-ai-page { --ai-surface: #fff; --ai-surface-soft: #f4f9f1; --ai-ink: #17233a; --ai-muted: #52627a; --ai-border: #c9dfc3; --ai-accent: #277c40; --ai-stat-academic: #367743; --ai-stat-attendance: #087c5c; --ai-stat-fees: #a65108; --ai-shadow: 0 14px 34px rgba(28, 62, 39, .10); }
 .cv-ai-page .cv-ai-header-surface { background: linear-gradient(115deg, #ffffff, #f4fbef 55%, #e8f6df) !important; }
@@ -589,6 +596,64 @@
   min-width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
+}
+
+/* Admin lists and detail panes have their own scroll areas. Keep their
+   controls subtle and theme-aware instead of showing the browser's dark,
+   oversized default track in light mode. */
+.cv-admin-content,
+.cv-admin-content * {
+  scrollbar-width: thin;
+  scrollbar-color: #6fa66c transparent;
+}
+
+.cv-admin-content ::-webkit-scrollbar,
+html::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.cv-admin-content ::-webkit-scrollbar-track,
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cv-admin-content ::-webkit-scrollbar-thumb,
+html::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: #6fa66c;
+  background-clip: padding-box;
+}
+
+.cv-admin-content ::-webkit-scrollbar-thumb:hover,
+html::-webkit-scrollbar-thumb:hover {
+  background: #4f8e50;
+  background-clip: padding-box;
+}
+
+.cv-admin-content ::-webkit-scrollbar-button,
+html::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+:root.light .cv-admin-content,
+:root.light .cv-admin-content * {
+  scrollbar-color: #80aa7d #f4f8f1;
+}
+
+:root.light .cv-admin-content ::-webkit-scrollbar-track,
+:root.light::-webkit-scrollbar-track {
+  background: #f4f8f1;
+}
+
+:root.light .cv-admin-content ::-webkit-scrollbar-thumb,
+:root.light::-webkit-scrollbar-thumb {
+  background: #80aa7d;
+  background-clip: padding-box;
 }
 :root.light .cv-admin-content [class*="bg-white/08"],
 :root.light .cv-admin-content [class*="bg-white/09"],
@@ -1334,6 +1399,12 @@ html.lenis, html.lenis body { height: auto; }
   --cv-console-glow: rgba(76, 175, 80, 0.28);
 }
 
+/* Keep native professor select menus aligned with the green console, including the opened option list. */
+:root.dark .cv-professor-content select option {
+  background: #102b21;
+  color: #ecfdf3;
+}
+
 :is(.cv-admin-content, .cv-professor-content, .cv-placement-content) :is(
   [class*="from-indigo-"],
   [class*="from-purple-"],
@@ -1562,3 +1633,152 @@ html.lenis, html.lenis body { height: auto; }
 :root.light .cv-ai-page .cv-ai-subtle, :root.light .cv-ai-page .cv-ai-sidebar-label { color: #52627a !important; }
 :root.dark .cv-ai-page .cv-ai-heading, :root.dark .cv-ai-page .cv-ai-card-title { color: #f5fbf2 !important; }
 :root.dark .cv-ai-page .cv-ai-subtle, :root.dark .cv-ai-page .cv-ai-card-copy, :root.dark .cv-ai-page .cv-ai-sidebar-label { color: #b4c8b6 !important; }
+
+/* ── Light-mode: Give glass cards a solid white background so they're visible ── */
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) .glass:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]):not([class*="bg-[#"]) {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.04) !important;
+  backdrop-filter: none !important;
+}
+
+/* ── Light-mode: Fix filter pills with white text on light backgrounds ── */
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) button[class*="text-white"]:not([class*="bg-gradient"]):not([class*="bg-[var(--grad"]):not([style*="grad"]):not([class*="bg-rose-"]):not([class*="bg-emerald-"]):not([class*="bg-green-"]):not([class*="bg-amber-"]) {
+  color: #1e293b !important;
+}
+
+/* ── Light-mode: GlassCard / .glass-strong fix ── */
+:root.light :is(.cv-app-content, .cv-admin-content, .cv-professor-content, main) .glass-strong:not([class*="bg-gradient"]):not([style*="grad"]) {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.07), 0 8px 24px rgba(15, 23, 42, 0.05) !important;
+}
+
+/* Student actions must remain visible after the broad light-mode glass rules.
+   Keep the fill, label, and elevation together so filters and download/request
+   controls never become white text on a white surface. */
+:root.light .cv-student-shell :is(
+  button[class*="bg-gradient"],
+  a[class*="bg-gradient"],
+  [role="button"][class*="bg-gradient"],
+  button[class*="bg-[var(--grad"],
+  a[class*="bg-[var(--grad"],
+  [role="button"][class*="bg-[var(--grad"]
+) {
+  background: linear-gradient(135deg, #bfe5a8 0%, #8fce7b 52%, #68b96d 100%) !important;
+  border-color: #5da962 !important;
+  color: #17301b !important;
+  box-shadow: 0 3px 8px rgba(35, 91, 43, 0.18) !important;
+  text-shadow: none !important;
+}
+
+:root.light .cv-student-shell :is(
+  button[class*="bg-gradient"],
+  a[class*="bg-gradient"],
+  [role="button"][class*="bg-gradient"],
+  button[class*="bg-[var(--grad"],
+  a[class*="bg-[var(--grad"],
+  [role="button"][class*="bg-[var(--grad"]
+) * {
+  color: inherit !important;
+}
+
+:root.light .cv-student-shell :is(
+  button[class*="bg-gradient"],
+  a[class*="bg-gradient"],
+  [role="button"][class*="bg-gradient"],
+  button[class*="bg-[var(--grad"],
+  a[class*="bg-[var(--grad"],
+  [role="button"][class*="bg-[var(--grad"]
+):hover {
+  background: linear-gradient(135deg, #aadd95 0%, #7fc574 52%, #59a95f 100%) !important;
+  box-shadow: 0 5px 12px rgba(35, 91, 43, 0.22) !important;
+}
+
+/* Assignment filters use a compact two-column layout on phones and need their
+   own solid surfaces so the selected state is unmistakable. */
+:root.light .cv-student-shell button[data-assignment-filter] {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
+}
+
+:root.light .cv-student-shell button[data-assignment-filter][data-active="true"] {
+  background: #bfe5a8 !important;
+  border-color: #5da962 !important;
+  color: #17301b !important;
+  box-shadow: 0 3px 8px rgba(35, 91, 43, 0.18) !important;
+}
+
+/* Keep notification categories legible on the pale drawer background. */
+:root.light button[data-notification-filter] {
+  background: #ffffff !important;
+  border-color: #bfd8c0 !important;
+  color: #356441 !important;
+  box-shadow: none !important;
+}
+
+:root.light button[data-notification-filter][data-active="true"] {
+  background: #4b9b57 !important;
+  border-color: #3b8647 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(35, 91, 43, 0.18) !important;
+}
+
+/* Announcement filters follow the same clear, solid control treatment. */
+:root.light .cv-student-shell button[data-announcement-filter] {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
+}
+
+:root.light .cv-student-shell button[data-announcement-filter][data-active="true"] {
+  background: #bfe5a8 !important;
+  border-color: #5da962 !important;
+  color: #17301b !important;
+  box-shadow: 0 3px 8px rgba(35, 91, 43, 0.18) !important;
+}
+
+/* Explicit dark-mode states prevent resource filters and certificate actions
+   from being flattened by the shared glass/gradient theme rules. */
+:root.dark .cv-student-shell button[data-resource-filter] {
+  background: #16281b !important;
+  border: 1px solid #35533b !important;
+  color: #d7e5d8 !important;
+  box-shadow: none !important;
+}
+
+:root.dark .cv-student-shell button[data-resource-filter][data-active="true"] {
+  background: #4b9b57 !important;
+  border-color: #68bd72 !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 10px rgba(35, 91, 43, 0.32) !important;
+}
+
+:root.dark .cv-student-shell button[data-certificate-action] {
+  background: #4b9b57 !important;
+  border: 1px solid #68bd72 !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 10px rgba(35, 91, 43, 0.28) !important;
+  opacity: 1 !important;
+}
+
+:root.dark .cv-student-shell button[data-certificate-action] * {
+  color: inherit !important;
+}
+
+:root.dark .cv-student-shell button[data-certificate-action][data-locked="true"] {
+  background: #c47700 !important;
+  border-color: #e7a52e !important;
+  color: #1f1708 !important;
+  box-shadow: none !important;
+}
+
+:root.dark .cv-student-shell button[data-certificate-action][data-pending="true"] {
+  background: #31433a !important;
+  border-color: #526b5a !important;
+  color: #d5dfd5 !important;
+  box-shadow: none !important;
+}

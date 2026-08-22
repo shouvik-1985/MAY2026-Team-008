@@ -426,17 +426,19 @@ function AssignmentsPage() {
           />
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
           {["All", "In Progress", "Completed", "Not Started"].map((cat) => (
             <button
               key={cat}
               onClick={() => setFilterCat(cat)}
-              className={`px-4 py-2 rounded-full text-xs uppercase tracking-[0.15em] transition whitespace-nowrap ${
+              data-assignment-filter
+              data-active={filterCat === cat}
+              className={`min-h-10 min-w-0 px-4 py-2 rounded-xl text-xs uppercase tracking-[0.12em] transition whitespace-nowrap ${
                 filterCat === cat
-                  ? "border border-[#d8efbc]/70 bg-[#d8efbc] text-[#101417] font-extrabold shadow-[0_0_18px_rgba(76,175,80,0.28)]"
+                  ? "border border-[#5da962] bg-[#bfe5a8] text-[#17301b] font-extrabold shadow-[0_3px_8px_rgba(35,91,43,0.18)]"
                   : isDark
                     ? "border border-white/10 bg-white/[0.04] text-white/70 hover:border-[#d8efbc]/40 hover:bg-white/[0.08] hover:text-[#d8efbc]"
-                    : "border border-[#a5d6a7] bg-white/90 text-slate-800 hover:bg-[#ecf8e6] hover:text-[#1f7a32] font-bold shadow-sm"
+                    : "border border-slate-300 bg-white text-slate-700 hover:border-[#79b87a] hover:bg-[#f1faec] hover:text-[#1f7a32] font-bold shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
               }`}
             >
               {cat}

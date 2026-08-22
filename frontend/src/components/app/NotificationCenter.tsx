@@ -187,8 +187,8 @@ export function NotificationCenter({
               <div className={`p-5 border-b ${isDark ? "border-white/10 bg-white/[0.02]" : "border-[#b9dfad] bg-white/35"}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="relative size-10 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 flex items-center justify-center shadow-[0_0_15px_rgba(76,175,80,0.16)]">
-                      <Bell className="size-5 text-emerald-100" />
+                    <div className={`relative size-10 rounded-2xl border flex items-center justify-center ${isDark ? "border-emerald-300/30 bg-emerald-500/10 shadow-[0_0_15px_rgba(76,175,80,0.16)]" : "border-[#76bf7d] bg-[#e9f8df] shadow-[0_2px_6px_rgba(35,91,43,0.12)]"}`}>
+                      <Bell className={`size-5 ${isDark ? "text-emerald-100" : "text-[#267438]"}`} />
                       {unreadCount > 0 && (
                         <span className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-md animate-pulse">
                           {unreadCount}
@@ -237,6 +237,8 @@ export function NotificationCenter({
                       <button
                         key={tab.key}
                         onClick={() => setCategoryFilter(tab.key)}
+                        data-notification-filter
+                        data-active={categoryFilter === tab.key}
                         className={`rounded-full px-3 py-1 text-[10px] font-mono uppercase tracking-wider transition shrink-0 ${
                           categoryFilter === tab.key
                             ? isDark
