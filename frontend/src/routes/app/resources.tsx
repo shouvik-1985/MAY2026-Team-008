@@ -72,6 +72,19 @@ function resourceFallbackName(item: ResourceItem) {
   return item.title?.trim() || "study-resource";
 }
 
+const LEGACY_PLACEHOLDER_RESOURCE_TITLES = new Set([
+  "Distributed Systems & Consensus Protocols (Raft & Paxos)",
+  "Deep Learning & Transformer Architectures Guide",
+  "Operating Systems Kernel & Virtual Memory Mechanics",
+  "Data Structures & Advanced Graph Algorithms Sheet",
+  "Full-Stack Web Architectures & Fast-API REST Specs",
+  "Database Systems Indexing & B-Tree Performance Guide",
+]);
+
+function isLegacyPlaceholderResource(item: ResourceItem) {
+  return item.url === "#" && LEGACY_PLACEHOLDER_RESOURCE_TITLES.has(item.title);
+}
+
 function pdfFileName(title: string) {
   const base =
     title
@@ -332,85 +345,12 @@ function previewKind(file: PreviewFileState, item: ResourceItem) {
 function ResourcesPage() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const { dashboard } = useStudentDashboard();
+  const { dashboard, loading } = useStudentDashboard();
 
-  const defaultResources: ResourceItem[] = [
-    {
-      id: 101,
-      title: "Distributed Systems & Consensus Protocols (Raft & Paxos)",
-      subject: "Distributed Systems",
-      type: "Lecture Notes",
-      tag: "trending",
-      url: "#",
-      professorName: "Prof. V. K. Mehta",
-      createdAt: new Date().toISOString(),
-      createdDate: new Date().toISOString().split("T")[0],
-      time: "Today, 10:30 AM",
-    },
-    {
-      id: 102,
-      title: "Deep Learning & Transformer Architectures Guide",
-      subject: "Machine Learning & AI",
-      type: "Study Guide",
-      tag: "new",
-      url: "#",
-      professorName: "Dr. A. R. Sharma",
-      createdAt: new Date().toISOString(),
-      createdDate: new Date().toISOString().split("T")[0],
-      time: "Yesterday, 04:15 PM",
-    },
-    {
-      id: 103,
-      title: "Operating Systems Kernel & Virtual Memory Mechanics",
-      subject: "Operating Systems",
-      type: "Lecture Slides",
-      tag: "trending",
-      url: "#",
-      professorName: "Dr. S. K. Gupta",
-      createdAt: new Date().toISOString(),
-      createdDate: new Date().toISOString().split("T")[0],
-      time: "2 days ago",
-    },
-    {
-      id: 104,
-      title: "Data Structures & Advanced Graph Algorithms Sheet",
-      subject: "Algorithms",
-      type: "Cheat Sheet",
-      tag: "exam_ready",
-      url: "#",
-      professorName: "Prof. R. N. Iyer",
-      createdAt: new Date().toISOString(),
-      createdDate: new Date().toISOString().split("T")[0],
-      time: "3 days ago",
-    },
-    {
-      id: 105,
-      title: "Full-Stack Web Architectures & Fast-API REST Specs",
-      subject: "Software Engineering",
-      type: "Reference",
-      tag: "new",
-      url: "#",
-      professorName: "Prof. V. K. Mehta",
-      createdAt: new Date().toISOString(),
-      createdDate: new Date().toISOString().split("T")[0],
-      time: "4 days ago",
-    },
-    {
-      id: 106,
-      title: "Database Systems Indexing & B-Tree Performance Guide",
-      subject: "Database Systems",
-      type: "Exam Papers",
-      tag: "trending",
-      url: "#",
-      professorName: "Dr. A. R. Sharma",
-      createdAt: new Date().toISOString(),
-      createdDate: new Date().toISOString().split("T")[0],
-      time: "5 days ago",
-    },
-  ];
-
-  const rawResources: ResourceItem[] =
-    dashboard?.resource_items && dashboard.resource_items.length ? dashboard.resource_items : defaultResources;
+  const rawResources: ResourceItem[] = useMemo(
+    () => (dashboard?.resource_items ?? []).filter((item) => !isLegacyPlaceholderResource(item)),
+    [dashboard?.resource_items],
+  );
 
   const [bookmarks, setBookmarks] = useState<number[]>(() => {
     try {
@@ -568,6 +508,7 @@ function ResourcesPage() {
   }, [rawResources, q, subjectFilter, professorFilter, activeTab, bookmarks]);
 
   const trending = rawResources.filter((r: ResourceItem) => r.tag === "trending" || r.tag === "new").slice(0, 4);
+  const noUploadedResources = !loading && rawResources.length === 0;
 
   async function handleDownloadResource(item: ResourceItem) {
     if (!hasUploadedMaterial(item)) {
@@ -895,10 +836,18 @@ function ResourcesPage() {
             <GlassCard className={`text-center py-12 ${!isDark ? "bg-white/95 border-slate-200 shadow-sm" : ""}`}>
               <FileText className={`size-10 mx-auto mb-3 ${isDark ? "text-white/30" : "text-indigo-500"}`} />
               <div className={`text-base font-extrabold ${isDark ? "text-white/80" : "text-slate-950"}`}>
-                No study resources match your search filter.
+                {loading && !dashboard
+                  ? "Loading study resources..."
+                  : noUploadedResources
+                    ? "No study resources uploaded yet."
+                    : "No study resources match your search filter."}
               </div>
               <p className={`text-xs font-semibold mt-1 ${isDark ? "text-white/40" : "text-slate-600"}`}>
-                Try searching another subject or clearing your professor filter.
+                {loading && !dashboard
+                  ? "Checking uploaded materials from your dashboard."
+                  : noUploadedResources
+                    ? "Uploaded notes, slides, and links from your professors will appear here."
+                    : "Try searching another subject or clearing your professor filter."}
               </p>
             </GlassCard>
           </div>

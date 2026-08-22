@@ -162,6 +162,16 @@ def test_student_dashboard_success(client, make_student):
     assert data["user"]["email"] == student["email"]
     for key in ("metrics", "fee_summary", "module_health", "student_todos", "nav_modules"):
         assert key in data
+    placeholder_titles = {
+        "Distributed Systems & Consensus Protocols (Raft & Paxos)",
+        "Deep Learning & Transformer Architectures Guide",
+        "Operating Systems Kernel & Virtual Memory Mechanics",
+        "Data Structures & Advanced Graph Algorithms Sheet",
+        "Full-Stack Web Architectures & Fast-API REST Specs",
+        "Database Systems Indexing & B-Tree Performance Guide",
+    }
+    assert all(item["url"] != "#" for item in data["resource_items"])
+    assert not (placeholder_titles & {item["title"] for item in data["resource_items"]})
 
 
 # ---------------------------------------------------------------------------
