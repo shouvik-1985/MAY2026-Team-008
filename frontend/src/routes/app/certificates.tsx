@@ -353,6 +353,9 @@ function CertificatesPage() {
                             )
                             .finally(() => setProcessing(null));
                         }}
+                        data-certificate-action
+                        data-locked={isLocked}
+                        data-pending={isPending || processing === c.id}
                         className={`w-full py-2.5 px-4 rounded-full text-xs font-bold uppercase tracking-wider text-white shadow-md transition flex items-center justify-center gap-2 ${
                           isGrad
                             ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"

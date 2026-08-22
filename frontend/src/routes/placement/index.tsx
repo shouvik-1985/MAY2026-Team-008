@@ -440,7 +440,7 @@ function PlacementManagerPage() {
               Eligible students - Sem {criteria.minimumSemester}+ - CGPA {criteria.minimumCgpa}+
             </div>
             <h1 className="mt-3 font-display text-3xl font-bold tracking-tight md:text-4xl">
-              <span className={isDark ? "bg-gradient-to-r from-white via-white to-cyan-200 bg-clip-text text-transparent" : "text-slate-900 font-extrabold"}>
+              <span className={isDark ? "text-white" : "text-slate-900 font-extrabold"}>
                 Placement dashboard
               </span>
             </h1>
@@ -1504,8 +1504,11 @@ function Panel({
   className?: string;
   accent?: "cyan" | "fuchsia" | "neutral";
 }) {
-  const accentGlow =
-    accent === "cyan"
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const accentGlow = !isDark
+    ? "before:bg-transparent"
+    : accent === "cyan"
       ? "before:bg-cyan-400/[0.05]"
       : accent === "fuchsia"
         ? "before:bg-fuchsia-400/[0.05]"
@@ -1513,7 +1516,11 @@ function Panel({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(160deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl before:pointer-events-none before:absolute before:-right-16 before:-top-16 before:h-48 before:w-48 before:rounded-full before:blur-3xl ${accentGlow} ${className}`}
+      className={`relative overflow-hidden rounded-[28px] border transition-colors before:pointer-events-none before:absolute before:-right-16 before:-top-16 before:h-48 before:w-48 before:rounded-full before:blur-3xl ${
+        isDark
+          ? "border-white/10 bg-[linear-gradient(160deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl"
+          : "border-slate-200/90 bg-white/95 shadow-[0_10px_28px_rgba(15,23,42,0.08)]"
+      } ${accentGlow} ${className}`}
     >
       {children}
     </div>
@@ -1618,24 +1625,27 @@ function MetricCard({
       bar: "from-cyan-300 to-sky-500",
       glow: "before:bg-cyan-400/[0.08]",
       border: "hover:border-cyan-300/25",
-      lightBoxStyle: "bg-sky-50/95 border-2 border-sky-400/90 shadow-md shadow-sky-200/50 text-slate-900",
-      valueColor: isDark ? "text-white" : "text-sky-950 font-extrabold",
+      lightBoxStyle: "border border-slate-200 bg-[linear-gradient(145deg,#ffffff_0%,#fbfdf9_100%)] shadow-[0_8px_20px_rgba(15,23,42,0.06)] text-slate-900",
+      valueColor: isDark ? "text-white" : "text-slate-900 font-extrabold",
+      accent: "from-[#4caf50] via-[#71c96d] to-[#d8efbc]",
     },
     emerald: {
       chip: isDark ? "bg-emerald-400/12 text-emerald-100" : "bg-emerald-100 text-emerald-700 border border-emerald-200",
       bar: "from-emerald-300 to-emerald-600",
       glow: "before:bg-emerald-400/[0.08]",
       border: "hover:border-emerald-300/25",
-      lightBoxStyle: "bg-emerald-50/95 border-2 border-emerald-400/90 shadow-md shadow-emerald-200/50 text-slate-900",
-      valueColor: isDark ? "text-white" : "text-emerald-950 font-extrabold",
+      lightBoxStyle: "border border-slate-200 bg-[linear-gradient(145deg,#ffffff_0%,#fbfdf9_100%)] shadow-[0_8px_20px_rgba(15,23,42,0.06)] text-slate-900",
+      valueColor: isDark ? "text-white" : "text-slate-900 font-extrabold",
+      accent: "from-[#0f9f75] via-[#43bd8a] to-[#c8f0dc]",
     },
     amber: {
       chip: isDark ? "bg-amber-400/12 text-amber-100" : "bg-amber-100 text-amber-700 border border-amber-200",
       bar: "from-amber-200 to-orange-500",
       glow: "before:bg-amber-400/[0.08]",
       border: "hover:border-amber-300/25",
-      lightBoxStyle: "bg-amber-50/95 border-2 border-amber-400/90 shadow-md shadow-amber-200/50 text-slate-900",
-      valueColor: isDark ? "text-white" : "text-amber-950 font-extrabold",
+      lightBoxStyle: "border border-slate-200 bg-[linear-gradient(145deg,#ffffff_0%,#fbfdf9_100%)] shadow-[0_8px_20px_rgba(15,23,42,0.06)] text-slate-900",
+      valueColor: isDark ? "text-white" : "text-slate-900 font-extrabold",
+      accent: "from-[#e59b22] via-[#f4bd52] to-[#ffedbd]",
     },
   }[tone];
 
@@ -1643,8 +1653,9 @@ function MetricCard({
 
   return (
     <div
-      className={isDark ? `group relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(160deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl transition before:pointer-events-none before:absolute before:-right-14 before:-top-14 before:h-40 before:w-40 before:rounded-full before:blur-3xl ${styles.glow} ${styles.border}` : `group relative overflow-hidden rounded-[28px] p-5 transition-all ${styles.lightBoxStyle}`}
+      className={isDark ? `group relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(160deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl transition before:pointer-events-none before:absolute before:-right-14 before:-top-14 before:h-40 before:w-40 before:rounded-full before:blur-3xl ${styles.glow} ${styles.border}` : `group relative overflow-hidden rounded-[28px] p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(15,23,42,0.1)] ${styles.lightBoxStyle}`}
     >
+      {!isDark && <span aria-hidden className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${styles.accent}`} />}
       <div className="relative flex items-start justify-between gap-3">
         <div className={`text-[10px] font-bold uppercase tracking-[0.28em] ${isDark ? "text-white/40" : "text-slate-600"}`}>{label}</div>
         <span className={`grid size-10 place-items-center rounded-2xl ${styles.chip}`}>
@@ -1750,8 +1761,14 @@ function Avatar({ value, imageUrl, large = false }: { value: string; imageUrl?: 
 }
 
 function EmptyState({ text }: { text: string }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
-    <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-5 py-10 text-center text-sm text-white/45">
+    <div className={`rounded-2xl border border-dashed px-5 py-10 text-center text-sm ${
+      isDark
+        ? "border-white/15 bg-white/[0.02] text-white/45"
+        : "border-slate-200 bg-slate-50/70 text-slate-500"
+    }`}>
       {text}
     </div>
   );

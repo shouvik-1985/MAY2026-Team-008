@@ -677,7 +677,7 @@ function ProfilePage() {
                 className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-xs font-extrabold uppercase tracking-[0.2em] transition disabled:cursor-not-allowed disabled:opacity-55 ${
                   isDark
                     ? "bg-[#d8efbc] text-[#101417] hover:bg-[#c8e9a8]"
-                    : "bg-[#2f8f46] text-white hover:bg-[#267a38]"
+                    : "border border-[#a6d89a] bg-[linear-gradient(100deg,#eaf8e4_0%,#d4f0ca_48%,#c4eab8_100%)] text-[#1e6032] shadow-[0_8px_18px_rgba(73,143,70,0.16)] hover:-translate-y-0.5 hover:border-[#83bf78] hover:bg-[linear-gradient(100deg,#ddf4d5_0%,#c8ecbc_48%,#b7e3aa_100%)] hover:shadow-[0_12px_24px_rgba(73,143,70,0.22)]"
                 }`}
               >
                 <ShieldCheck className="size-4" />

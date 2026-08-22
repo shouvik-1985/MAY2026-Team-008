@@ -2085,8 +2085,8 @@ function ProfessorDashboardPage() {
                       <select
                         value={markSemester}
                         onChange={(event) => setMarkSemester(Number(event.target.value) || 1)}
-                        className={`w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ${
-                          isDark ? "border-white/10 bg-neutral-950 text-white" : "border-slate-200 bg-white text-slate-900"
+                        className={`w-full rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm outline-none transition focus:ring-2 focus:ring-emerald-300/20 ${
+                          isDark ? "border-emerald-300/20 bg-emerald-950/45 text-emerald-50 hover:border-emerald-300/35" : "border-slate-200 bg-white text-slate-900"
                         }`}
                       >
                         {(subjectCatalog.length ? subjectCatalog : [{ semester: 1, fixedSubjects: [], optionalSubjects: [] }]).map((item) => (
@@ -2103,8 +2103,8 @@ function ProfessorDashboardPage() {
                       <select
                         value={markSubject}
                         onChange={(event) => setMarkSubject(event.target.value)}
-                        className={`w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ${
-                          isDark ? "border-white/10 bg-neutral-950 text-white" : "border-slate-200 bg-white text-slate-900"
+                        className={`w-full rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm outline-none transition focus:ring-2 focus:ring-emerald-300/20 ${
+                          isDark ? "border-emerald-300/20 bg-emerald-950/45 text-emerald-50 hover:border-emerald-300/35" : "border-slate-200 bg-white text-slate-900"
                         }`}
                       >
                         {availableMarkSubjects.map((subject) => (

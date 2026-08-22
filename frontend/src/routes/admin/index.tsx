@@ -33,7 +33,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTheme } from "@/lib/theme";
 import { ComplaintStageStrip } from "@/components/app/ComplaintStageStrip";
 import { MarketplaceExperience } from "@/components/marketplace/MarketplaceExperience";
@@ -120,6 +120,7 @@ function AdminDeskPage() {
   const [activeSection, setActiveSection] = useState(() =>
     normalizeAdminSection(typeof window === "undefined" ? "" : window.location.hash),
   );
+  const previousSection = useRef<AdminSection | null>(null);
   const [managementView, setManagementView] = useState<"tracker" | "slots">("tracker");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
@@ -176,6 +177,18 @@ function AdminDeskPage() {
     window.addEventListener("hashchange", syncSection);
     return () => window.removeEventListener("hashchange", syncSection);
   }, []);
+
+  useEffect(() => {
+    // Hash navigation swaps the displayed desk panel without remounting the
+    // page. Reset the document scroll after each real section change so the
+    // next panel always starts at its top.
+    if (previousSection.current && previousSection.current !== activeSection) {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+    previousSection.current = activeSection;
+  }, [activeSection]);
 
   function showStatusToast(message: string, tone: AdminActionToastState["tone"] = "success", title = "Admin update") {
     setStatusToast({
@@ -1024,13 +1037,13 @@ function AdminDeskPage() {
         </div>
       </section>
 
-      <section id="marketplace" className={visible("marketplace") ? "space-y-6" : "hidden"}>
+      <section data-admin-section="marketplace" className={visible("marketplace") ? "space-y-6" : "hidden"}>
         <Panel icon={ShoppingBag} eyebrow="Marketplace" title="Shared Campus Marketplace">
           <MarketplaceExperience mode="admin" embedded />
         </Panel>
       </section>
 
-      <section id="dashboard" className={visible("dashboard") ? "space-y-6" : "hidden"}>
+      <section data-admin-section="dashboard" className={visible("dashboard") ? "space-y-6" : "hidden"}>
         <div className="grid gap-6 xl:grid-cols-[1fr_320px] xl:items-end">
           <div>
             <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.35em] font-bold ${
@@ -1088,7 +1101,7 @@ function AdminDeskPage() {
         </div>
       </section>
 
-      <section id="student" className={visible("student") ? "space-y-6" : "hidden"}>
+      <section data-admin-section="student" className={visible("student") ? "space-y-6" : "hidden"}>
         {accountToast ? <AdminActionToast toast={accountToast} /> : null}
 
         <div className="grid gap-4 md:grid-cols-4">
@@ -1251,7 +1264,7 @@ function AdminDeskPage() {
         </div>
       </section>
 
-      <section id="professor" className={visible("professor") ? "space-y-6" : "hidden"}>
+      <section data-admin-section="professor" className={visible("professor") ? "space-y-6" : "hidden"}>
         {accountToast ? <AdminActionToast toast={accountToast} /> : null}
 
         <div className="grid gap-4 md:grid-cols-4">
@@ -1381,7 +1394,7 @@ function AdminDeskPage() {
         </div>
       </section>
 
-      <section id="announcements" className={visible("announcements") ? "space-y-6" : "hidden"}>
+      <section data-admin-section="announcements" className={visible("announcements") ? "space-y-6" : "hidden"}>
         <div className="grid gap-5 xl:grid-cols-[1.1fr_1.3fr]">
           <Panel icon={Megaphone} eyebrow="Publish Notice" title="Create campus announcement">
             <form onSubmit={handleCreateAdminAnnouncement} className="space-y-4">
@@ -1522,7 +1535,7 @@ function AdminDeskPage() {
         </div>
       </section>
 
-      <section id="management" className={visible("management") ? "space-y-6" : "hidden"}>
+      <section data-admin-section="management" className={visible("management") ? "space-y-6" : "hidden"}>
         {managementView === "tracker" ? (
           <>
             <div className="grid gap-4 xl:grid-cols-3">
@@ -1874,7 +1887,7 @@ function AdminDeskPage() {
         )}
       </section>
 
-      <section id="fees" className={visible("fees") ? "space-y-6" : "hidden"}>
+      <section data-admin-section="fees" className={visible("fees") ? "space-y-6" : "hidden"}>
         <div className="grid gap-4 xl:grid-cols-5">
           <MetricCard label="Collected" value={formatCurrency(feeMetrics.totalCollected)} hint="Verified Razorpay payments and imported paid dues" />
           <MetricCard label="Pending" value={formatCurrency(feeMetrics.totalPending)} hint="Outstanding across student ledgers" />
@@ -1998,7 +2011,7 @@ function AdminDeskPage() {
         </div>
       </section>
 
-      <section id="certificate" className={visible("certificate") ? "space-y-6" : "hidden"}>
+      <section data-admin-section="certificate" className={visible("certificate") ? "space-y-6" : "hidden"}>
         {certificateToast ? <AdminActionToast toast={certificateToast} /> : null}
 
         <div className="grid gap-4 xl:grid-cols-5">
@@ -2250,7 +2263,7 @@ function AdminDeskPage() {
         </div>
       </section>
 
-      <section id="complaints" className={visible("complaints") ? "space-y-6" : "hidden"}>
+      <section data-admin-section="complaints" className={visible("complaints") ? "space-y-6" : "hidden"}>
         <div className="grid gap-4 xl:grid-cols-5">
           <MetricCard label="Complaint inbox" value={String(filteredComplaints.length)} hint="Visible student complaints" />
           <MetricCard label="Submitted" value={String(submittedComplaints)} hint="Waiting for first admin response" />
@@ -2614,9 +2627,9 @@ function MetricCard({ label, value, hint }: { label: string; value: string; hint
     <div className={`rounded-[24px] border p-4 backdrop-blur-xl transition min-w-0 ${
       isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white/95 shadow-sm"
     }`}>
-      <div className={`text-[10px] uppercase tracking-[0.2em] font-bold truncate ${isDark ? "text-white/40" : "text-slate-400"}`} title={label}>{label}</div>
-      <div className={`mt-3 font-display text-2xl font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>{value}</div>
-      <div className={`mt-1.5 text-xs font-medium truncate ${isDark ? "text-white/45" : "text-slate-500"}`} title={hint}>{hint}</div>
+      <div className={`min-h-8 text-[10px] uppercase tracking-[0.16em] font-bold leading-4 line-clamp-2 ${isDark ? "text-white/40" : "text-slate-500"}`} title={label}>{label}</div>
+      <div className={`mt-2 font-display text-2xl font-bold tabular-nums ${isDark ? "text-white" : "text-slate-900"}`}>{value}</div>
+      <div className={`mt-1.5 min-h-8 text-xs font-medium leading-4 line-clamp-2 ${isDark ? "text-white/45" : "text-slate-600"}`} title={hint}>{hint}</div>
     </div>
   );
 }
@@ -2655,25 +2668,29 @@ function AttendanceOverviewChart({ data }: { data: AdminDashboard["attendance_ov
   const { theme } = useTheme();
   const isDark = theme === "dark";
   return (
-    <div className="grid min-h-[320px] grid-cols-5 items-end gap-4">
+    <div className="grid min-h-[300px] grid-cols-5 items-end gap-5">
       {data.map((item) => {
         const attendancePercent = Math.max(0, Math.min(100, Number.isFinite(item.attendance) ? item.attendance : 0));
-        const absentPercent = Math.max(0, 100 - attendancePercent);
-        const presentHeight = attendancePercent > 0 ? Math.max(16, attendancePercent) : 0;
-        const absentHeight = absentPercent > 0 ? Math.max(16, absentPercent) : 0;
+        const hasAttendance = attendancePercent > 0;
+        const barHeight = hasAttendance ? Math.max(12, attendancePercent) : 4;
 
         return (
           <div key={item.date} className="flex h-full flex-col justify-end">
-            <div className={`mb-3 flex h-[220px] items-end justify-center gap-2 rounded-b-2xl border-b ${
+            <div className={`relative mb-3 flex h-[185px] items-end justify-center overflow-hidden border-b ${
               isDark ? "border-white/10" : "border-slate-200"
             }`}>
+              <div className={`absolute inset-x-0 top-1/3 border-t border-dashed ${isDark ? "border-white/10" : "border-slate-200/80"}`} />
+              <div className={`absolute inset-x-0 top-2/3 border-t border-dashed ${isDark ? "border-white/10" : "border-slate-200/80"}`} />
               <div
-                className="w-10 rounded-t-[18px] bg-gradient-to-t from-[#4caf50]/50 via-[#68c56d]/85 to-[#d8efbc] shadow-[0_10px_30px_rgba(76,175,80,0.22)]"
-                style={{ height: `${presentHeight}%` }}
-              />
-              <div
-                className="w-10 rounded-t-[18px] bg-gradient-to-t from-amber-500/30 via-amber-300/65 to-[#f3e7ae]"
-                style={{ height: `${absentHeight}%` }}
+                title={`${attendancePercent.toFixed(0)}% attendance`}
+                className={`relative z-10 w-12 rounded-t-[16px] transition-all duration-500 ${
+                  hasAttendance
+                    ? "bg-gradient-to-t from-[#2f8f46] via-[#58b85d] to-[#bfe5a8] shadow-[0_8px_18px_rgba(47,143,70,0.2)]"
+                    : isDark
+                      ? "bg-white/20"
+                      : "bg-slate-300/90"
+                }`}
+                style={{ height: `${barHeight}%` }}
               />
             </div>
             <div className={`text-center text-[11px] uppercase tracking-[0.18em] ${

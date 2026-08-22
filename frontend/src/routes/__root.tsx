@@ -107,8 +107,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="theme-pending">
       <head>
+        <script
+          // Run before the stylesheet is evaluated so a refresh never paints
+          // the fallback palette before React restores the saved preference.
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var theme=localStorage.getItem('campusverse-theme');if(theme!=='light'&&theme!=='dark')theme='light';var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(theme);root.dataset.theme=theme;document.documentElement.style.colorScheme=theme;}catch(_){}})();`,
+          }}
+        />
         <HeadContent />
       </head>
       <body>
@@ -125,6 +132,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+        <NavigationScrollReset />
         <PerformanceModeClass />
         <CustomCursor />
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
@@ -132,4 +140,50 @@ function RootComponent() {
       </ThemeProvider>
     </QueryClientProvider>
   );
+}
+
+function NavigationScrollReset() {
+  useEffect(() => {
+    const reset = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    const resetAfterNavigation = () => {
+      reset();
+      requestAnimationFrame(() => requestAnimationFrame(reset));
+    };
+    const handleInternalLink = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const link = target.closest("a[href]");
+      const href = link?.getAttribute("href");
+      if (!href || href === "#" || /^(mailto:|tel:|https?:\/\/)/.test(href)) return;
+
+      // Let TanStack Router or the browser complete the navigation first,
+      // then reset on the next frame and once more after layout settles.
+      window.setTimeout(resetAfterNavigation, 0);
+      window.setTimeout(reset, 120);
+    };
+
+    // Never allow the browser/router to restore the previous page position
+    // after a menu selection. All CampusVerse screens open from their top.
+    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+    resetAfterNavigation();
+    const lateReset = window.setTimeout(reset, 120);
+    document.addEventListener("click", handleInternalLink, true);
+    window.addEventListener("hashchange", resetAfterNavigation);
+    window.addEventListener("popstate", resetAfterNavigation);
+
+    return () => {
+      window.clearTimeout(lateReset);
+      document.removeEventListener("click", handleInternalLink, true);
+      window.removeEventListener("hashchange", resetAfterNavigation);
+      window.removeEventListener("popstate", resetAfterNavigation);
+    };
+  }, []);
+
+  return null;
 }

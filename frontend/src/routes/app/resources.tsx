@@ -731,12 +731,14 @@ function ResourcesPage() {
       </div>
 
       {/* Quick Filter Pills */}
-      <div className="flex gap-2 mb-8 overflow-x-auto pb-1">
+      <div className="grid grid-cols-2 gap-2 mb-8 sm:flex sm:flex-wrap sm:justify-start">
         {["All", "Trending", "⭐ Bookmarked"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-full text-xs uppercase tracking-[0.15em] font-semibold transition whitespace-nowrap ${
+            data-resource-filter
+            data-active={activeTab === tab}
+            className={`min-h-10 min-w-0 justify-center last:col-span-2 sm:last:col-span-1 px-4 py-2 rounded-xl text-xs uppercase tracking-[0.12em] font-semibold transition whitespace-nowrap ${
               activeTab === tab
                 ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 text-white font-extrabold shadow-md"
                 : isDark
