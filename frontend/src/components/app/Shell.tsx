@@ -159,7 +159,7 @@ export function Shell({ children }: { children: ReactNode }) {
         >
           {/* logo */}
           <div
-            className="flex items-center justify-between px-4 py-5"
+            className={`flex ${collapsed ? "flex-col items-center gap-3 px-2 py-4" : "items-center justify-between px-4 py-5"} transition-all duration-300`}
             style={{ borderBottom: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid #E5E7EB" }}
           >
             <Link to="/app" className="flex items-center gap-2.5 min-w-0">
@@ -185,7 +185,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
 
-          <nav className="flex-1 min-h-0 overflow-y-auto px-2.5 py-3 space-y-1">
+          <nav className="flex-1 min-h-0 overflow-y-auto px-2.5 py-3 space-y-1 [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NAV.map((item) => {
               const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
               const Icon = item.icon;
@@ -193,7 +193,10 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
+                  title={collapsed ? item.label : undefined}
+                  className={`group relative flex items-center rounded-xl text-sm transition-all duration-200 ${
+                    collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
+                  } ${
                     active
                       ? isDark
                         ? "text-slate-950 font-bold bg-gradient-to-r from-green-600 via-emerald-500 to-lime-300 shadow-lg shadow-green-600/30 border border-emerald-300/40"
@@ -238,7 +241,10 @@ export function Shell({ children }: { children: ReactNode }) {
               <button
                 onClick={logout}
                 disabled={loggingOut}
-                className={`group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-bold transition disabled:cursor-wait disabled:opacity-60 ${
+                title={collapsed ? "Logout" : undefined}
+                className={`group relative flex w-full items-center rounded-2xl border text-sm font-bold transition disabled:cursor-wait disabled:opacity-60 ${
+                  collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+                } ${
                   isDark
                     ? "border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-400/50"
                     : "border-rose-200/80 bg-rose-50/80 text-rose-600 hover:bg-rose-100/90 hover:text-rose-700 hover:border-rose-300 shadow-2xs"
@@ -326,7 +332,11 @@ function TopBar({
   const isDark = theme === "dark";
 
   return (
-    <div className="sticky top-0 z-30 bg-[color:var(--glass-nav-bg)] px-5 pb-3 pt-4 backdrop-blur-xl md:px-10">
+    <div className={`sticky top-0 z-30 px-5 pb-3 pt-4 backdrop-blur-xl md:px-10 ${
+      isDark
+        ? "bg-[color:var(--glass-nav-bg)]"
+        : "bg-white/90 border-b border-slate-200/80 shadow-sm"
+    }`}>
       <div className="flex items-center gap-3">
         <div className="hidden md:block min-w-0">
           <motion.div
@@ -343,15 +353,15 @@ function TopBar({
         </div>
         <button
           onClick={onSearch}
-          className={`flex max-w-xl flex-1 items-center gap-3 rounded-full glass px-4 py-2.5 text-sm transition ${
+          className={`flex max-w-xl flex-1 items-center gap-3 rounded-full px-4 py-2.5 text-sm transition ${
             isDark
-              ? "text-white/60 hover:text-white hover:border-white/20"
-              : "text-slate-700 hover:text-slate-950 hover:border-slate-400 font-medium"
+              ? "glass text-white/60 hover:text-white hover:border-white/20"
+              : "bg-white/90 border border-slate-200 text-slate-600 hover:text-slate-950 hover:border-[#4caf50] hover:bg-white shadow-sm font-medium"
           }`}
         >
           <Search className="size-4" />
           <span className="flex-1 text-left">Search assignments, faculty, events...</span>
-          <kbd className={`hidden md:inline text-[10px] px-1.5 py-0.5 rounded font-mono ${isDark ? "bg-white/10 text-white/70" : "bg-slate-200 text-slate-700 font-semibold"}`}>
+          <kbd className={`hidden md:inline text-[10px] px-1.5 py-0.5 rounded font-mono ${isDark ? "bg-white/10 text-white/70" : "bg-slate-100 text-slate-600 border border-slate-200 font-semibold"}`}>
             Ctrl K
           </kbd>
         </button>
@@ -360,10 +370,12 @@ function TopBar({
           onClick={onAssistant}
           className={`group flex shrink-0 items-center gap-2 rounded-full border px-2 py-1.5 pr-2.5 text-left transition ${
             assistantOpen
-              ? "border-emerald-300/35 bg-emerald-300/10 text-white shadow-[0_0_24px_rgba(76,175,80,0.16)]"
+              ? isDark
+                ? "border-emerald-300/35 bg-emerald-300/10 text-white shadow-[0_0_24px_rgba(76,175,80,0.16)]"
+                : "border-[#4caf50] bg-[#ecf8e6] text-[#1f7a32] shadow-[0_0_18px_rgba(76,175,80,0.18)]"
               : isDark
                 ? "glass text-white/80 hover:text-white hover:border-white/20"
-                : "glass text-slate-800 hover:text-slate-950 hover:border-slate-300/80 font-medium"
+                : "bg-white/90 border-slate-200 text-slate-800 hover:text-slate-950 hover:border-[#4caf50] hover:bg-[#ecf8e6] shadow-sm font-medium"
           }`}
           aria-label="Open AI mentor"
           aria-pressed={assistantOpen}
@@ -401,7 +413,7 @@ function TopBar({
         >
           <Bell className="size-4" />
           {notifUnread > 0 && (
-            <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[var(--cv-green-soft)]" />
+            <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(239,68,68,0.8)] ring-1 ring-white/40" />
           )}
         </IconBtn>
         <Link
@@ -424,10 +436,10 @@ function IconBtn({
   return (
     <button
       {...p}
-      className={`relative flex size-10 items-center justify-center rounded-full glass transition ${
+      className={`relative flex size-10 items-center justify-center rounded-full transition ${
         dark
-          ? "text-white/70 hover:text-white hover:border-white/20"
-          : "text-slate-500 hover:text-slate-900 hover:border-slate-300/60"
+          ? "glass text-white/70 hover:text-white hover:border-white/20"
+          : "bg-white/80 border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-[#4caf50] hover:bg-[#ecf8e6] shadow-sm"
       }`}
     >
       {children}
