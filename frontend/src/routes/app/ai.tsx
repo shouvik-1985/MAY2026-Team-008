@@ -122,12 +122,12 @@ function AIPage() {
       <style>{SCROLL_HIDE}</style>
 
       {/* Root: fixed viewport height, no outer scroll */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, height: "calc(100vh - 150px)", minHeight: 540 }}>
+      <div className="cv-ai-page" style={{ display: "flex", flexDirection: "column", gap: 10, height: "calc(100vh - 150px)", minHeight: 540 }}>
 
         {/* ══════ HEADER ══════════════════════════════════════════════ */}
-        <div style={{ position: "relative", borderRadius: 14, flexShrink: 0 }}>
+        <div className="cv-ai-header" style={{ position: "relative", borderRadius: 14, flexShrink: 0 }}>
           {/* Deep bg */}
-          <div style={{ position: "absolute", inset: 0, borderRadius: 14, background: "linear-gradient(115deg,#101417 0%,#0d0f12 45%,#142016 100%)" }} />
+          <div className="cv-ai-header-surface" style={{ position: "absolute", inset: 0, borderRadius: 14, background: "linear-gradient(115deg,#101417 0%,#0d0f12 45%,#142016 100%)" }} />
           {/* Aurora orbs */}
           {[{ cx: "5%",  cy: "50%", c: "#4caf50", d: 0   },
             { cx: "42%", cy: "50%", c: "#d8efbc", d: 1.2 },
@@ -154,10 +154,10 @@ function AIPage() {
               </div>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, fontWeight: 700, color: "#fff" }}>CampusVerse Intelligence</span>
-                  <span style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 99, fontWeight: 700, background: "rgba(76,175,80,.2)", border: "1px solid rgba(216,239,188,.42)", color: "#d8efbc" }}>GenAI</span>
+                  <span className="cv-ai-heading" style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, fontWeight: 700, color: "#fff" }}>CampusVerse Intelligence</span>
+                  <span className="cv-ai-genai-badge" style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 99, fontWeight: 700, background: "rgba(76,175,80,.2)", border: "1px solid rgba(216,239,188,.42)", color: "#d8efbc" }}>GenAI</span>
                 </div>
-                <p style={{ fontSize: 10, marginTop: 2, fontFamily: "monospace", color: "rgba(255,255,255,.38)" }}>Synced to your profile · Powered by Gemini</p>
+                <p className="cv-ai-subtle" style={{ fontSize: 10, marginTop: 2, fontFamily: "monospace", color: "rgba(255,255,255,.38)" }}>Synced to your profile · Powered by Gemini</p>
               </div>
             </div>
             {/* Stat pills */}
@@ -166,10 +166,10 @@ function AIPage() {
                 <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 99, fontSize: 11, fontFamily: "monospace", fontWeight: 700, background: s.bg, border: `1px solid ${s.border}`, color: s.color }}>
                   <s.icon size={11} />
                   <span>{s.value}</span>
-                  <span style={{ fontWeight: 400, color: "rgba(255,255,255,.38)" }}>{s.label}</span>
+                  <span className="cv-ai-subtle" style={{ fontWeight: 400, color: "rgba(255,255,255,.38)" }}>{s.label}</span>
                 </div>
               ))}
-              <button onClick={clearChat} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 99, fontSize: 11, fontFamily: "monospace", fontWeight: 700, background: "rgba(239,68,68,.12)", border: "1px solid rgba(239,68,68,.4)", color: "#fca5a5", cursor: "pointer" }}>
+              <button className="cv-ai-clear-button" onClick={clearChat} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 99, fontSize: 11, fontFamily: "monospace", fontWeight: 700, background: "rgba(239,68,68,.12)", border: "1px solid rgba(239,68,68,.4)", color: "#fca5a5", cursor: "pointer" }}>
                 <Trash2 size={11} />Clear
               </button>
             </div>
@@ -181,7 +181,7 @@ function AIPage() {
 
           {/* ── CHAT PANEL ───────────────────────────────────────────── */}
           {/* NOTE: no overflow:hidden on outer — only on the scroll child */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRadius: 14, background: "rgba(7,16,10,.97)", border: "1px solid rgba(216,239,188,.08)" }}>
+          <div className="cv-ai-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, borderRadius: 14, background: "rgba(7,16,10,.97)", border: "1px solid rgba(216,239,188,.08)" }}>
 
             {/* Scrollable messages area */}
             <div ref={scrollRef} className="ai-scroll"
@@ -197,10 +197,10 @@ function AIPage() {
                     style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                     {/* Greeting */}
                     <div style={{ textAlign: "center", marginBottom: 20 }}>
-                      <motion.p style={{ fontSize: 21, fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, background: "linear-gradient(135deg,#ffffff,#d8efbc,#68c56d)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 5 }}>
+                      <motion.p className="cv-ai-greeting" style={{ fontSize: 21, fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, background: "linear-gradient(135deg,#ffffff,#d8efbc,#68c56d)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 5 }}>
                         Hello, {dashboard?.user.name?.split(" ")[0] ?? "Student"} 👋
                       </motion.p>
-                      <p style={{ fontSize: 10, color: "rgba(255,255,255,.33)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.28em" }}>
+                      <p className="cv-ai-subtle" style={{ fontSize: 10, color: "rgba(255,255,255,.33)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.28em" }}>
                         What can I help you with?
                       </p>
                     </div>
@@ -212,17 +212,17 @@ function AIPage() {
                           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: i * .07, type: "spring", stiffness: 260, damping: 22 }}
                           onClick={() => void send(c.prompt, null)}
-                          style={{ textAlign: "left", padding: "14px", borderRadius: 12, border: `1px solid ${c.from}40`, background: `linear-gradient(135deg,${c.from}20,${c.to}10)`, cursor: "pointer", position: "relative", overflow: "hidden" }}
+                          className="cv-ai-capability" style={{ textAlign: "left", padding: "14px", borderRadius: 12, border: `1px solid ${c.from}40`, background: `linear-gradient(135deg,${c.from}20,${c.to}10)`, cursor: "pointer", position: "relative", overflow: "hidden" }}
                           whileHover={{ y: -3, boxShadow: `0 8px 28px ${c.from}44`, borderColor: `${c.from}77` }}>
                           <div style={{ position: "absolute", top: -14, right: -10, width: 56, height: 56, borderRadius: "50%", background: `radial-gradient(circle,${c.from},transparent)`, filter: "blur(16px)", opacity: .4, pointerEvents: "none" }} />
                           <div style={{ width: 30, height: 30, borderRadius: 9, background: `linear-gradient(135deg,${c.from},${c.to})`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 9 }}>
                             <c.icon size={14} color="#fff" />
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", lineHeight: 1.3 }}>{c.label}</span>
+                            <span className="cv-ai-card-title" style={{ fontSize: 12, fontWeight: 700, color: "#fff", lineHeight: 1.3 }}>{c.label}</span>
                             <ChevronRight size={11} color={c.from} style={{ marginTop: 2, flexShrink: 0, opacity: .65 }} />
                           </div>
-                          <p style={{ fontSize: 10, color: "rgba(255,255,255,.4)", marginTop: 4, lineHeight: 1.5 }}>{c.desc}</p>
+                          <p className="cv-ai-card-copy" style={{ fontSize: 10, color: "rgba(255,255,255,.4)", marginTop: 4, lineHeight: 1.5 }}>{c.desc}</p>
                         </motion.button>
                       ))}
                     </div>
@@ -243,7 +243,7 @@ function AIPage() {
                           </div>
                         )}
                         <div style={{ display: "flex", flexDirection: "column", maxWidth: "76%", alignItems: isUser ? "flex-end" : "flex-start" }}>
-                          <div style={{ padding: "11px 15px", fontSize: 13.5, lineHeight: 1.75, whiteSpace: "pre-wrap", wordBreak: "break-word", borderRadius: 14, ...(isUser
+                          <div className={isUser ? "cv-ai-user-bubble" : "cv-ai-assistant-bubble"} style={{ padding: "11px 15px", fontSize: 13.5, lineHeight: 1.75, whiteSpace: "pre-wrap", wordBreak: "break-word", borderRadius: 14, ...(isUser
                             ? { background: "linear-gradient(135deg,#fff,#d8efbc)", color: "#101417", fontWeight: 500, borderBottomRightRadius: 3, boxShadow: "0 4px 18px rgba(76,175,80,.18)" }
                             : { background: "rgba(255,255,255,.055)", border: "1px solid rgba(255,255,255,.08)", color: "rgba(255,255,255,.88)", borderBottomLeftRadius: 3 }) }}>
                             {m.text}
@@ -295,7 +295,7 @@ function AIPage() {
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   style={{ padding: "0 18px 10px", display: "flex", flexWrap: "wrap", gap: 7 }}>
                   {(chips.length ? chips : backendPrompts).slice(0, 4).map(p => (
-                    <button key={p} onClick={() => void send(p, null)}
+                    <button className="cv-ai-chip" key={p} onClick={() => void send(p, null)}
                       style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 13px", borderRadius: 99, fontSize: 11, background: "rgba(76,175,80,.12)", border: "1px solid rgba(216,239,188,.32)", color: "#d8efbc", cursor: "pointer" }}>
                       <Sparkles size={10} color="#d8efbc" />{p}
                     </button>
@@ -305,7 +305,7 @@ function AIPage() {
             </AnimatePresence>
 
             {/* ── Input bar ─────────────────────────────────────────── */}
-            <div style={{ padding: "8px 14px 13px", borderTop: "1px solid rgba(255,255,255,.055)" }}>
+            <div className="cv-ai-composer-wrap" style={{ padding: "8px 14px 13px", borderTop: "1px solid rgba(255,255,255,.055)" }}>
               <AnimatePresence>
                 {editIdx !== null && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
@@ -317,14 +317,14 @@ function AIPage() {
               </AnimatePresence>
 
               <form onSubmit={e => { e.preventDefault(); void send(input); }}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", borderRadius: 11, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.09)" }}>
+                className="cv-ai-composer" style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", borderRadius: 11, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.09)" }}>
                 <button type="button" onClick={toggleVoice} disabled={!voiceOk}
                   style={{ width: 32, height: 32, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer", position: "relative", background: listening ? "rgba(76,175,80,.15)" : "transparent", border: listening ? "1px solid rgba(216,239,188,.5)" : "1px solid transparent" }}>
                   {listening && <motion.span style={{ position: "absolute", inset: 0, borderRadius: 9, border: "1px solid rgba(216,239,188,.5)" }} animate={{ scale: [1, 1.55, 1], opacity: [.6, 0, .6] }} transition={{ duration: 1.4, repeat: Infinity }} />}
                   {listening ? <MicOff size={14} color="#d8efbc" /> : <Mic size={14} color="rgba(255,255,255,.35)" />}
                 </button>
 
-                <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+                <input className="cv-ai-input" ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
                   placeholder={listening ? "Listening… speak now" : "Ask about your attendance, CGPA, fees, assignments…"}
                   style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 13, color: "#fff", minWidth: 0 }} />
 
@@ -339,7 +339,7 @@ function AIPage() {
                 </motion.button>
               </form>
 
-              <p style={{ textAlign: "center", fontSize: 9, marginTop: 5, fontFamily: "monospace", color: "rgba(255,255,255,.16)", letterSpacing: "0.05em" }}>
+              <p className="cv-ai-subtle" style={{ textAlign: "center", fontSize: 9, marginTop: 5, fontFamily: "monospace", color: "rgba(255,255,255,.16)", letterSpacing: "0.05em" }}>
                 AI responses may be inaccurate · Always verify critical information
               </p>
             </div>
@@ -350,7 +350,7 @@ function AIPage() {
           <div className="hidden xl:flex" style={{ width: 200, flexShrink: 0, flexDirection: "column", gap: 8 }}>
 
             {/* ① Gemini AI + Context merged card */}
-            <div style={{ borderRadius: 14, background: "rgba(7,16,10,.97)", border: "1px solid rgba(76,175,80,.28)", padding: "13px 14px", position: "relative" }}>
+            <div className="cv-ai-sidebar-card" style={{ borderRadius: 14, background: "rgba(7,16,10,.97)", border: "1px solid rgba(76,175,80,.28)", padding: "13px 14px", position: "relative" }}>
               {/* subtle top glow — doesn't overflow because no overflow:hidden */}
               <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 120, height: 40, background: "radial-gradient(circle,rgba(76,175,80,.25),transparent 65%)", filter: "blur(14px)", pointerEvents: "none" }} />
 
@@ -362,7 +362,7 @@ function AIPage() {
                   <Sparkles size={15} color="#fff" />
                 </motion.div>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>Gemini AI</div>
+                  <div className="cv-ai-heading" style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>Gemini AI</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
                     <motion.span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34d399", display: "block" }} animate={{ opacity: [1, .3, 1] }} transition={{ duration: 2, repeat: Infinity }} />
                     <span style={{ fontSize: 9, fontFamily: "monospace", color: "#34d399" }}>Online · Campus-aware</span>
@@ -374,11 +374,11 @@ function AIPage() {
               <div style={{ height: 1, background: "rgba(255,255,255,.07)", marginBottom: 12 }} />
 
               {/* Your Context */}
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.28em", fontFamily: "monospace", color: "rgba(255,255,255,.65)", marginBottom: 10 }}>Your Context</div>
+              <div className="cv-ai-subtle" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.28em", fontFamily: "monospace", color: "rgba(255,255,255,.65)", marginBottom: 10 }}>Your Context</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                 {stats.map(s => (
                   <div key={s.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "rgba(255,255,255,.78)" }}>
+                    <div className="cv-ai-sidebar-label" style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "rgba(255,255,255,.78)" }}>
                       <s.icon size={11} color={s.color} />{s.label}
                     </div>
                     <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: s.color }}>{s.value}</span>
@@ -402,8 +402,8 @@ function AIPage() {
             </div>
 
             {/* ② Quick Actions */}
-            <div style={{ borderRadius: 14, background: "rgba(7,16,10,.97)", border: "1px solid rgba(216,239,188,.08)", padding: "13px 14px", flex: 1, minHeight: 0 }}>
-              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.28em", fontFamily: "monospace", color: "rgba(255,255,255,.65)", marginBottom: 9 }}>Quick Actions</div>
+            <div className="cv-ai-sidebar-card" style={{ borderRadius: 14, background: "rgba(7,16,10,.97)", border: "1px solid rgba(216,239,188,.08)", padding: "13px 14px", flex: 1, minHeight: 0 }}>
+              <div className="cv-ai-subtle" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.28em", fontFamily: "monospace", color: "rgba(255,255,255,.65)", marginBottom: 9 }}>Quick Actions</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 {CAPS.map(c => (
                   <button key={c.label} onClick={() => void send(c.prompt, null)}
@@ -413,7 +413,7 @@ function AIPage() {
                     <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${c.from},${c.to})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <c.icon size={11} color="#fff" />
                     </div>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,.82)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.label}</span>
+                    <span className="cv-ai-sidebar-label" style={{ fontSize: 11, color: "rgba(255,255,255,.82)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.label}</span>
                   </button>
                 ))}
               </div>
@@ -436,8 +436,8 @@ function AIPage() {
 
 function buildStats(dashboard: StudentDashboard | null | undefined) {
   return [
-    { icon: GraduationCap,  label: "CGPA",       value: dashboard?.user.cgpa       != null ? dashboard.user.cgpa.toFixed(1)              : "—", color: "#d8efbc", bg: "rgba(76,175,80,.13)", border: "rgba(216,239,188,.4)" },
-    { icon: ClipboardCheck, label: "Attendance",  value: dashboard?.user.attendance != null ? `${Math.round(dashboard.user.attendance)}%` : "—", color: "#6ee7b7", bg: "rgba(5,150,105,.13)",  border: "rgba(5,150,105,.4)"  },
-    { icon: Wallet,         label: "Fees",        value: dashboard?.fee_summary?.clearance ?? "—",                                               color: "#fcd34d", bg: "rgba(217,119,6,.13)",  border: "rgba(217,119,6,.4)"  },
+    { icon: GraduationCap,  label: "CGPA",       value: dashboard?.user.cgpa       != null ? dashboard.user.cgpa.toFixed(1)              : "—", color: "var(--ai-stat-academic)", bg: "rgba(76,175,80,.13)", border: "rgba(76,175,80,.4)" },
+    { icon: ClipboardCheck, label: "Attendance", value: dashboard?.user.attendance != null ? `${Math.round(dashboard.user.attendance)}%` : "—", color: "var(--ai-stat-attendance)", bg: "rgba(5,150,105,.13)", border: "rgba(5,150,105,.4)" },
+    { icon: Wallet, label: "Fees", value: dashboard?.fee_summary?.clearance ?? "—", color: "var(--ai-stat-fees)", bg: "rgba(217,119,6,.13)", border: "rgba(217,119,6,.4)" },
   ];
 }
