@@ -27,7 +27,7 @@ import {
   type StudentDashboard,
   type StudentResourceAiSummary,
 } from "@/lib/api";
-import { useStudentDashboard } from "@/lib/student-session";
+import { refreshStudentDashboard, useStudentDashboard } from "@/lib/student-session";
 import { STUDY_SUBJECTS } from "@/lib/subjects";
 import { useTheme } from "@/lib/theme";
 
@@ -59,6 +59,7 @@ const EMPTY_AI_SUMMARY: AiSummaryState = {
   data: null,
   message: "",
 };
+const RESOURCE_DASHBOARD_REFRESH_MS = 8_000;
 
 function hasUploadedMaterial(item: ResourceItem) {
   return Boolean(item.url?.trim() && item.url !== "#");
@@ -83,6 +84,14 @@ const LEGACY_PLACEHOLDER_RESOURCE_TITLES = new Set([
 
 function isLegacyPlaceholderResource(item: ResourceItem) {
   return item.url === "#" && LEGACY_PLACEHOLDER_RESOURCE_TITLES.has(item.title);
+}
+
+function isNonEmptyString(value: string | null | undefined): value is string {
+  return Boolean(value?.trim());
+}
+
+function resourceProfessorLabel(item: ResourceItem) {
+  return item.professorLabel || (item.professorEmail ? `${item.professorName} (${item.professorEmail})` : item.professorName);
 }
 
 function pdfFileName(title: string) {
@@ -369,6 +378,32 @@ function ResourcesPage() {
   const [activeTab, setActiveTab] = useState("All");
 
   useEffect(() => {
+    let mounted = true;
+
+    const refreshResourcesDashboard = () => {
+      if (!mounted || document.visibilityState === "hidden") return;
+      void refreshStudentDashboard({ force: true }).catch(() => {
+        // Keep the current resource list visible; the next refresh can retry.
+      });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshResourcesDashboard();
+    };
+
+    refreshResourcesDashboard();
+    const intervalId = window.setInterval(refreshResourcesDashboard, RESOURCE_DASHBOARD_REFRESH_MS);
+    window.addEventListener("focus", refreshResourcesDashboard);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshResourcesDashboard);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem("cv-resource-bookmarks", JSON.stringify(bookmarks));
   }, [bookmarks]);
 
@@ -473,11 +508,16 @@ function ResourcesPage() {
   };
 
   const professorOptions = useMemo(
-    () => [
-      "All professors",
-      ...(Array.from(new Set(rawResources.map((r: ResourceItem) => r.professorName).filter(Boolean))) as string[]),
-    ],
-    [rawResources],
+    () => {
+      const dashboardLabels =
+        dashboard?.professor_options
+          ?.map((professor) => professor.label || professor.email || professor.name)
+          .filter(isNonEmptyString) ?? [];
+      const resourceLabels = rawResources.map((resource) => resourceProfessorLabel(resource)).filter(isNonEmptyString);
+
+      return ["All professors", ...Array.from(new Set([...dashboardLabels, ...resourceLabels]))];
+    },
+    [dashboard?.professor_options, rawResources],
   );
 
   const [subjectFilter, setSubjectFilter] = useState("All subjects");
@@ -498,7 +538,18 @@ function ResourcesPage() {
         subjectFilter === "All subjects" || resource.subject?.toLowerCase().includes(subjectFilter.toLowerCase());
       const matchesProfessor =
         professorFilter === "All professors" ||
-        resource.professorName?.toLowerCase().includes(professorFilter.toLowerCase());
+        (() => {
+          const selected = professorFilter.toLowerCase();
+          const email = resource.professorEmail?.toLowerCase() ?? "";
+          const label = resourceProfessorLabel(resource).toLowerCase();
+
+          if (label === selected || (email && selected.includes(email))) return true;
+          if (selected.includes("@")) return false;
+
+          return [resource.professorName, resource.professorLabel, label]
+            .filter(isNonEmptyString)
+            .some((value) => value.toLowerCase().includes(selected));
+        })();
 
       if (activeTab === "⭐ Bookmarked") return bookmarks.includes(resource.id) && matchesQuery;
       if (activeTab === "Trending") return (resource.tag === "trending" || resource.tag === "new") && matchesQuery;

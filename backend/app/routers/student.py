@@ -98,6 +98,31 @@ def _resource_url_for_list(item: StudyResource) -> str:
     return item.url or ""
 
 
+def _professor_filter_label(name: str | None, email: str | None) -> str:
+    professor_name = (name or "").strip() or "Campus Faculty"
+    professor_email = (email or "").strip()
+    return f"{professor_name} ({professor_email})" if professor_email else professor_name
+
+
+def _professor_filter_options(db: Session) -> list[dict]:
+    professors = (
+        db.query(User)
+        .options(load_only(User.id, User.full_name, User.email, User.role, User.is_blocked))
+        .filter(User.role == Role.faculty, User.is_blocked.is_(False))
+        .order_by(User.full_name.asc(), User.email.asc())
+        .all()
+    )
+    return [
+        {
+            "id": professor.id,
+            "name": professor.full_name,
+            "email": professor.email,
+            "label": _professor_filter_label(professor.full_name, professor.email),
+        }
+        for professor in professors
+    ]
+
+
 def _complaint_attachment_metadata():
     return selectinload(StudentComplaint.attachments).load_only(
         StudentComplaintAttachment.id,
@@ -691,7 +716,7 @@ def _monthly_attendance(records: list[StudentAttendance]) -> list[dict]:
 def _resource_rows(db: Session, enrolled_subjects: list[str]) -> list[dict]:
     enrolled_subject_names = {normalize_subject_name(subject) for subject in enrolled_subjects}
     rows = (
-        db.query(StudyResource, User.full_name)
+        db.query(StudyResource, User.full_name, User.email)
         .options(
             load_only(
                 StudyResource.id,
@@ -713,9 +738,10 @@ def _resource_rows(db: Session, enrolled_subjects: list[str]) -> list[dict]:
         .all()
     )
     items: list[dict] = []
-    for resource, professor_name in rows:
+    for resource, professor_name, professor_email in rows:
         if normalize_subject_name(resource.subject) not in enrolled_subject_names:
             continue
+        display_name = professor_name or "Campus Faculty"
         items.append(
             {
                 "id": resource.id,
@@ -724,7 +750,10 @@ def _resource_rows(db: Session, enrolled_subjects: list[str]) -> list[dict]:
                 "type": resource.resource_type,
                 "tag": resource.tag,
                 "url": _resource_url_for_list(resource),
-                "professorName": professor_name or "Campus Faculty",
+                "professorId": resource.created_by_id,
+                "professorName": display_name,
+                "professorEmail": professor_email or "",
+                "professorLabel": _professor_filter_label(display_name, professor_email),
                 "createdAt": resource.created_at.isoformat(),
                 "createdDate": resource.created_at.date().isoformat(),
                 "time": resource.created_at.strftime("%d %b %Y, %I:%M %p"),
@@ -998,6 +1027,7 @@ def _student_dataset(db: Session, user: User) -> dict:
     first_name = user.full_name.split()[0] if user.full_name else "Student"
     enrolled_subjects = student_enrolled_subjects(db, user.id, semester)
     resource_rows = _resource_rows(db, enrolled_subjects)
+    professor_options = _professor_filter_options(db)
     resource_status = f"{len(resource_rows)} uploaded" if resource_rows else "0 uploaded"
     resource_detail = "Notes, slides, previous papers" if resource_rows else "No study resources uploaded yet"
     certificate_items = _certificate_items(db, user, due_amount, first_name)
@@ -1165,6 +1195,7 @@ def _student_dataset(db: Session, user: User) -> dict:
         "notifications": notifications,
         "assignment_items": assignment_items,
         "resource_items": resource_rows,
+        "professor_options": professor_options,
         "complaint_items": complaint_rows,
         "certificate_items": certificate_items,
         "event_items": event_items,
@@ -1499,6 +1530,7 @@ def dashboard(
         notifications=data["notifications"],
         assignment_items=data["assignment_items"],
         resource_items=data["resource_items"],
+        professor_options=data["professor_options"],
         complaint_items=data["complaint_items"],
         certificate_items=data["certificate_items"],
         event_items=data["event_items"],

@@ -2,6 +2,8 @@
 todos, certificates, events, and marketplace flows).
 """
 
+import uuid
+
 FACE_TEMPLATE = [round(0.05 * ((i % 9) + 1), 4) for i in range(120)]
 
 
@@ -172,6 +174,20 @@ def test_student_dashboard_success(client, make_student):
     }
     assert all(item["url"] != "#" for item in data["resource_items"])
     assert not (placeholder_titles & {item["title"] for item in data["resource_items"]})
+
+
+def test_student_dashboard_professor_options_keep_duplicate_names(client, make_professor, make_student):
+    suffix = uuid.uuid4().hex[:10]
+    first = make_professor(full_name="Dr. Same Faculty", email=f"same-faculty-a-{suffix}@example.com")
+    second = make_professor(full_name="Dr. Same Faculty", email=f"same-faculty-b-{suffix}@example.com")
+    student = make_student()
+
+    response = client.get("/api/student/dashboard", headers=student["headers"])
+
+    assert response.status_code in (200, 201)
+    labels = {item["label"] for item in response.json()["professor_options"]}
+    assert f"Dr. Same Faculty ({first['email']})" in labels
+    assert f"Dr. Same Faculty ({second['email']})" in labels
 
 
 # ---------------------------------------------------------------------------

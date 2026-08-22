@@ -218,10 +218,19 @@ export type StudentDashboard = {
     type: string;
     tag: string;
     url: string;
+    professorId?: number | null;
     professorName: string;
+    professorEmail?: string;
+    professorLabel?: string;
     createdAt: string;
     createdDate: string;
     time: string;
+  }[];
+  professor_options?: {
+    id: number;
+    name: string;
+    email: string;
+    label: string;
   }[];
   complaint_items: ComplaintItem[];
   certificate_items: {

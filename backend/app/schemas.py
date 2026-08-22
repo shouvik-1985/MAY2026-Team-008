@@ -82,6 +82,7 @@ class StudentDashboard(BaseModel):
     notifications: list[dict]
     assignment_items: list[dict]
     resource_items: list[dict]
+    professor_options: list[dict] = Field(default_factory=list)
     complaint_items: list[dict]
     certificate_items: list[dict]
     event_items: list[dict]
