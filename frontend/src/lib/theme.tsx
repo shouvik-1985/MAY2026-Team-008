@@ -14,9 +14,10 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function resolveInitialTheme(): ThemeMode {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (storedTheme === "light" || storedTheme === "dark") return storedTheme;
   }
-  return "dark";
+  return "light";
 }
 
 function applyTheme(theme: ThemeMode) {

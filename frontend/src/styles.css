@@ -133,6 +133,38 @@
   --grad-text: linear-gradient(180deg, #0f172a 0%, #2f5635 50%, #2f8f46 100%);
 }
 
+/* Dedicated AI palette. Component-specific rules avoid fighting the rest of the dashboard. */
+.cv-ai-page { --ai-surface: #fff; --ai-surface-soft: #f4f9f1; --ai-ink: #17233a; --ai-muted: #52627a; --ai-border: #c9dfc3; --ai-accent: #277c40; --ai-stat-academic: #367743; --ai-stat-attendance: #087c5c; --ai-stat-fees: #a65108; --ai-shadow: 0 14px 34px rgba(28, 62, 39, .10); }
+.cv-ai-page .cv-ai-header-surface { background: linear-gradient(115deg, #ffffff, #f4fbef 55%, #e8f6df) !important; }
+.cv-ai-page .cv-ai-panel, .cv-ai-page .cv-ai-sidebar-card { background: var(--ai-surface) !important; border-color: var(--ai-border) !important; box-shadow: var(--ai-shadow); }
+.cv-ai-page .cv-ai-heading, .cv-ai-page .cv-ai-card-title { color: var(--ai-ink) !important; }
+.cv-ai-page .cv-ai-subtle, .cv-ai-page .cv-ai-card-copy, .cv-ai-page .cv-ai-sidebar-label { color: var(--ai-muted) !important; }
+.cv-ai-page .cv-ai-genai-badge { background: #dff2d7 !important; border-color: #a8d69a !important; color: #246638 !important; }
+.cv-ai-page .cv-ai-clear-button { background: #fff0f0 !important; border-color: #f4a5a5 !important; color: #b4232f !important; }
+.cv-ai-page .cv-ai-greeting { background: linear-gradient(135deg, #17233a, #277c40) !important; -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important; }
+.cv-ai-page .cv-ai-capability { background: linear-gradient(135deg, #fff, #f1f8ee) !important; border-color: #c9dfc3 !important; }
+.cv-ai-page .cv-ai-assistant-bubble { background: #f1f7ef !important; border-color: #d5e4d0 !important; color: var(--ai-ink) !important; }
+.cv-ai-page .cv-ai-user-bubble { background: linear-gradient(135deg, #dff2d7, #c8eab9) !important; color: #173423 !important; }
+.cv-ai-page .cv-ai-chip { color: #245f35 !important; background: #e7f4e2 !important; border-color: #b9d8b0 !important; }
+.cv-ai-page .cv-ai-composer-wrap { border-top-color: #dce8d7 !important; background: #fbfdf9; border-radius: 0 0 14px 14px; }
+.cv-ai-page .cv-ai-composer { background: #fff !important; border-color: #a9cba0 !important; box-shadow: 0 3px 12px rgba(31, 75, 40, .08); }
+.cv-ai-page .cv-ai-input { color: var(--ai-ink) !important; background: transparent !important; }
+.cv-ai-page .cv-ai-input::placeholder { color: #667995 !important; opacity: 1; }
+
+:root.dark .cv-ai-page { --ai-surface: #101914; --ai-surface-soft: #15221b; --ai-ink: #f5fbf2; --ai-muted: #b4c8b6; --ai-border: #31513a; --ai-accent: #9add8a; --ai-stat-academic: #d8efbc; --ai-stat-attendance: #6ee7b7; --ai-stat-fees: #fcd34d; --ai-shadow: 0 18px 42px rgba(0, 0, 0, .28); }
+:root.dark .cv-ai-page .cv-ai-header-surface { background: linear-gradient(115deg, #101914, #0c130f 50%, #16271b) !important; }
+:root.dark .cv-ai-page .cv-ai-capability { background: linear-gradient(135deg, #16241a, #101a13) !important; border-color: #31513a !important; }
+:root.dark .cv-ai-page .cv-ai-genai-badge { background: #24442b !important; border-color: #5f9362 !important; color: #d8efbc !important; }
+:root.dark .cv-ai-page .cv-ai-clear-button { background: #48242a !important; border-color: #a8525d !important; color: #fecaca !important; }
+:root.dark .cv-ai-page .cv-ai-greeting { background: linear-gradient(135deg, #ffffff, #bfe5a8) !important; -webkit-background-clip: text !important; }
+:root.dark .cv-ai-page .cv-ai-assistant-bubble { background: #17241b !important; border-color: #31513a !important; color: #edf7ea !important; }
+:root.dark .cv-ai-page .cv-ai-user-bubble { background: linear-gradient(135deg, #bfe5a8, #8fce7b) !important; color: #102015 !important; }
+:root.dark .cv-ai-page .cv-ai-chip { color: #d8efbc !important; background: #19311f !important; border-color: #4e7650 !important; }
+:root.dark .cv-ai-page .cv-ai-composer-wrap { background: #0f1913; border-top-color: #294331 !important; }
+:root.dark .cv-ai-page .cv-ai-composer { background: #17241b !important; border-color: #426444 !important; }
+:root.dark .cv-ai-page .cv-ai-input { color: #f5fbf2 !important; }
+:root.dark .cv-ai-page .cv-ai-input::placeholder { color: #a9beab !important; }
+
 /* ── Light-mode: override hardcoded dark-only Tailwind opacity-white classes ── */
 /* These rules re-map white-opacity text/bg to dark-on-light equivalents        */
 /* so legacy text-white/* inside admin/professor/app panels become readable.    */
@@ -970,6 +1002,14 @@ body.cv-low-performance.cv-cursor-enabled * {
   cursor: auto !important;
 }
 
+/* Keep AI capability controls readable when legacy light-mode button rules apply. */
+:root.light .cv-ai-page .cv-ai-capability .cv-ai-card-title { color: #17233a !important; }
+:root.light .cv-ai-page .cv-ai-capability .cv-ai-card-copy { color: #52627a !important; }
+:root.light .cv-ai-page .cv-ai-heading { color: #17233a !important; }
+:root.light .cv-ai-page .cv-ai-subtle, :root.light .cv-ai-page .cv-ai-sidebar-label { color: #52627a !important; }
+:root.dark .cv-ai-page .cv-ai-heading, :root.dark .cv-ai-page .cv-ai-card-title { color: #f5fbf2 !important; }
+:root.dark .cv-ai-page .cv-ai-subtle, :root.dark .cv-ai-page .cv-ai-card-copy, :root.dark .cv-ai-page .cv-ai-sidebar-label { color: #b4c8b6 !important; }
+
 .cv-low-performance .cv-cursor,
 .cv-low-performance .cv-cursor-ring {
   display: none !important;
@@ -1514,3 +1554,11 @@ html.lenis, html.lenis body { height: auto; }
 :root.light .cv-attendance-history-overlay table tbody td .text-amber-100 {
   color: #b45309 !important;
 }
+
+/* Final AI contrast guard: this sits after the legacy global light-mode rules. */
+:root.light .cv-ai-page .cv-ai-capability .cv-ai-card-title { color: #17233a !important; }
+:root.light .cv-ai-page .cv-ai-capability .cv-ai-card-copy { color: #52627a !important; }
+:root.light .cv-ai-page .cv-ai-heading { color: #17233a !important; }
+:root.light .cv-ai-page .cv-ai-subtle, :root.light .cv-ai-page .cv-ai-sidebar-label { color: #52627a !important; }
+:root.dark .cv-ai-page .cv-ai-heading, :root.dark .cv-ai-page .cv-ai-card-title { color: #f5fbf2 !important; }
+:root.dark .cv-ai-page .cv-ai-subtle, :root.dark .cv-ai-page .cv-ai-card-copy, :root.dark .cv-ai-page .cv-ai-sidebar-label { color: #b4c8b6 !important; }

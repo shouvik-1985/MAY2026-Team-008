@@ -94,7 +94,7 @@ describe("student dashboard cache", () => {
       updates.push((event as CustomEvent<StudentDashboard>).detail);
     });
 
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function setItem(
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function setItem(this: Storage,
       key: string,
       value: string,
     ) {
