@@ -82,6 +82,7 @@ const NAV: NavItem[] = [
   { href: "/professor#connect", label: "Connect", icon: MessageSquare },
   { href: "/professor#profile", label: "Profile", icon: User },
 ];
+const PROFILE_NAV_ITEM = NAV.find((item) => item.href === "/professor#profile") ?? NAV[NAV.length - 1];
 
 export function ProfessorShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -295,6 +296,7 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
         <TopBar
           onSearch={() => setOpenSearch(true)}
           onNotif={() => setOpenNotif(true)}
+          onProfile={(event) => selectSection(event, PROFILE_NAV_ITEM)}
           onAssistant={() => setOpenFab((open) => !open)}
           assistantOpen={openFab}
           notifUnread={notifUnread}
@@ -317,12 +319,14 @@ export function ProfessorShell({ children }: { children: ReactNode }) {
 function TopBar({
   onSearch,
   onNotif,
+  onProfile,
   onAssistant,
   assistantOpen,
   notifUnread,
 }: {
   onSearch: () => void;
   onNotif: () => void;
+  onProfile: (event: MouseEvent<HTMLAnchorElement>) => void;
   onAssistant: () => void;
   assistantOpen: boolean;
   notifUnread: number;
@@ -434,14 +438,16 @@ function TopBar({
             <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(239,68,68,0.8)] ring-1 ring-white/40" />
           )}
         </IconBtn>
-        <Link
-          to="/professor"
-          hash="profile"
+        <a
+          href="/professor#profile"
+          onClick={onProfile}
+          aria-label="Open professor profile"
+          title="Profile"
           className="size-10 rounded-full flex items-center justify-center text-xs font-semibold ml-1 overflow-hidden shrink-0 border border-white/20"
           style={{ background: "var(--grad-aurora)" }}
         >
           {resolvedAvatarUrl ? <img src={resolvedAvatarUrl} alt="User Avatar" className="size-full object-cover" /> : avatar}
-        </Link>
+        </a>
       </div>
     </div>
   );

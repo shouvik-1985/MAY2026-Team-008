@@ -144,6 +144,8 @@ function RootComponent() {
 
 function NavigationScrollReset() {
   useEffect(() => {
+    const isLandingHashNavigation = () =>
+      window.location.pathname === "/" && window.location.hash.length > 1;
     const reset = () => {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -161,6 +163,7 @@ function NavigationScrollReset() {
       const link = target.closest("a[href]");
       const href = link?.getAttribute("href");
       if (!href || href === "#" || /^(mailto:|tel:|https?:\/\/)/.test(href)) return;
+      if (window.location.pathname === "/" && href.startsWith("#")) return;
 
       // Let TanStack Router or the browser complete the navigation first,
       // then reset on the next frame and once more after layout settles.
@@ -171,16 +174,22 @@ function NavigationScrollReset() {
     // Never allow the browser/router to restore the previous page position
     // after a menu selection. All CampusVerse screens open from their top.
     if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-    resetAfterNavigation();
-    const lateReset = window.setTimeout(reset, 120);
+    if (!isLandingHashNavigation()) resetAfterNavigation();
+    const lateReset = window.setTimeout(() => {
+      if (!isLandingHashNavigation()) reset();
+    }, 120);
     document.addEventListener("click", handleInternalLink, true);
-    window.addEventListener("hashchange", resetAfterNavigation);
+    const handleHashChange = () => {
+      if (isLandingHashNavigation()) return;
+      resetAfterNavigation();
+    };
+    window.addEventListener("hashchange", handleHashChange);
     window.addEventListener("popstate", resetAfterNavigation);
 
     return () => {
       window.clearTimeout(lateReset);
       document.removeEventListener("click", handleInternalLink, true);
-      window.removeEventListener("hashchange", resetAfterNavigation);
+      window.removeEventListener("hashchange", handleHashChange);
       window.removeEventListener("popstate", resetAfterNavigation);
     };
   }, []);

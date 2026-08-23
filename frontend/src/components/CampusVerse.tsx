@@ -236,10 +236,15 @@ function Nav() {
   const { scrollY } = useScroll();
   const op = useTransform(scrollY, [0, 200], [0, 1]);
   return (
-    <motion.nav style={{ opacity: op }} className="fixed top-0 inset-x-0 z-[100] px-6 lg:px-10 pt-5">
+    <motion.nav
+      data-landing-nav
+      style={{ opacity: op }}
+      className="fixed top-0 inset-x-0 z-[100] px-6 lg:px-10 pt-5"
+    >
       <div className="mx-auto max-w-7xl rounded-full px-5 py-3 flex items-center justify-between border border-white/10 bg-black/70 backdrop-blur-2xl shadow-2xl">
         <a
           href="#top"
+          data-landing-nav-target="top"
           data-cursor="hover"
           className="flex items-center gap-2 text-sm font-display tracking-[0.25em] uppercase text-white font-bold"
         >
@@ -254,6 +259,7 @@ function Nav() {
             <a
               key={l}
               href={`#${l.toLowerCase()}`}
+              data-landing-nav-target={l.toLowerCase()}
               data-cursor="hover"
               className="text-white/80 hover:text-white transition"
             >
